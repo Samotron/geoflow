@@ -1,0 +1,66 @@
+[tools]
+rust = "stable"
+python = "3.12"
+
+[tasks.build]
+description = "Build all workspace crates"
+run = "cargo build --workspace"
+
+[tasks.test]
+alias = "t"
+description = "Run all Rust unit and integration tests"
+run = "cargo test --workspace"
+
+[tasks.test-doc]
+description = "Run all Rust documentation tests"
+run = "cargo test --workspace --doc"
+
+[tasks.test-py]
+description = "Run Python binding tests (requires maturin)"
+depends = ["dev-py"]
+run = "pytest crates/geoflow-py/tests"
+
+[tasks.lint]
+alias = "l"
+description = "Run clippy and format check"
+run = [
+    "cargo clippy --workspace --all-targets -- -D warnings",
+    "cargo fmt --all -- --check"
+]
+
+[tasks.fmt]
+description = "Format all Rust code"
+run = "cargo fmt --all"
+
+[tasks.setup]
+description = "Install development dependencies (maturin, pytest)"
+run = "pip install maturin pytest"
+
+[tasks.dev-py]
+description = "Install Python bindings in development mode via maturin"
+run = "maturin develop -m crates/geoflow-py/Cargo.toml"
+depends = ["setup"]
+
+[tasks.geoflow]
+description = "Run the geoflow CLI"
+run = "cargo run -p geoflow-cli --"
+
+[tasks.check]
+description = "Quickly check the workspace for compilation errors"
+run = "cargo check --workspace"
+
+[tasks.ci]
+description = "Run all CI checks locally"
+depends = ["lint", "test", "test-doc"]
+
+[tasks."og:login"]
+description = "Login to OpenGround Cloud (OAuth2 PKCE)"
+run = "cargo run -p geoflow-cli -- og login"
+
+[tasks."og:projects"]
+description = "List OpenGround projects"
+run = "cargo run -p geoflow-cli -- og projects"
+
+[tasks."og:test"]
+description = "Run OpenGround integration tests (requires credentials)"
+run = "cargo test -p geoflow-core --test openground"

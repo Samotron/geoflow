@@ -1,0 +1,26 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "geoflow"
+version = "0.1.0"
+description = "Geotechnical data toolkit (AGS, DIGGS, validation) — Python bindings"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "GeoFlow contributors" }]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Repository = "https://github.com/samotron/geoflow"
+
+[tool.maturin]
+module-name = "geoflow"
+features = ["pyo3/extension-module"]
+strip = true

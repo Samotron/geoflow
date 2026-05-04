@@ -1,0 +1,85 @@
+{% extends "base" %}
+{% block title %}Validation - GeoFlow{% endblock %}
+{% block content %}
+    <h1>Validation Report</h1>
+    <p>
+        <span class="severity-error">{{ summary.error }} error</span>,
+        <span class="severity-warning">{{ summary.warning }} warning</span>,
+        <span>{{ summary.info }} info</span>
+    </p>
+
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+        <label>
+            Severity
+            <select id="severity-filter">
+                <option value="">All</option>
+                <option value="error">Error</option>
+                <option value="warning">Warning</option>
+                <option value="info">Info</option>
+            </select>
+        </label>
+        <label>
+            Group
+            <select id="group-filter">
+                <option value="">All</option>
+                {% for group in groups %}
+                <option value="{{ group }}">{{ group }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Rule
+            <select id="rule-filter">
+                <option value="">All</option>
+                {% for rule in rules %}
+                <option value="{{ rule }}">{{ rule }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+
+    <table id="diagnostics-table">
+        <thead>
+            <tr>
+                <th>Severity</th>
+                <th>Rule</th>
+                <th>Group</th>
+                <th>Message</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for diagnostic in diagnostics %}
+            <tr
+                data-severity="{{ diagnostic.severity }}"
+                data-group="{{ diagnostic.location.group or '' }}"
+                data-rule="{{ diagnostic.rule_id }}"
+            >
+                <td class="severity-{{ diagnostic.severity }}">{{ diagnostic.severity }}</td>
+                <td>{{ diagnostic.rule_id }}</td>
+                <td>{{ diagnostic.location.group or "-" }}</td>
+                <td>{{ diagnostic.message }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        const severity = document.getElementById("severity-filter");
+        const group = document.getElementById("group-filter");
+        const rule = document.getElementById("rule-filter");
+        const rows = Array.from(document.querySelectorAll("#diagnostics-table tbody tr"));
+
+        function applyFilters() {
+            for (const row of rows) {
+                const severityOk = !severity.value || row.dataset.severity === severity.value;
+                const groupOk = !group.value || row.dataset.group === group.value;
+                const ruleOk = !rule.value || row.dataset.rule === rule.value;
+                row.style.display = severityOk && groupOk && ruleOk ? "" : "none";
+            }
+        }
+
+        severity.addEventListener("change", applyFilters);
+        group.addEventListener("change", applyFilters);
+        rule.addEventListener("change", applyFilters);
+    </script>
+{% endblock %}

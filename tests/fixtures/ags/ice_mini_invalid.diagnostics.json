@@ -1,0 +1,14 @@
+[
+  {
+    "rule_id": "SAMP-001",
+    "severity": "error"
+  },
+  {
+    "rule_id": "SAMP-002",
+    "severity": "warning"
+  },
+  {
+    "rule_id": "GEOL-001",
+    "severity": "error"
+  }
+]

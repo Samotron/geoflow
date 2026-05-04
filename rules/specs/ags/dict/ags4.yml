@@ -1,0 +1,78 @@
+# AGS 4.x standard heading dictionary (abridged).
+# Source: AGS4 Data Format, editions 4.0.3 / 4.0.4 / 4.1
+#
+# required_headings: headings that MUST be present when the group exists.
+# depth_headings:    headings that represent depth and must carry unit "m".
+
+groups:
+  PROJ:
+    required_headings: [PROJ_ID]
+    depth_headings: []
+
+  TRAN:
+    required_headings: [TRAN_AGS]
+    depth_headings: []
+
+  ABBR:
+    required_headings: [ABBR_HDNG, ABBR_CODE, ABBR_DESC]
+    depth_headings: []
+
+  TYPE:
+    required_headings: [TYPE_STAT]
+    depth_headings: []
+
+  UNIT:
+    required_headings: [UNIT_ABBR, UNIT_DESC]
+    depth_headings: []
+
+  LOCA:
+    required_headings: [LOCA_ID, LOCA_TYPE]
+    depth_headings: [LOCA_FDEP, LOCA_GL, LOCA_ELEV]
+
+  GEOL:
+    required_headings: [LOCA_ID, GEOL_TOP, GEOL_BASE, GEOL_DESC]
+    depth_headings: [GEOL_TOP, GEOL_BASE]
+
+  SAMP:
+    required_headings: [LOCA_ID, SAMP_TOP, SAMP_REF, SAMP_TYPE]
+    depth_headings: [SAMP_TOP, SAMP_BASE]
+
+  ISPT:
+    required_headings: [LOCA_ID, ISPT_TOP, ISPT_TESN, ISPT_NVAL]
+    depth_headings: [ISPT_TOP, ISPT_DPTH]
+
+  WSTK:
+    required_headings: [LOCA_ID, WSTK_DPTH]
+    depth_headings: [WSTK_DPTH]
+
+  HOLE:
+    required_headings: [LOCA_ID, HOLE_DPTH]
+    depth_headings: [HOLE_DPTH]
+
+  CDIA:
+    required_headings: [LOCA_ID, CDIA_DPTH]
+    depth_headings: [CDIA_DPTH]
+
+  CHLG:
+    required_headings: [LOCA_ID, CHLG_DPTH]
+    depth_headings: [CHLG_DPTH]
+
+  LLPL:
+    required_headings: [LOCA_ID, SAMP_TOP, SAMP_REF, SPEC_DPTH]
+    depth_headings: [SPEC_DPTH, SAMP_TOP]
+
+  LDEN:
+    required_headings: [LOCA_ID, SAMP_TOP, SAMP_REF, SPEC_DPTH]
+    depth_headings: [SPEC_DPTH, SAMP_TOP]
+
+  LPDN:
+    required_headings: [LOCA_ID, SAMP_TOP, SAMP_REF, SPEC_DPTH]
+    depth_headings: [SPEC_DPTH, SAMP_TOP]
+
+  LPEN:
+    required_headings: [LOCA_ID, SAMP_TOP, SAMP_REF, SPEC_DPTH]
+    depth_headings: [SPEC_DPTH, SAMP_TOP]
+
+  LTRT:
+    required_headings: [LOCA_ID, SAMP_TOP, SAMP_REF, SPEC_DPTH]
+    depth_headings: [SPEC_DPTH, SAMP_TOP]

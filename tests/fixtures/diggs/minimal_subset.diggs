@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+    <gml:description>Fixture Project</gml:description>
+  </Project>
+  <SamplingLocation>
+    <gml:name>BH01</gml:name>
+    <easting>123456.78</easting>
+    <northing>234567.89</northing>
+  </SamplingLocation>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>0.00</topDepth>
+    <baseDepth>1.50</baseDepth>
+    <description>Topsoil</description>
+    <legendCode>TS</legendCode>
+  </Lithology>
+  <Sample>
+    <locationId>BH01</locationId>
+    <sampleId>S1</sampleId>
+    <sampleType>B</sampleType>
+  </Sample>
+  <SPTTest>
+    <locationId>BH01</locationId>
+    <testDepth>2.00</testDepth>
+    <blowCount>12</blowCount>
+  </SPTTest>
+  <WaterStrike>
+    <locationId>BH01</locationId>
+    <strikeDepth>3.50</strikeDepth>
+  </WaterStrike>
+</Diggs>

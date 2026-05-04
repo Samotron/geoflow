@@ -1,0 +1,101 @@
+version: 1
+name: ags-standard
+pack_version: "4.x"
+
+# AGS 4.x standard validation rules expressed in the GeoFlow DSL.
+# These mirror the built-in Rust rules and serve as worked examples.
+# Reference: ags:standard@4.x
+
+rules:
+  # ── Structural ──────────────────────────────────────────────────────────────
+
+  - id: AGS-STRUCT-001
+    description: "AGS files must contain exactly one PROJ group with one row."
+    severity: error
+    scope: file
+    expr: "has_group('PROJ') && group_size('PROJ') == 1"
+    message: "PROJ group missing or does not have exactly one DATA row"
+
+  - id: AGS-STRUCT-002
+    description: "AGS 4 files must contain a TRAN group with a TRAN_AGS heading."
+    severity: error
+    scope: file
+    expr: >-
+      has_group('TRAN') &&
+      groups_meta.exists(g,
+        g.name == 'TRAN' &&
+        g.headings.exists(h, h.name == 'TRAN_AGS'))
+    message: "missing TRAN group or TRAN_AGS heading"
+
+  - id: AGS-STRUCT-003
+    description: "Every LOCA row must have a non-empty LOCA_ID."
+    severity: error
+    when: "group == 'LOCA'"
+    expr: "row.LOCA_ID != null && row.LOCA_ID != ''"
+    message: "LOCA row has empty or missing LOCA_ID"
+
+  # ── Heading / unit / type consistency ───────────────────────────────────────
+
+  - id: AGS-HEAD-001
+    description: "Every group must declare a HEADING row."
+    severity: error
+    scope: file
+    expr: "groups_meta.all(g, g.headings.size() > 0)"
+    message: "one or more groups are missing a HEADING row"
+
+  - id: AGS-HEAD-002
+    description: "Numeric headings should declare a unit."
+    severity: warning
+    scope: file
+    expr: >-
+      groups_meta.all(g,
+        g.headings.all(h,
+          !is_numeric_ags_type(h.type) || h.unit != ''))
+    message: "one or more numeric headings have no unit declared"
+
+  - id: AGS-HEAD-003
+    description: "Every heading must have a declared TYPE."
+    severity: error
+    scope: file
+    expr: "groups_meta.all(g, g.headings.all(h, h.type != ''))"
+    message: "one or more headings are missing a TYPE declaration"
+
+  - id: AGS-TYPE-001
+    description: "TYPE codes must be one of the AGS 4.x defined codes."
+    severity: warning
+    scope: file
+    expr: "groups_meta.all(g, g.headings.all(h, is_valid_ags_type(h.type)))"
+    message: "one or more headings carry an unrecognised TYPE code"
+
+  # ── Cross-references ─────────────────────────────────────────────────────────
+
+  - id: AGS-XREF-001
+    description: "Every GEOL row must reference an existing LOCA_ID."
+    severity: error
+    when: "group == 'GEOL'"
+    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
+    message: "GEOL row references unknown LOCA_ID {row.LOCA_ID}"
+
+  - id: AGS-XREF-002
+    description: "Every SAMP row must reference an existing LOCA_ID."
+    severity: error
+    when: "group == 'SAMP'"
+    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
+    message: "SAMP row references unknown LOCA_ID {row.LOCA_ID}"
+
+  # ── Value / range ────────────────────────────────────────────────────────────
+
+  - id: AGS-VAL-001
+    description: "GEOL_BASE must be greater than GEOL_TOP for every layer."
+    severity: error
+    when: "group == 'GEOL'"
+    expr: "row.GEOL_BASE == null || row.GEOL_TOP == null || row.GEOL_BASE > row.GEOL_TOP"
+    message: "GEOL row has GEOL_BASE ({row.GEOL_BASE}) not greater than GEOL_TOP ({row.GEOL_TOP})"
+
+  # ── Formatting ───────────────────────────────────────────────────────────────
+
+  - id: AGS-FMT-001
+    description: "Text values must not have trailing whitespace."
+    severity: warning
+    expr: "!has_trailing_whitespace(row)"
+    message: "row in {group} contains a value with trailing whitespace"

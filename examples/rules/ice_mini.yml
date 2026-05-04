@@ -1,0 +1,38 @@
+# examples/rules/ice_mini.yml
+version: 1
+name: ice-mini
+pack_version: "0.1"
+
+codelists:
+  sample_types:
+    inline: ["B", "U", "D", "ES", "WS", "PS"]
+
+rules:
+  - id: LOCA-001
+    description: "Locations must have coordinates."
+    severity: error
+    when: "group == 'LOCA'"
+    expr: "row.LOCA_NATE != null && row.LOCA_NATN != null"
+    message: "LOCA {row.LOCA_ID} is missing coordinates"
+
+  - id: SAMP-001
+    description: "Samples must reference an existing location."
+    severity: error
+    when: "group == 'SAMP'"
+    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
+    message: "Sample {row.SAMP_ID} references unknown location {row.LOCA_ID}"
+
+  - id: SAMP-002
+    description: "Sample type must be permitted by ICE."
+    severity: warning
+    when: "group == 'SAMP'"
+    expr: "row.SAMP_TYPE in codelist('sample_types')"
+    message: "Sample {row.SAMP_ID} has unusual type {row.SAMP_TYPE}"
+
+  - id: GEOL-001
+    description: "Geology depths must be monotonic per location."
+    severity: error
+    scope: "group:LOCA_ID"
+    when: "group == 'GEOL'"
+    expr: "is_monotonic(rows.map(r, r.GEOL_TOP))"
+    message: "Non-monotonic GEOL layers under LOCA {key.LOCA_ID}"

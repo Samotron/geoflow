@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}GeoFlow Explorer{% endblock %}</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; margin: 0; display: flex; height: 100vh; }
+        nav { width: 250px; background: #f4f4f4; border-right: 1px solid #ddd; overflow-y: auto; padding: 1rem; }
+        main { flex: 1; overflow-y: auto; padding: 2rem; }
+        table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #eee; position: sticky; top: 0; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .severity-error { color: #d93025; font-weight: bold; }
+        .severity-warning { color: #f29900; font-weight: bold; }
+        h1, h2 { margin-top: 0; }
+        .nav-item { display: block; padding: 4px 8px; text-decoration: none; color: #333; }
+        .nav-item:hover { background: #e0e0e0; }
+        .active { background: #ddd; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/index.html" class="nav-item {% if not group_name and not loca_id %}active{% endif %}">Overview</a>
+        <a href="/validation.html" class="nav-item {% if page == 'validation' %}active{% endif %}">Validation</a>
+        <hr>
+        {% if file.groups.LOCA %}
+            <h3>Boreholes</h3>
+            {% for r in file.groups.LOCA.rows %}
+                {% set id = r.LOCA_ID %}
+                <a href="/borehole/{{ id }}.html" class="nav-item {% if loca_id == id %}active{% endif %}">{{ id }}</a>
+            {% endfor %}
+            <hr>
+        {% endif %}
+        <h3>Groups</h3>
+        {% for g in file.groups | sort %}
+            <a href="/group/{{ g }}.html" class="nav-item {% if group_name == g %}active{% endif %}">{{ g }}</a>
+        {% endfor %}
+    </nav>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
