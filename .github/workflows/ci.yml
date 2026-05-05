@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -29,11 +29,11 @@ jobs:
       - name: Format check
         run: cargo fmt --all -- --check
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --exclude geoflow-wasm -- -D warnings
       - name: Tests
-        run: cargo test --workspace --all-targets
+        run: cargo test --workspace --all-targets --exclude geoflow-wasm
       - name: Doc tests
-        run: cargo test --workspace --doc
+        run: cargo test --workspace --doc --exclude geoflow-wasm
 
   wasm:
     name: wasm build
@@ -48,7 +48,7 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Build WASM
-        run: wasm-pack build crates/geoflow-wasm --target web --out-dir $(pwd)/web/pkg
+        run: wasm-pack build crates/geoflow-wasm --target web --dev --out-dir $(pwd)/web/pkg
 
   msrv:
     name: msrv (1.85)

@@ -511,113 +511,229 @@ pub fn read(bytes: &[u8]) -> Result<AgsFile> {
                     // wave C
                     } else if let Some(row) = iden_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "testDepth" => { row.insert("IDEN_DPTH".into(), parse_value(&text)); }
-                            "diameter" => { row.insert("IDEN_DIAM".into(), parse_value(&text)); }
-                            "moistureContent" => { row.insert("IDEN_MC".into(), parse_value(&text)); }
-                            "dryDensity" => { row.insert("IDEN_DBUL".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "testDepth" => {
+                                row.insert("IDEN_DPTH".into(), parse_value(&text));
+                            }
+                            "diameter" => {
+                                row.insert("IDEN_DIAM".into(), parse_value(&text));
+                            }
+                            "moistureContent" => {
+                                row.insert("IDEN_MC".into(), parse_value(&text));
+                            }
+                            "dryDensity" => {
+                                row.insert("IDEN_DBUL".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = ivan_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "testDepth" => { row.insert("IVAN_DPTH".into(), parse_value(&text)); }
-                            "testNumber" => { row.insert("IVAN_TESN".into(), AgsValue::Text(text)); }
-                            "undrainedStrength" => { row.insert("IVAN_STEN".into(), parse_value(&text)); }
-                            "remoulded Strength" => { row.insert("IVAN_RTEN".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "testDepth" => {
+                                row.insert("IVAN_DPTH".into(), parse_value(&text));
+                            }
+                            "testNumber" => {
+                                row.insert("IVAN_TESN".into(), AgsValue::Text(text));
+                            }
+                            "undrainedStrength" => {
+                                row.insert("IVAN_STEN".into(), parse_value(&text));
+                            }
+                            "remoulded Strength" => {
+                                row.insert("IVAN_RTEN".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = iprm_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "topDepth" => { row.insert("IPRM_TOP".into(), parse_value(&text)); }
-                            "bottomDepth" => { row.insert("IPRM_BOT".into(), parse_value(&text)); }
-                            "testType" => { row.insert("IPRM_TYPE".into(), AgsValue::Text(text)); }
-                            "permeability" => { row.insert("IPRM_PERM".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "topDepth" => {
+                                row.insert("IPRM_TOP".into(), parse_value(&text));
+                            }
+                            "bottomDepth" => {
+                                row.insert("IPRM_BOT".into(), parse_value(&text));
+                            }
+                            "testType" => {
+                                row.insert("IPRM_TYPE".into(), AgsValue::Text(text));
+                            }
+                            "permeability" => {
+                                row.insert("IPRM_PERM".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = iprt_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "testDepth" => { row.insert("IPRT_DPTH".into(), parse_value(&text)); }
-                            "testType" => { row.insert("IPRT_TYPE".into(), AgsValue::Text(text)); }
-                            "limitPressure" => { row.insert("IPRT_PL".into(), parse_value(&text)); }
-                            "liftoffPressure" => { row.insert("IPRT_LLD".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "testDepth" => {
+                                row.insert("IPRT_DPTH".into(), parse_value(&text));
+                            }
+                            "testType" => {
+                                row.insert("IPRT_TYPE".into(), AgsValue::Text(text));
+                            }
+                            "limitPressure" => {
+                                row.insert("IPRT_PL".into(), parse_value(&text));
+                            }
+                            "liftoffPressure" => {
+                                row.insert("IPRT_LLD".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = irdx_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "testDepth" => { row.insert("IRDX_DPTH".into(), parse_value(&text)); }
-                            "redoxPotential" => { row.insert("IRDX_RES".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "testDepth" => {
+                                row.insert("IRDX_DPTH".into(), parse_value(&text));
+                            }
+                            "redoxPotential" => {
+                                row.insert("IRDX_RES".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = icbr_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "testDepth" => { row.insert("ICBR_DPTH".into(), parse_value(&text)); }
-                            "cbrValue1" => { row.insert("ICBR_CBR1".into(), parse_value(&text)); }
-                            "cbrValue2" => { row.insert("ICBR_CBR2".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "testDepth" => {
+                                row.insert("ICBR_DPTH".into(), parse_value(&text));
+                            }
+                            "cbrValue1" => {
+                                row.insert("ICBR_CBR1".into(), parse_value(&text));
+                            }
+                            "cbrValue2" => {
+                                row.insert("ICBR_CBR2".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = cdia_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "depth" => { row.insert("CDIA_DPTH".into(), parse_value(&text)); }
-                            "diameter" => { row.insert("CDIA_DIAM".into(), parse_value(&text)); }
-                            "casingType" => { row.insert("CDIA_TYPE".into(), AgsValue::Text(text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "depth" => {
+                                row.insert("CDIA_DPTH".into(), parse_value(&text));
+                            }
+                            "diameter" => {
+                                row.insert("CDIA_DIAM".into(), parse_value(&text));
+                            }
+                            "casingType" => {
+                                row.insert("CDIA_TYPE".into(), AgsValue::Text(text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = cmet_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "topDepth" => { row.insert("CMET_TOP".into(), parse_value(&text)); }
-                            "baseDepth" => { row.insert("CMET_BASE".into(), parse_value(&text)); }
-                            "method" => { row.insert("CMET_METH".into(), AgsValue::Text(text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "topDepth" => {
+                                row.insert("CMET_TOP".into(), parse_value(&text));
+                            }
+                            "baseDepth" => {
+                                row.insert("CMET_BASE".into(), parse_value(&text));
+                            }
+                            "method" => {
+                                row.insert("CMET_METH".into(), AgsValue::Text(text));
+                            }
                             _ => {}
                         }
                     // wave D
                     } else if let Some(row) = mond_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "depth" => { row.insert("MOND_DPTH".into(), parse_value(&text)); }
-                            "instrumentType" => { row.insert("MOND_TYPE".into(), AgsValue::Text(text)); }
-                            "measurement" => { row.insert("MOND_MEAS".into(), parse_value(&text)); }
-                            "readingDate" => { row.insert("MOND_TREF".into(), AgsValue::Text(text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "depth" => {
+                                row.insert("MOND_DPTH".into(), parse_value(&text));
+                            }
+                            "instrumentType" => {
+                                row.insert("MOND_TYPE".into(), AgsValue::Text(text));
+                            }
+                            "measurement" => {
+                                row.insert("MOND_MEAS".into(), parse_value(&text));
+                            }
+                            "readingDate" => {
+                                row.insert("MOND_TREF".into(), AgsValue::Text(text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = prem_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "readingDate" => { row.insert("PREM_DATE".into(), AgsValue::Text(text)); }
-                            "hydraulicHead" => { row.insert("PREM_HEAD".into(), parse_value(&text)); }
-                            "installDepth" => { row.insert("PREM_DPTH".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "readingDate" => {
+                                row.insert("PREM_DATE".into(), AgsValue::Text(text));
+                            }
+                            "hydraulicHead" => {
+                                row.insert("PREM_HEAD".into(), parse_value(&text));
+                            }
+                            "installDepth" => {
+                                row.insert("PREM_DPTH".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = prtm_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "readingDate" => { row.insert("PRTM_DATE".into(), AgsValue::Text(text)); }
-                            "pressure" => { row.insert("PRTM_PRES".into(), parse_value(&text)); }
-                            "temperature" => { row.insert("PRTM_TEMP".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "readingDate" => {
+                                row.insert("PRTM_DATE".into(), AgsValue::Text(text));
+                            }
+                            "pressure" => {
+                                row.insert("PRTM_PRES".into(), parse_value(&text));
+                            }
+                            "temperature" => {
+                                row.insert("PRTM_TEMP".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = stcn_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "testDepth" => { row.insert("STCN_DPTH".into(), parse_value(&text)); }
-                            "conePenetrationResistance" => { row.insert("STCN_RES".into(), parse_value(&text)); }
-                            "frictionResistance" => { row.insert("STCN_FRES".into(), parse_value(&text)); }
-                            "correctedConeResistance" => { row.insert("STCN_QT".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "testDepth" => {
+                                row.insert("STCN_DPTH".into(), parse_value(&text));
+                            }
+                            "conePenetrationResistance" => {
+                                row.insert("STCN_RES".into(), parse_value(&text));
+                            }
+                            "frictionResistance" => {
+                                row.insert("STCN_FRES".into(), parse_value(&text));
+                            }
+                            "correctedConeResistance" => {
+                                row.insert("STCN_QT".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     } else if let Some(row) = reld_row.as_mut() {
                         match tag {
-                            "locationId" => { row.insert("LOCA_ID".into(), AgsValue::Text(text)); }
-                            "sampleDepth" => { row.insert("SAMP_TOP".into(), parse_value(&text)); }
-                            "maximumDryDensity" => { row.insert("RELD_DMAX".into(), parse_value(&text)); }
-                            "minimumDryDensity" => { row.insert("RELD_DMIN".into(), parse_value(&text)); }
-                            "dryDensity" => { row.insert("RELD_DRY".into(), parse_value(&text)); }
+                            "locationId" => {
+                                row.insert("LOCA_ID".into(), AgsValue::Text(text));
+                            }
+                            "sampleDepth" => {
+                                row.insert("SAMP_TOP".into(), parse_value(&text));
+                            }
+                            "maximumDryDensity" => {
+                                row.insert("RELD_DMAX".into(), parse_value(&text));
+                            }
+                            "minimumDryDensity" => {
+                                row.insert("RELD_DMIN".into(), parse_value(&text));
+                            }
+                            "dryDensity" => {
+                                row.insert("RELD_DRY".into(), parse_value(&text));
+                            }
                             _ => {}
                         }
                     }
@@ -990,7 +1106,13 @@ pub fn write(file: &AgsFile) -> Result<(String, ConversionReport)> {
             "LCBR" => Some(&["LOCA_ID", "SAMP_ID", "SAMP_REF", "LCBR_COND", "LCBR_CBR"]),
             // wave C
             "IDEN" => Some(&["LOCA_ID", "IDEN_DPTH", "IDEN_DIAM", "IDEN_MC", "IDEN_DBUL"]),
-            "IVAN" => Some(&["LOCA_ID", "IVAN_DPTH", "IVAN_TESN", "IVAN_STEN", "IVAN_RTEN"]),
+            "IVAN" => Some(&[
+                "LOCA_ID",
+                "IVAN_DPTH",
+                "IVAN_TESN",
+                "IVAN_STEN",
+                "IVAN_RTEN",
+            ]),
             "IPRM" => Some(&["LOCA_ID", "IPRM_TOP", "IPRM_BOT", "IPRM_TYPE", "IPRM_PERM"]),
             "IPRT" => Some(&["LOCA_ID", "IPRT_DPTH", "IPRT_TYPE", "IPRT_PL", "IPRT_LLD"]),
             "IRDX" => Some(&["LOCA_ID", "IRDX_DPTH", "IRDX_RES"]),
@@ -998,7 +1120,13 @@ pub fn write(file: &AgsFile) -> Result<(String, ConversionReport)> {
             "CDIA" => Some(&["LOCA_ID", "CDIA_DPTH", "CDIA_DIAM", "CDIA_TYPE"]),
             "CMET" => Some(&["LOCA_ID", "CMET_TOP", "CMET_BASE", "CMET_METH"]),
             // wave D
-            "MOND" => Some(&["LOCA_ID", "MOND_DPTH", "MOND_TYPE", "MOND_MEAS", "MOND_TREF"]),
+            "MOND" => Some(&[
+                "LOCA_ID",
+                "MOND_DPTH",
+                "MOND_TYPE",
+                "MOND_MEAS",
+                "MOND_TREF",
+            ]),
             "PREM" => Some(&["LOCA_ID", "PREM_DATE", "PREM_HEAD", "PREM_DPTH"]),
             "PRTM" => Some(&["LOCA_ID", "PRTM_DATE", "PRTM_PRES", "PRTM_TEMP"]),
             "STCN" => Some(&["LOCA_ID", "STCN_DPTH", "STCN_RES", "STCN_FRES", "STCN_QT"]),

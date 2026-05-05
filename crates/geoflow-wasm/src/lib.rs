@@ -103,8 +103,7 @@ pub fn diff_ags(bytes_a: &[u8], bytes_b: &[u8]) -> String {
     let file_a = ags::parse_bytes(bytes_a).file;
     let file_b = ags::parse_bytes(bytes_b).file;
     let result = diff::diff(&file_a, &file_b);
-    serde_json::to_string(&result.to_summary())
-        .unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
+    serde_json::to_string(&result.to_summary()).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
 }
 
 /// Export all groups to CSV. Returns a JSON object {group: csv_text}.
