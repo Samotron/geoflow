@@ -10,9 +10,8 @@ use crate::model::{AgsFile, AgsType, AgsValue};
 use crate::validate::Rule;
 use std::sync::LazyLock;
 
-static DATE_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$").unwrap()
-});
+static DATE_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$").unwrap());
 static TIME_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"^\d{2}:\d{2}(:\d{2})?$").unwrap());
 
@@ -38,7 +37,9 @@ impl Rule for TypeValueRule {
                     let Some(value) = row.get(&heading.name) else {
                         continue;
                     };
-                    if let Some(msg) = type_violation(group_name, &heading.name, value, &heading.data_type) {
+                    if let Some(msg) =
+                        type_violation(group_name, &heading.name, value, &heading.data_type)
+                    {
                         diagnostics.push(
                             Diagnostic::new("AGS-TYPE-002", Severity::Error, msg)
                                 .at_group(group_name),
@@ -50,12 +51,7 @@ impl Rule for TypeValueRule {
     }
 }
 
-fn type_violation(
-    group: &str,
-    heading: &str,
-    value: &AgsValue,
-    ty: &AgsType,
-) -> Option<String> {
+fn type_violation(group: &str, heading: &str, value: &AgsValue, ty: &AgsType) -> Option<String> {
     match (value, ty) {
         // Raw = coercion failed (numeric or YN)
         (AgsValue::Raw(s), AgsType::YN) => Some(format!(
@@ -66,17 +62,13 @@ fn type_violation(
             type_code(t)
         )),
         // DT: must match YYYY-MM-DD or YYYY-MM-DDTHH:MM[:SS]
-        (AgsValue::Text(s), AgsType::DT) if !s.is_empty() && !DATE_RE.is_match(s) => {
-            Some(format!(
-                "{group}.{heading}: {s:?} does not match date format YYYY-MM-DD"
-            ))
-        }
+        (AgsValue::Text(s), AgsType::DT) if !s.is_empty() && !DATE_RE.is_match(s) => Some(format!(
+            "{group}.{heading}: {s:?} does not match date format YYYY-MM-DD"
+        )),
         // T: must match HH:MM[:SS]
-        (AgsValue::Text(s), AgsType::T) if !s.is_empty() && !TIME_RE.is_match(s) => {
-            Some(format!(
-                "{group}.{heading}: {s:?} does not match time format HH:MM or HH:MM:SS"
-            ))
-        }
+        (AgsValue::Text(s), AgsType::T) if !s.is_empty() && !TIME_RE.is_match(s) => Some(format!(
+            "{group}.{heading}: {s:?} does not match time format HH:MM or HH:MM:SS"
+        )),
         _ => None,
     }
 }
