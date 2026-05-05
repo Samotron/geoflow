@@ -1,5 +1,0 @@
-# On macOS the linker requires all symbols to be resolved at link time.
-# Python extension modules (cdylib) receive Python symbols at runtime from
-# the interpreter, so we must opt out of that requirement.
-[target.'cfg(target_os = "macos")']
-rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
