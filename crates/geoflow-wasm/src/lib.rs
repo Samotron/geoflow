@@ -116,8 +116,7 @@ pub fn get_all_groups_data(bytes: &[u8]) -> String {
     for (name, group) in &file.groups {
         obj.insert(
             name.clone(),
-            serde_json::to_value(&group.rows)
-                .unwrap_or(serde_json::Value::Array(vec![])),
+            serde_json::to_value(&group.rows).unwrap_or(serde_json::Value::Array(vec![])),
         );
     }
     serde_json::to_string(&obj).unwrap_or_default()
