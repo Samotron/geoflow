@@ -427,6 +427,249 @@
     .empty p { line-height: 1.6; }
     .empty strong { color: var(--text); }
 
+    /* ── Data tab ── */
+    .data-layout {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 640px) { .data-layout { grid-template-columns: 1fr; } }
+
+    .grp-list-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 120px);
+      display: flex;
+      flex-direction: column;
+    }
+    .grp-list-head {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+    }
+    .grp-list-scroll { overflow-y: auto; flex: 1; }
+    .grp-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      font-family: monospace;
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 1px solid #f1f5f9;
+      transition: background .1s;
+    }
+    .grp-list-item:last-child { border-bottom: none; }
+    .grp-list-item:hover { background: #f1f5f9; }
+    .grp-list-item.active { background: var(--navy); color: #fff; }
+    .grp-list-item.active .grp-count { opacity: 0.6; }
+    .grp-count {
+      font-size: 11px;
+      color: var(--muted);
+      background: #e2e8f0;
+      padding: 1px 6px;
+      border-radius: 99px;
+      font-family: system-ui, sans-serif;
+    }
+
+    .data-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      min-width: 0;
+    }
+    .data-panel-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .data-panel-head h2 {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    .data-search {
+      margin-left: auto;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+      width: 180px;
+      transition: border-color .15s;
+    }
+    .data-search:focus { border-color: var(--blue); }
+
+    .data-tbl-wrap {
+      overflow: auto;
+      max-height: calc(100vh - 200px);
+    }
+    .data-tbl {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .data-tbl thead { position: sticky; top: 0; z-index: 2; }
+    .data-tbl th {
+      background: #f8fafc;
+      padding: 7px 12px;
+      text-align: left;
+      font-weight: 700;
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--text);
+      border-bottom: 2px solid var(--border);
+      border-right: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    .data-tbl th .th-unit {
+      display: block;
+      font-weight: 400;
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+    .data-tbl th:first-child { color: var(--muted); font-weight: 400; }
+    .data-tbl td {
+      padding: 6px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      border-right: 1px solid #f8fafc;
+      vertical-align: middle;
+      white-space: nowrap;
+      font-family: monospace;
+      font-size: 12px;
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .data-tbl td.num { text-align: right; color: #334155; }
+    .data-tbl td.null { color: #cbd5e1; }
+    .data-tbl td:first-child { color: var(--muted); text-align: right; font-size: 10px; background: #fafafa; }
+    .data-tbl tr:hover td { background: #f8faff; }
+    .data-tbl tr:hover td:first-child { background: #f1f5f9; }
+
+    /* Clickable key chips */
+    .key-chip {
+      display: inline-block;
+      padding: 2px 9px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      border-radius: 99px;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .key-chip:hover { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+
+    .tbl-more {
+      padding: 10px 16px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Ontology view */
+    .onto-back-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .onto-back-btn {
+      padding: 5px 12px;
+      background: #e2e8f0;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .onto-back-btn:hover { background: #cbd5e1; }
+    .onto-title {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    .onto-title .onto-field { color: var(--muted); font-weight: 400; }
+    .onto-scroll { overflow-y: auto; max-height: calc(100vh - 200px); }
+    .onto-group-section { border-bottom: 1px solid var(--border); }
+    .onto-group-hdr {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 16px;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: monospace;
+      cursor: pointer;
+      user-select: none;
+      transition: background .1s;
+    }
+    .onto-group-hdr:hover { background: #f1f5f9; }
+    .onto-row-count {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: auto;
+    }
+    .onto-chevron { font-size: 10px; color: var(--muted); transition: transform .15s; }
+    .onto-chevron.open { transform: rotate(90deg); }
+    .onto-tbl-wrap { overflow-x: auto; }
+    .onto-tbl {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .onto-tbl th {
+      padding: 5px 10px;
+      text-align: left;
+      font-family: monospace;
+      font-weight: 700;
+      font-size: 10px;
+      color: var(--muted);
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .onto-tbl td {
+      padding: 5px 10px;
+      border-bottom: 1px solid #f8fafc;
+      font-family: monospace;
+      white-space: nowrap;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .onto-tbl td.num { text-align: right; }
+    .onto-tbl td.null { color: #cbd5e1; }
+    .onto-tbl .key-chip { font-size: 10px; padding: 1px 7px; }
+
     /* ── Project Map tab ── */
     .map-toolbar {
       display: flex;
@@ -534,6 +777,7 @@ import htm from 'https://esm.sh/htm@3';
 import init, {
   validate_ags, fix_ags, convert_to_diggs, ags_info,
   list_locations, render_borehole_svg, diff_ags, get_group_rows,
+  get_all_groups_data, get_all_groups_meta,
 } from './pkg/geoflow_wasm.js';
 
 const html = htm.bind(React.createElement);
@@ -1013,6 +1257,278 @@ function DiffResult({ d }) {
           </div>
         </div>
       `)}
+    </div>
+  `;
+}
+
+// ── Data tab helpers ──────────────────────────────────────────────────────────
+function cellValue(val) {
+  if (val === null || val === undefined || val === '') return null;
+  return val;
+}
+
+function truncate(s, n = 60) {
+  const t = String(s);
+  return t.length > n ? t.slice(0, n) + '…' : t;
+}
+
+// ── MiniTable (compact read-only table used inside OntologyView) ──────────────
+function MiniTable({ rows, meta, onKeyClick }) {
+  if (!rows || rows.length === 0) return null;
+  const headings = meta ?? Object.keys(rows[0]).map(name => ({ name, unit: '', is_id: false }));
+  return html`
+    <div className="onto-tbl-wrap">
+      <table className="onto-tbl">
+        <thead>
+          <tr>
+            ${headings.map(h => html`<th key=${h.name} title=${h.unit||''}>${h.name}</th>`)}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row, ri) => html`
+            <tr key=${ri}>
+              ${headings.map(h => {
+                const v = cellValue(row[h.name]);
+                if (v === null) return html`<td key=${h.name} className="null">—</td>`;
+                const isNum = typeof v === 'number';
+                if (h.is_id && v !== '') return html`
+                  <td key=${h.name}>
+                    <button className="key-chip" onClick=${() => onKeyClick(h.name, v)}>${v}</button>
+                  </td>`;
+                return html`<td key=${h.name} className=${isNum?'num':''} title=${String(v)}>${truncate(String(v),40)}</td>`;
+              })}
+            </tr>
+          `)}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ── OntologyView ──────────────────────────────────────────────────────────────
+function OntologyView({ keyField, keyValue, allData, allMeta, onBack, onKeyClick }) {
+  const [expanded, setExpanded] = useState({});
+
+  // Find all groups that have at least one row matching keyField = keyValue
+  const matches = useMemo(() => {
+    const valStr = String(keyValue);
+    const result = [];
+    for (const [group, rows] of Object.entries(allData)) {
+      const hit = rows.filter(r => {
+        const v = r[keyField];
+        return v !== null && v !== undefined && String(v) === valStr;
+      });
+      if (hit.length > 0) result.push({ group, rows: hit });
+    }
+    // Put the group whose name matches the field prefix first (e.g. LOCA for LOCA_ID)
+    const prefix = keyField.replace(/_ID$|_REF$/, '');
+    result.sort((a, b) => {
+      if (a.group === prefix) return -1;
+      if (b.group === prefix) return  1;
+      return a.group.localeCompare(b.group);
+    });
+    return result;
+  }, [allData, keyField, keyValue]);
+
+  // Start with all groups expanded
+  useEffect(() => {
+    const init = {};
+    matches.forEach(m => { init[m.group] = true; });
+    setExpanded(init);
+  }, [keyField, keyValue]);
+
+  const toggle = g => setExpanded(e => ({ ...e, [g]: !e[g] }));
+
+  return html`
+    <div>
+      <div className="onto-back-bar">
+        <button className="onto-back-btn" onClick=${onBack}>← Back</button>
+        <span className="onto-title">
+          <span className="onto-field">${keyField}</span>
+          ${' = '}
+          <span className="key-chip" style="font-size:13px;padding:3px 12px">${keyValue}</span>
+        </span>
+        <span style="margin-left:auto;font-size:12px;color:var(--muted)">${matches.length} group${matches.length!==1?'s':''}</span>
+      </div>
+      ${matches.length === 0 ? html`
+        <div className="empty"><p>No records found for ${keyField} = "${keyValue}".</p></div>
+      ` : html`
+        <div className="onto-scroll">
+          ${matches.map(({ group, rows }) => {
+            const meta = allMeta[group] ?? null;
+            const isOpen = !!expanded[group];
+            return html`
+              <div key=${group} className="onto-group-section">
+                <div className="onto-group-hdr" onClick=${() => toggle(group)}>
+                  <span className="onto-chevron ${isOpen?'open':''}">▶</span>
+                  <span>${group}</span>
+                  <span className="onto-row-count">${rows.length} row${rows.length!==1?'s':''}</span>
+                </div>
+                ${isOpen && html`
+                  <${MiniTable} rows=${rows} meta=${meta} onKeyClick=${onKeyClick} />
+                `}
+              </div>
+            `;
+          })}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ── GroupTable ────────────────────────────────────────────────────────────────
+const PAGE = 150;
+
+function GroupTable({ groupName, rows, meta, onKeyClick }) {
+  const [search, setSearch] = useState('');
+  const [shown, setShown] = useState(PAGE);
+
+  useEffect(() => { setSearch(''); setShown(PAGE); }, [groupName]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(row =>
+      Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(q))
+    );
+  }, [rows, search]);
+
+  const visible = filtered.slice(0, shown);
+  const headings = meta ?? Object.keys(rows[0] ?? {}).map(name => ({ name, unit: '', is_id: false }));
+
+  return html`
+    <div className="data-panel">
+      <div className="data-panel-head">
+        <h2>${groupName}</h2>
+        <span style="font-size:12px;color:var(--muted)">${rows.length} row${rows.length!==1?'s':''}</span>
+        <input
+          className="data-search"
+          placeholder="Filter rows…"
+          value=${search}
+          onInput=${e => { setSearch(e.target.value); setShown(PAGE); }}
+        />
+      </div>
+      <div className="data-tbl-wrap">
+        <table className="data-tbl">
+          <thead>
+            <tr>
+              <th>#</th>
+              ${headings.map(h => html`
+                <th key=${h.name}>
+                  ${h.name}
+                  ${h.unit ? html`<span className="th-unit">${h.unit}</span>` : null}
+                </th>
+              `)}
+            </tr>
+          </thead>
+          <tbody>
+            ${visible.map((row, ri) => html`
+              <tr key=${ri}>
+                <td>${filtered.indexOf(row) + 1}</td>
+                ${headings.map(h => {
+                  const v = cellValue(row[h.name]);
+                  if (v === null) return html`<td key=${h.name} className="null">—</td>`;
+                  const isNum = typeof v === 'number';
+                  if (h.is_id) return html`
+                    <td key=${h.name}>
+                      <button className="key-chip" onClick=${() => onKeyClick(h.name, v)}
+                        title="Show all records where ${h.name} = ${v}">
+                        ${String(v)}
+                      </button>
+                    </td>`;
+                  return html`
+                    <td key=${h.name} className=${isNum?'num':''} title=${String(v)}>
+                      ${truncate(String(v))}
+                    </td>`;
+                })}
+              </tr>
+            `)}
+          </tbody>
+        </table>
+      </div>
+      ${filtered.length > shown ? html`
+        <div className="tbl-more">
+          Showing ${shown} of ${filtered.length} rows
+          <button className="btn-secondary" style="padding:4px 12px;font-size:12px"
+            onClick=${() => setShown(s => s + PAGE)}>
+            Show ${Math.min(PAGE, filtered.length - shown)} more
+          </button>
+        </div>
+      ` : filtered.length < rows.length ? html`
+        <div className="tbl-more">${filtered.length} of ${rows.length} rows match filter</div>
+      ` : null}
+    </div>
+  `;
+}
+
+// ── DataTab ───────────────────────────────────────────────────────────────────
+function DataTab({ allGroupData, allGroupsMeta, fileInfo }) {
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [ontologyCtx, setOntologyCtx] = useState(null); // { field, value }
+
+  // Auto-select first group when data loads
+  useEffect(() => {
+    if (!allGroupData) return;
+    const groups = Object.keys(allGroupData);
+    if (groups.length > 0 && !selectedGroup) setSelectedGroup(groups[0]);
+  }, [allGroupData]);
+
+  // Reset ontology when group changes
+  useEffect(() => { setOntologyCtx(null); }, [selectedGroup]);
+
+  function handleKeyClick(field, value) {
+    setOntologyCtx({ field, value: String(value) });
+  }
+  function handleBack() { setOntologyCtx(null); }
+
+  if (!allGroupData) return html`
+    <div className="empty">
+      <p>Load an AGS file in <strong>Upload &amp; Convert</strong> to explore its data.</p>
+    </div>
+  `;
+
+  const groups = Object.keys(allGroupData);
+
+  return html`
+    <div className="data-layout">
+      <!-- Left: group list -->
+      <div className="grp-list-panel">
+        <div className="grp-list-head">Groups (${groups.length})</div>
+        <div className="grp-list-scroll">
+          ${groups.map(g => html`
+            <div key=${g}
+              className=${`grp-list-item${selectedGroup===g?' active':''}`}
+              onClick=${() => setSelectedGroup(g)}
+            >
+              <span>${g}</span>
+              <span className="grp-count">${allGroupData[g].length}</span>
+            </div>
+          `)}
+        </div>
+      </div>
+
+      <!-- Right: table or ontology -->
+      <div>
+        ${ontologyCtx ? html`
+          <div className="data-panel">
+            <${OntologyView}
+              keyField=${ontologyCtx.field}
+              keyValue=${ontologyCtx.value}
+              allData=${allGroupData}
+              allMeta=${allGroupsMeta}
+              onBack=${handleBack}
+              onKeyClick=${handleKeyClick}
+            />
+          </div>
+        ` : selectedGroup && allGroupData[selectedGroup] ? html`
+          <${GroupTable}
+            groupName=${selectedGroup}
+            rows=${allGroupData[selectedGroup]}
+            meta=${allGroupsMeta?.[selectedGroup] ?? null}
+            onKeyClick=${handleKeyClick}
+          />
+        ` : html`<div className="empty"><p>Select a group from the list.</p></div>`}
+      </div>
     </div>
   `;
 }
@@ -1504,15 +2020,17 @@ function MapTab({ locations, fileBytes, wasmReady, fileInfo }) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
-  const [wasmReady, setWasmReady]     = useState(false);
-  const [fileBytes, setFileBytes]     = useState(null);
-  const [fileName, setFileName]       = useState('');
-  const [fileSize, setFileSize]       = useState(0);
-  const [fileInfo, setFileInfo]       = useState(null);
-  const [diagnostics, setDiagnostics] = useState(null);
-  const [locations, setLocations]     = useState([]);
-  const [status, setStatus]           = useState({ msg: 'Loading WebAssembly engine…', type: 'loading' });
-  const [tab, setTab]                 = useState('upload');
+  const [wasmReady, setWasmReady]         = useState(false);
+  const [fileBytes, setFileBytes]         = useState(null);
+  const [fileName, setFileName]           = useState('');
+  const [fileSize, setFileSize]           = useState(0);
+  const [fileInfo, setFileInfo]           = useState(null);
+  const [diagnostics, setDiagnostics]     = useState(null);
+  const [locations, setLocations]         = useState([]);
+  const [allGroupData, setAllGroupData]   = useState(null);
+  const [allGroupsMeta, setAllGroupsMeta] = useState(null);
+  const [status, setStatus]               = useState({ msg: 'Loading WebAssembly engine…', type: 'loading' });
+  const [tab, setTab]                     = useState('upload');
 
   useEffect(() => {
     init()
@@ -1537,6 +2055,12 @@ function App() {
         } catch(_) {}
         try {
           setLocations(JSON.parse(list_locations(bytes)) || []);
+        } catch(_) {}
+        try {
+          setAllGroupData(JSON.parse(get_all_groups_data(bytes)));
+        } catch(_) {}
+        try {
+          setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes)));
         } catch(_) {}
       }
       setStatus({ msg: 'File loaded. Click Validate to check for issues.', type: '' });
@@ -1581,10 +2105,11 @@ function App() {
 
   const TABS = [
     { id: 'upload',     label: 'Upload & Convert' },
-    { id: 'validation', label: 'Validation'        },
-    { id: 'map',        label: 'Map'               },
-    { id: 'logs',       label: 'Logs'              },
-    { id: 'diff',       label: 'Diff'              },
+    { id: 'data',       label: 'Data'             },
+    { id: 'validation', label: 'Validation'       },
+    { id: 'map',        label: 'Map'              },
+    { id: 'logs',       label: 'Logs'             },
+    { id: 'diff',       label: 'Diff'             },
   ];
 
   return html`
@@ -1614,6 +2139,13 @@ function App() {
             diagnostics=${diagnostics}
             onFile=${handleFile} onValidate=${handleValidate}
             onFix=${handleFix} onConvert=${handleConvert}
+          />
+        `}
+        ${tab === 'data' && html`
+          <${DataTab}
+            allGroupData=${allGroupData}
+            allGroupsMeta=${allGroupsMeta}
+            fileInfo=${fileInfo}
           />
         `}
         ${tab === 'validation' && html`

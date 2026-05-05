@@ -106,6 +106,47 @@ pub fn diff_ags(bytes_a: &[u8], bytes_b: &[u8]) -> String {
     serde_json::to_string(&result.to_summary()).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
 }
 
+/// Return all group row data as a single JSON object `{ "GROUP": [rows], … }`.
+/// Useful for loading the entire file into the browser in one call so that
+/// cross-group ontology searches can be done without repeated round-trips.
+#[wasm_bindgen]
+pub fn get_all_groups_data(bytes: &[u8]) -> String {
+    let file = ags::parse_bytes(bytes).file;
+    let mut obj = serde_json::Map::new();
+    for (name, group) in &file.groups {
+        obj.insert(
+            name.clone(),
+            serde_json::to_value(&group.rows)
+                .unwrap_or(serde_json::Value::Array(vec![])),
+        );
+    }
+    serde_json::to_string(&obj).unwrap_or_default()
+}
+
+/// Return heading definitions for all groups as `{ "GROUP": [{name, unit, is_id}] }`.
+/// `is_id` is true when the AGS data type is ID, identifying key/foreign-key columns.
+#[wasm_bindgen]
+pub fn get_all_groups_meta(bytes: &[u8]) -> String {
+    use geoflow_core::model::AgsType;
+    let file = ags::parse_bytes(bytes).file;
+    let mut obj = serde_json::Map::new();
+    for (name, group) in &file.groups {
+        let headings: Vec<serde_json::Value> = group
+            .headings
+            .iter()
+            .map(|h| {
+                serde_json::json!({
+                    "name": h.name,
+                    "unit": h.unit,
+                    "is_id": matches!(h.data_type, AgsType::ID),
+                })
+            })
+            .collect();
+        obj.insert(name.clone(), serde_json::Value::Array(headings));
+    }
+    serde_json::to_string(&obj).unwrap_or_default()
+}
+
 /// Get all rows of a named AGS group as a JSON array of objects.
 /// Each row is `{ "HEADING": value }` where values are numbers, strings,
 /// booleans, or nulls as determined by the AGS type.  Returns `[]` if the
