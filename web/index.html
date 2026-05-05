@@ -40,195 +40,11 @@
       gap: 12px;
     }
     header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
-    header span { font-size: 12px; opacity: 0.55; margin-left: auto; }
+    header .hdr-sub { font-size: 12px; opacity: 0.55; margin-left: auto; }
 
-    main { max-width: 960px; margin: 0 auto; padding: 28px 16px 60px; }
+    main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
 
-    /* ── Drop zone ──────────────────────────────────────────── */
-    .drop-zone {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      background: var(--card);
-      padding: 48px 24px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .15s, background .15s;
-    }
-    .drop-zone:hover, .drop-zone.drag-over {
-      border-color: var(--blue);
-      background: #eff6ff;
-    }
-    .drop-zone input { display: none; }
-    .drop-zone svg { width: 40px; height: 40px; color: var(--muted); margin-bottom: 12px; }
-    .drop-zone p { color: var(--muted); line-height: 1.5; }
-    .drop-zone strong { color: var(--text); }
-    .file-name {
-      margin-top: 10px;
-      font-weight: 600;
-      color: var(--blue);
-      font-size: 13px;
-    }
-
-    /* ── Actions ───────────────────────────────────────────── */
-    .actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 16px;
-      flex-wrap: wrap;
-    }
-    button {
-      padding: 9px 18px;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity .15s, background .15s;
-    }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary   { background: var(--navy); color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: var(--blue); }
-    .btn-secondary { background: #e2e8f0; color: var(--text); }
-    .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
-    .btn-accent    { background: var(--amber); color: #fff; }
-    .btn-accent:hover:not(:disabled)    { background: #b45309; }
-
-    /* ── Status ───────────────────────────────────────────── */
-    #status {
-      margin-top: 14px;
-      font-size: 13px;
-      color: var(--muted);
-      min-height: 20px;
-    }
-    #status.loading { color: var(--blue); }
-    #status.error   { color: var(--red); }
-
-    /* ── Summary badges ──────────────────────────────────── */
-    .summary {
-      display: flex;
-      gap: 10px;
-      margin-top: 24px;
-      flex-wrap: wrap;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 12px;
-      border-radius: 99px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .badge-error   { background: #fef2f2; color: var(--red);    border: 1px solid #fecaca; }
-    .badge-warning { background: #fff7ed; color: var(--orange);  border: 1px solid #fed7aa; }
-    .badge-info    { background: #eff6ff; color: #2563eb;        border: 1px solid #bfdbfe; }
-    .badge-ok      { background: #f0fdf4; color: var(--green);   border: 1px solid #bbf7d0; }
-
-    /* ── Boreholes ─────────────────────────────────────────────── */
-    .borehole-section { margin-top: 28px; }
-    .borehole-section h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
-    .location-grid {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
-    }
-    .loc-btn {
-      padding: 6px 14px;
-      font-size: 12px;
-      font-weight: 600;
-      font-family: monospace;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--text);
-      cursor: pointer;
-      transition: all .12s;
-    }
-    .loc-btn:hover  { border-color: var(--blue); color: var(--blue); }
-    .loc-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
-    .borehole-panel {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px 20px;
-      overflow-x: auto;
-    }
-    .borehole-meta { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
-    .borehole-meta span { margin-right: 20px; }
-    .borehole-meta strong { color: var(--text); }
-
-    /* ── Table ─────────────────────────────────────────────── */
-    .results-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 24px;
-      margin-bottom: 10px;
-    }
-    .results-header h2 { font-size: 15px; font-weight: 600; }
-    .filter-bar { display: flex; gap: 6px; }
-    .filter-btn {
-      padding: 4px 10px;
-      font-size: 12px;
-      font-weight: 500;
-      border-radius: 99px;
-      border: 1px solid var(--border);
-      background: var(--card);
-      color: var(--muted);
-      cursor: pointer;
-      transition: all .12s;
-    }
-    .filter-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
-
-    .table-wrap {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: auto;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    thead { background: #f8fafc; }
-    th {
-      text-align: left;
-      padding: 10px 14px;
-      font-weight: 600;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-    }
-    td {
-      padding: 9px 14px;
-      border-bottom: 1px solid #f1f5f9;
-      vertical-align: top;
-    }
-    tr:last-child td { border-bottom: none; }
-    tr.hidden { display: none; }
-
-    .sev {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 99px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
-    .sev-error   { background: #fef2f2; color: var(--red);   }
-    .sev-warning { background: #fff7ed; color: var(--orange); }
-    .sev-info    { background: #eff6ff; color: #2563eb;       }
-
-    .rule-id { font-family: monospace; font-size: 12px; color: var(--muted); }
-    .group   { font-family: monospace; font-size: 12px; }
-    .line    { color: var(--muted); }
-
-    .empty-state {
-      text-align: center;
-      padding: 48px 24px;
-      color: var(--muted);
-    }
-
-    /* ── Tabs ──────────────────────────────────────────────── */
+    /* ── Tabs ── */
     .tab-bar {
       display: flex;
       gap: 2px;
@@ -248,25 +64,326 @@
       transition: color .12s, border-color .12s;
     }
     .tab-btn.active { color: var(--navy); border-bottom-color: var(--navy); }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
+    .tab-btn:hover:not(.active) { color: var(--text); }
 
-    /* ── Diff UI ───────────────────────────────────────────── */
-    .diff-zones {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
     }
-    .diff-zone-label {
-      font-size: 12px;
-      font-weight: 700;
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--blue);
+      background: #eff6ff;
+    }
+    .drop-zone svg { width: 40px; height: 40px; color: var(--muted); margin-bottom: 12px; }
+    .drop-zone p { color: var(--muted); line-height: 1.6; }
+    .drop-zone strong { color: var(--text); }
+    .file-name { margin-top: 10px; font-weight: 600; color: var(--blue); font-size: 13px; }
+
+    /* ── Buttons ── */
+    .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    button {
+      padding: 9px 18px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, background .15s;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary   { background: var(--navy); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--blue); }
+    .btn-secondary { background: #e2e8f0; color: var(--text); }
+    .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+    .btn-accent    { background: var(--amber); color: #fff; }
+    .btn-accent:hover:not(:disabled)    { background: #b45309; }
+
+    /* ── Status ── */
+    .status { margin-top: 14px; font-size: 13px; color: var(--muted); min-height: 20px; }
+    .status.loading { color: var(--blue); }
+    .status.error   { color: var(--red);  }
+
+    /* ── Summary badges ── */
+    .summary { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 99px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .badge-error   { background: #fef2f2; color: var(--red);    border: 1px solid #fecaca; }
+    .badge-warning { background: #fff7ed; color: var(--orange);  border: 1px solid #fed7aa; }
+    .badge-info    { background: #eff6ff; color: #2563eb;        border: 1px solid #bfdbfe; }
+    .badge-ok      { background: #f0fdf4; color: var(--green);   border: 1px solid #bbf7d0; }
+
+    /* ── File info bar ── */
+    .file-info-bar {
+      margin-top: 12px;
+      font-size: 13px;
       color: var(--muted);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .file-info-bar span strong { color: var(--text); }
+
+    /* ── Two-column layout for validation/map tab ── */
+    .val-map-grid {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 820px) {
+      .val-map-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Diagnostics log list ── */
+    .diag-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .diag-panel-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .diag-panel-head h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+    .filter-pills { display: flex; gap: 6px; margin-left: auto; }
+    .pill {
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .pill.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .diag-scroll { max-height: 560px; overflow-y: auto; }
+    .log-row {
+      display: grid;
+      grid-template-columns: 44px 72px 120px 1fr;
+      align-items: baseline;
+      gap: 0 10px;
+      padding: 7px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .log-row:last-child { border-bottom: none; }
+    .log-row:hover { background: #f8fafc; }
+    .log-sev {
+      font-weight: 700;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding-top: 1px;
+    }
+    .sev-error   { color: var(--red); }
+    .sev-warning { color: var(--orange); }
+    .sev-info    { color: #2563eb; }
+    .log-rule  { color: var(--muted); font-size: 11px; }
+    .log-loc   { color: var(--muted); font-size: 11px; }
+    .log-msg   { color: var(--text); word-break: break-word; }
+
+    /* ── Borehole map card ── */
+    .map-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .map-card-head {
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+    }
+    .map-card-body { padding: 16px; }
+    .map-svg-wrap { border: 1px solid var(--border); border-radius: 4px; background: #f8fafc; overflow: hidden; }
+    .bh-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .bh-btn {
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: monospace;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      transition: all .12s;
+    }
+    .bh-btn:hover  { border-color: var(--blue); color: var(--blue); }
+    .bh-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+    /* ── Borehole preview (map tab) ── */
+    .bh-preview {
+      margin-top: 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      overflow-x: auto;
+    }
+    .bh-preview-meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .bh-preview-meta strong { color: var(--text); margin-right: 16px; }
+
+    /* ── Log tab layout ── */
+    .log-tab-grid {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 640px) {
+      .log-tab-grid { grid-template-columns: 1fr; }
+    }
+    .bh-list-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: sticky;
+      top: 16px;
+    }
+    .bh-list-head {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+    }
+    .bh-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 14px;
+      font-family: monospace;
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 1px solid #f1f5f9;
+      transition: background .1s;
+    }
+    .bh-list-item:last-child { border-bottom: none; }
+    .bh-list-item:hover { background: #f1f5f9; }
+    .bh-list-item.active { background: var(--navy); color: #fff; }
+    .bh-list-item .depth { font-size: 11px; opacity: 0.6; }
+
+    /* ── Log sheet (formal borehole log) ── */
+    .log-sheet {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .log-sheet-hdr {
+      background: var(--navy);
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .log-sheet-hdr h2 { font-size: 15px; font-weight: 700; }
+    .log-sheet-hdr .version { margin-left: auto; font-size: 11px; opacity: 0.5; }
+    .log-sheet-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-bottom: 2px solid var(--navy);
+    }
+    .meta-cell {
+      padding: 9px 16px;
+      border-right: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .meta-cell:last-child { border-right: none; }
+    .meta-cell .lbl {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .meta-cell .val {
+      font-weight: 600;
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .log-sheet-col-hdr {
+      display: flex;
+      background: #f0f4f8;
+      border-bottom: 1px solid var(--border);
+      padding: 5px 20px;
+    }
+    .log-col-lbl {
+      font-size: 9px;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 6px;
+      color: var(--muted);
+      text-align: center;
     }
-    .diff-drop-zone {
+    .log-sheet-body {
+      padding: 0 20px 8px;
+      overflow-x: auto;
+    }
+    .log-sheet-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 10px 20px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-swatch {
+      width: 14px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* ── Diff tab ── */
+    .diff-zones { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .diff-zone-lbl { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .diff-drop {
       border: 2px dashed var(--border);
       border-radius: var(--radius);
       background: var(--card);
@@ -277,21 +394,12 @@
       font-size: 13px;
       color: var(--muted);
     }
-    .diff-drop-zone:hover, .diff-drop-zone.drag-over {
-      border-color: var(--blue); background: #eff6ff;
-    }
-    .diff-drop-zone.loaded { border-color: var(--green); background: #f0fdf4; color: var(--text); }
-    .diff-drop-zone input { display: none; }
+    .diff-drop:hover, .diff-drop.drag-over { border-color: var(--blue); background: #eff6ff; }
+    .diff-drop.loaded { border-color: var(--green); background: #f0fdf4; color: var(--text); }
     .diff-result { margin-top: 20px; }
     .diff-identical { padding: 24px; text-align: center; color: var(--green); font-weight: 600; }
-    .diff-group-row {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      margin-bottom: 10px;
-      overflow: hidden;
-    }
-    .diff-group-header {
+    .diff-group-row { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+    .diff-group-hdr {
       padding: 10px 16px;
       font-family: monospace;
       font-weight: 700;
@@ -299,528 +407,1772 @@
       background: #f8fafc;
       border-bottom: 1px solid var(--border);
       display: flex;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
     }
-    .diff-badge {
-      display: inline-block;
-      padding: 1px 7px;
-      border-radius: 99px;
+    .diff-badge { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+    .diff-added     { background: #dcfce7; color: #15803d; }
+    .diff-removed   { background: #fee2e2; color: #b91c1c; }
+    .diff-modified  { background: #fef9c3; color: #a16207; }
+    .diff-unchanged { background: #f1f5f9; color: var(--muted); }
+    .diff-only { font-family: monospace; color: var(--muted); padding: 4px 0; display: block; }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      padding: 56px 24px;
+      color: var(--muted);
+    }
+    .empty svg { margin: 0 auto 14px; display: block; }
+    .empty p { line-height: 1.6; }
+    .empty strong { color: var(--text); }
+
+    /* ── Data tab ── */
+    .data-layout {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 640px) { .data-layout { grid-template-columns: 1fr; } }
+
+    .grp-list-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 120px);
+      display: flex;
+      flex-direction: column;
+    }
+    .grp-list-head {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
       font-size: 11px;
       font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
     }
-    .diff-added   { background: #dcfce7; color: #15803d; }
-    .diff-removed { background: #fee2e2; color: #b91c1c; }
-    .diff-modified { background: #fef9c3; color: #a16207; }
-    .diff-unchanged { background: #f1f5f9; color: var(--muted); }
-    .diff-group-body { padding: 10px 16px; font-size: 12px; }
-    .diff-row-change { margin-bottom: 8px; }
-    .diff-row-key { font-family: monospace; color: var(--muted); margin-bottom: 4px; }
-    .diff-field { display: flex; gap: 8px; margin-left: 12px; margin-bottom: 2px; }
-    .diff-field-name { font-family: monospace; min-width: 140px; color: var(--text); font-weight: 600; }
-    .diff-before { color: var(--red); text-decoration: line-through; font-family: monospace; }
-    .diff-after  { color: var(--green); font-family: monospace; }
-    .diff-only { font-family: monospace; color: var(--muted); padding: 4px 0; }
+    .grp-list-scroll { overflow-y: auto; flex: 1; }
+    .grp-list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      font-family: monospace;
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 1px solid #f1f5f9;
+      transition: background .1s;
+    }
+    .grp-list-item:last-child { border-bottom: none; }
+    .grp-list-item:hover { background: #f1f5f9; }
+    .grp-list-item.active { background: var(--navy); color: #fff; }
+    .grp-list-item.active .grp-count { opacity: 0.6; }
+    .grp-count {
+      font-size: 11px;
+      color: var(--muted);
+      background: #e2e8f0;
+      padding: 1px 6px;
+      border-radius: 99px;
+      font-family: system-ui, sans-serif;
+    }
+
+    .data-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      min-width: 0;
+    }
+    .data-panel-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .data-panel-head h2 {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    .data-search {
+      margin-left: auto;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+      width: 180px;
+      transition: border-color .15s;
+    }
+    .data-search:focus { border-color: var(--blue); }
+
+    .data-tbl-wrap {
+      overflow: auto;
+      max-height: calc(100vh - 200px);
+    }
+    .data-tbl {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .data-tbl thead { position: sticky; top: 0; z-index: 2; }
+    .data-tbl th {
+      background: #f8fafc;
+      padding: 7px 12px;
+      text-align: left;
+      font-weight: 700;
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--text);
+      border-bottom: 2px solid var(--border);
+      border-right: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    .data-tbl th .th-unit {
+      display: block;
+      font-weight: 400;
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+    .data-tbl th:first-child { color: var(--muted); font-weight: 400; }
+    .data-tbl td {
+      padding: 6px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      border-right: 1px solid #f8fafc;
+      vertical-align: middle;
+      white-space: nowrap;
+      font-family: monospace;
+      font-size: 12px;
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .data-tbl td.num { text-align: right; color: #334155; }
+    .data-tbl td.null { color: #cbd5e1; }
+    .data-tbl td:first-child { color: var(--muted); text-align: right; font-size: 10px; background: #fafafa; }
+    .data-tbl tr:hover td { background: #f8faff; }
+    .data-tbl tr:hover td:first-child { background: #f1f5f9; }
+
+    /* Clickable key chips */
+    .key-chip {
+      display: inline-block;
+      padding: 2px 9px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      border-radius: 99px;
+      font-family: monospace;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .key-chip:hover { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+
+    .tbl-more {
+      padding: 10px 16px;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Ontology view */
+    .onto-back-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .onto-back-btn {
+      padding: 5px 12px;
+      background: #e2e8f0;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .onto-back-btn:hover { background: #cbd5e1; }
+    .onto-title {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    .onto-title .onto-field { color: var(--muted); font-weight: 400; }
+    .onto-scroll { overflow-y: auto; max-height: calc(100vh - 200px); }
+    .onto-group-section { border-bottom: 1px solid var(--border); }
+    .onto-group-hdr {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 16px;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: monospace;
+      cursor: pointer;
+      user-select: none;
+      transition: background .1s;
+    }
+    .onto-group-hdr:hover { background: #f1f5f9; }
+    .onto-row-count {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: auto;
+    }
+    .onto-chevron { font-size: 10px; color: var(--muted); transition: transform .15s; }
+    .onto-chevron.open { transform: rotate(90deg); }
+    .onto-tbl-wrap { overflow-x: auto; }
+    .onto-tbl {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .onto-tbl th {
+      padding: 5px 10px;
+      text-align: left;
+      font-family: monospace;
+      font-weight: 700;
+      font-size: 10px;
+      color: var(--muted);
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .onto-tbl td {
+      padding: 5px 10px;
+      border-bottom: 1px solid #f8fafc;
+      font-family: monospace;
+      white-space: nowrap;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .onto-tbl td.num { text-align: right; }
+    .onto-tbl td.null { color: #cbd5e1; }
+    .onto-tbl .key-chip { font-size: 10px; padding: 1px 7px; }
+
+    /* ── Project Map tab ── */
+    .map-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .map-toolbar label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .map-toolbar input[type=range] { width: 100px; accent-color: var(--navy); }
+    .draw-mode-hint {
+      font-size: 12px;
+      color: var(--blue);
+      font-weight: 600;
+      padding: 4px 10px;
+      background: #eff6ff;
+      border-radius: 99px;
+    }
+    .proj-map-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .proj-map-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .proj-map-body { padding: 16px; }
+    .proj-map-svg {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #f8fafc;
+      display: block;
+    }
+    .proj-map-svg.drawing { cursor: crosshair; }
+
+    /* ── Cross Section ── */
+    .xsec-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .xsec-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--navy);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .xsec-head .xsec-meta { margin-left: auto; font-size: 11px; opacity: 0.6; font-weight: 400; }
+    .xsec-body { padding: 0 16px 16px; overflow-x: auto; }
+    .xsec-svg { display: block; }
+    .xsec-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .xleg-item { display: flex; align-items: center; gap: 5px; }
+    .xleg-swatch { width: 14px; height: 10px; border-radius: 1px; border: 1px solid rgba(0,0,0,.2); flex-shrink: 0; }
+    .bh-excl-note {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 8px 16px;
+      border-top: 1px solid var(--border);
+    }
   </style>
 </head>
 <body>
-
-<header>
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-  </svg>
-  <h1>GeoFlow</h1>
-  <span>AGS 4.x Validator &amp; Converter &mdash; runs entirely in your browser</span>
-</header>
-
-<main>
-
-  <div class="tab-bar">
-    <button class="tab-btn active" data-tab="validate">Validate &amp; Convert</button>
-    <button class="tab-btn"        data-tab="diff">Diff</button>
-  </div>
-
-  <!-- ── Validate & Convert tab ─────────────────────────────────────── -->
-  <div class="tab-panel active" id="tab-validate">
-
-    <div class="drop-zone" id="dropZone">
-      <input type="file" id="fileInput" accept=".ags,.xml,.diggs">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path stroke-linecap="round" stroke-linejoin="round"
-          d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
-      </svg>
-      <p><strong>Drop an AGS file here</strong> or click to browse</p>
-      <p>.ags &nbsp;·&nbsp; .xml (DIGGS) &nbsp;·&nbsp; .diggs</p>
-      <div class="file-name" id="fileName"></div>
-    </div>
-
-    <div class="actions">
-      <button class="btn-primary"   id="btnValidate" disabled>Validate</button>
-      <button class="btn-secondary" id="btnFix"      disabled>Fix &amp; Download</button>
-      <button class="btn-accent"    id="btnConvert"  disabled>Convert to DIGGS</button>
-    </div>
-
-    <div id="status">Loading WebAssembly engine&hellip;</div>
-
-    <div class="summary" id="summary" style="display:none"></div>
-
-    <div id="boreholeSection" class="borehole-section" style="display:none">
-      <h2>Boreholes</h2>
-      <div class="location-grid" id="locationGrid"></div>
-      <div class="borehole-panel" id="boreholePanel" style="display:none">
-        <div class="borehole-meta" id="boreholeMeta"></div>
-        <div id="boreholeSvg"></div>
-      </div>
-    </div>
-
-    <div id="resultsSection" style="display:none">
-      <div class="results-header">
-        <h2>Diagnostics</h2>
-        <div class="filter-bar">
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="error">Errors</button>
-          <button class="filter-btn" data-filter="warning">Warnings</button>
-          <button class="filter-btn" data-filter="info">Info</button>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table id="diagTable">
-          <thead>
-            <tr>
-              <th>Severity</th>
-              <th>Rule</th>
-              <th>Group</th>
-              <th>Line</th>
-              <th>Message</th>
-            </tr>
-          </thead>
-          <tbody id="diagBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-  </div><!-- /tab-validate -->
-
-  <!-- ── Diff tab ───────────────────────────────────────────────────── -->
-  <div class="tab-panel" id="tab-diff">
-
-    <div class="diff-zones">
-      <div>
-        <div class="diff-zone-label">File A (before)</div>
-        <div class="diff-drop-zone" id="diffZoneA">
-          <input type="file" id="diffInputA" accept=".ags">
-          <p>Drop or click to select AGS file A</p>
-          <div id="diffNameA"></div>
-        </div>
-      </div>
-      <div>
-        <div class="diff-zone-label">File B (after)</div>
-        <div class="diff-drop-zone" id="diffZoneB">
-          <input type="file" id="diffInputB" accept=".ags">
-          <p>Drop or click to select AGS file B</p>
-          <div id="diffNameB"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="actions">
-      <button class="btn-primary" id="btnCompare" disabled>Compare</button>
-    </div>
-
-    <div id="diffStatus"></div>
-    <div class="diff-result" id="diffResult"></div>
-
-  </div><!-- /tab-diff -->
-
-</main>
-
+<div id="root"></div>
 <noscript>
   <p style="text-align:center;padding:40px;color:#64748b">
     GeoFlow requires JavaScript to run the WebAssembly engine.
   </p>
 </noscript>
-
 <script type="module">
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'https://esm.sh/react@18';
+import { createRoot } from 'https://esm.sh/react-dom@18/client';
+import htm from 'https://esm.sh/htm@3';
 import init, {
   validate_ags, fix_ags, convert_to_diggs, ags_info,
-  list_locations, render_borehole_svg, diff_ags,
+  list_locations, render_borehole_svg, diff_ags, get_group_rows,
+  get_all_groups_data, get_all_groups_meta,
 } from './pkg/geoflow_wasm.js';
 
-// ── State ────────────────────────────────────────────────────────────────────
-let fileBytes = null;
-let fileName  = '';
-let wasmReady = false;
-let activeFilter = 'all';
-let diffBytesA = null;
-let diffBytesB = null;
+const html = htm.bind(React.createElement);
 
-// ── DOM refs ─────────────────────────────────────────────────────────────────
-const dropZone   = document.getElementById('dropZone');
-const fileInput  = document.getElementById('fileInput');
-const fileNameEl = document.getElementById('fileName');
-const status     = document.getElementById('status');
-const summary    = document.getElementById('summary');
-const resultsSection = document.getElementById('resultsSection');
-const diagBody   = document.getElementById('diagBody');
-const btnValidate = document.getElementById('btnValidate');
-const btnFix      = document.getElementById('btnFix');
-const btnConvert  = document.getElementById('btnConvert');
-
-// Diff refs
-const diffZoneA  = document.getElementById('diffZoneA');
-const diffZoneB  = document.getElementById('diffZoneB');
-const diffInputA = document.getElementById('diffInputA');
-const diffInputB = document.getElementById('diffInputB');
-const diffNameA  = document.getElementById('diffNameA');
-const diffNameB  = document.getElementById('diffNameB');
-const btnCompare = document.getElementById('btnCompare');
-const diffStatus = document.getElementById('diffStatus');
-const diffResult = document.getElementById('diffResult');
-
-// ── WASM init ─────────────────────────────────────────────────────────────────
-init().then(() => {
-  wasmReady = true;
-  setStatus('Engine ready. Drop or select an AGS file.', '');
-  if (fileBytes) enableButtons();
-}).catch(err => {
-  setStatus('Failed to load WebAssembly engine: ' + err.message, 'error');
-});
-
-// ── Drop zone ─────────────────────────────────────────────────────────────────
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (file) loadFile(file);
-});
-fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) loadFile(fileInput.files[0]);
-});
-
-function loadFile(file) {
-  fileName = file.name;
-  fileNameEl.textContent = file.name + ' (' + formatBytes(file.size) + ')';
-  const reader = new FileReader();
-  reader.onload = e => {
-    fileBytes = new Uint8Array(e.target.result);
-    if (wasmReady) enableButtons();
-    clearResults();
-    setStatus('File loaded. Choose an action.', '');
-
-    // Show quick summary + populate borehole section
-    if (wasmReady) {
-      try {
-        const info = JSON.parse(ags_info(fileBytes));
-        const parts = [`${info.group_count} groups`, `${info.total_rows} rows`];
-        if (info.locations > 0) parts.push(`${info.locations} locations`);
-        if (info.ags_version)   parts.push(`AGS ${info.ags_version}`);
-        if (info.project)       parts.push(`"${info.project}"`);
-        setStatus(parts.join(' · '), '');
-        populateBoreholes();
-      } catch (_) {}
-    }
-  };
-  reader.readAsArrayBuffer(file);
+// ── Utilities ────────────────────────────────────────────────────────────────
+function formatBytes(n) {
+  if (n < 1024)      return n + ' B';
+  if (n < 1048576)   return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(1) + ' MB';
 }
-
-// ── Buttons ──────────────────────────────────────────────────────────────────
-function enableButtons() {
-  btnValidate.disabled = false;
-  btnFix.disabled      = false;
-  btnConvert.disabled  = false;
-}
-
-btnValidate.addEventListener('click', () => {
-  if (!fileBytes || !wasmReady) return;
-  setStatus('Validating…', 'loading');
-  setTimeout(() => { // yield to browser so status renders
-    try {
-      const raw  = validate_ags(fileBytes);
-      const diags = JSON.parse(raw);
-      renderDiagnostics(diags);
-      setStatus('', '');
-    } catch (err) {
-      setStatus('Validation error: ' + err.message, 'error');
-    }
-  }, 0);
-});
-
-btnFix.addEventListener('click', () => {
-  if (!fileBytes || !wasmReady) return;
-  setStatus('Applying fixes…', 'loading');
-  setTimeout(() => {
-    try {
-      const fixed = fix_ags(fileBytes);
-      downloadBlob(new Blob([fixed], { type: 'text/plain' }), fixedName(fileName));
-      setStatus('Fixed file downloaded.', '');
-    } catch (err) {
-      setStatus('Fix error: ' + err.message, 'error');
-    }
-  }, 0);
-});
-
-btnConvert.addEventListener('click', () => {
-  if (!fileBytes || !wasmReady) return;
-  setStatus('Converting to DIGGS…', 'loading');
-  setTimeout(() => {
-    try {
-      const xml = convert_to_diggs(fileBytes);
-      if (!xml) { setStatus('Conversion produced no output (unmapped groups?)', 'error'); return; }
-      downloadBlob(new Blob([xml], { type: 'application/xml' }), digsName(fileName));
-      setStatus('DIGGS file downloaded.', '');
-    } catch (err) {
-      setStatus('Conversion error: ' + err.message, 'error');
-    }
-  }, 0);
-});
-
-// ── Render ────────────────────────────────────────────────────────────────────
-function renderDiagnostics(diags) {
-  clearResults();
-
-  const counts = { error: 0, warning: 0, info: 0 };
-  diags.forEach(d => { if (counts[d.severity] !== undefined) counts[d.severity]++; });
-
-  // Summary badges
-  summary.innerHTML = '';
-  if (diags.length === 0) {
-    summary.innerHTML = '<span class="badge badge-ok">✓ No issues found</span>';
-  } else {
-    if (counts.error)   summary.innerHTML += `<span class="badge badge-error">✕ ${counts.error} error${counts.error !== 1 ? 's' : ''}</span>`;
-    if (counts.warning) summary.innerHTML += `<span class="badge badge-warning">⚠ ${counts.warning} warning${counts.warning !== 1 ? 's' : ''}</span>`;
-    if (counts.info)    summary.innerHTML += `<span class="badge badge-info">ℹ ${counts.info} info</span>`;
-  }
-  summary.style.display = 'flex';
-
-  if (diags.length === 0) {
-    resultsSection.style.display = 'none';
-    return;
-  }
-
-  // Table rows
-  diagBody.innerHTML = '';
-  diags.forEach(d => {
-    const tr = document.createElement('tr');
-    tr.dataset.sev = d.severity;
-    const group = d.location?.group ?? '';
-    const line  = d.location?.line  ?? '';
-    tr.innerHTML = `
-      <td><span class="sev sev-${d.severity}">${d.severity}</span></td>
-      <td><span class="rule-id">${esc(d.rule_id)}</span></td>
-      <td><span class="group">${esc(group)}</span></td>
-      <td class="line">${line}</td>
-      <td>${esc(d.message)}</td>`;
-    diagBody.appendChild(tr);
-  });
-
-  applyFilter(activeFilter);
-  resultsSection.style.display = 'block';
-}
-
-function clearResults() {
-  summary.style.display = 'none';
-  resultsSection.style.display = 'none';
-  diagBody.innerHTML = '';
-}
-
-// ── Boreholes ─────────────────────────────────────────────────────────────────
-function populateBoreholes() {
-  if (!fileBytes || !wasmReady) return;
-  const section  = document.getElementById('boreholeSection');
-  const grid     = document.getElementById('locationGrid');
-  const panel    = document.getElementById('boreholePanel');
-  const metaDiv  = document.getElementById('boreholeMeta');
-  const svgDiv   = document.getElementById('boreholeSvg');
-
-  try {
-    const locs = JSON.parse(list_locations(fileBytes));
-    if (!locs || locs.length === 0) { section.style.display = 'none'; return; }
-
-    grid.innerHTML = '';
-    panel.style.display = 'none';
-    section.style.display = 'block';
-
-    locs.forEach(loc => {
-      const btn = document.createElement('button');
-      btn.className = 'loc-btn';
-      btn.textContent = loc.id;
-      if (loc.depth != null) btn.title = `Final depth: ${loc.depth} m`;
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        showBorehole(loc, metaDiv, svgDiv, panel);
-      });
-      grid.appendChild(btn);
-    });
-  } catch (_) {}
-}
-
-function showBorehole(loc, metaDiv, svgDiv, panel) {
-  setStatus(`Rendering borehole ${loc.id}…`, 'loading');
-  setTimeout(() => {
-    try {
-      const svg = render_borehole_svg(fileBytes, loc.id);
-      const parts = [];
-      if (loc.easting  != null) parts.push(`<span><strong>E</strong> ${loc.easting}</span>`);
-      if (loc.northing != null) parts.push(`<span><strong>N</strong> ${loc.northing}</span>`);
-      if (loc.depth    != null) parts.push(`<span><strong>Final depth</strong> ${loc.depth} m</span>`);
-      metaDiv.innerHTML = parts.join('');
-      svgDiv.innerHTML = svg || '<p style="color:var(--muted)">No strip log data available.</p>';
-      panel.style.display = 'block';
-      setStatus('', '');
-    } catch (err) {
-      setStatus('Render error: ' + err.message, 'error');
-    }
-  }, 0);
-}
-
-// ── Filtering ─────────────────────────────────────────────────────────────────
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeFilter = btn.dataset.filter;
-    applyFilter(activeFilter);
-  });
-});
-
-function applyFilter(filter) {
-  document.querySelectorAll('#diagBody tr').forEach(tr => {
-    tr.classList.toggle('hidden', filter !== 'all' && tr.dataset.sev !== filter);
-  });
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function setStatus(msg, cls) {
-  status.textContent = msg;
-  status.className = cls;
-}
-
 function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function fixedName(n) { const d = n.lastIndexOf('.'); return d > 0 ? n.slice(0,d)+'_fixed'+n.slice(d) : n+'_fixed'; }
+function digsName(n)  { const d = n.lastIndexOf('.'); return (d > 0 ? n.slice(0,d) : n) + '.diggs.xml'; }
+
+// ── DropZone ─────────────────────────────────────────────────────────────────
+function DropZone({ onFile, fileName, fileSize }) {
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef(null);
+  return html`
+    <div
+      className=${`drop-zone${dragOver ? ' drag-over' : ''}`}
+      onClick=${() => inputRef.current.click()}
+      onDragOver=${e => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave=${() => setDragOver(false)}
+      onDrop=${e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]); }}
+    >
+      <input ref=${inputRef} type="file" accept=".ags,.xml,.diggs" style="display:none"
+        onChange=${e => { if (e.target.files[0]) onFile(e.target.files[0]); }} />
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path strokeLinecap="round" strokeLinejoin="round"
+          d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+      </svg>
+      <p><strong>Drop an AGS file here</strong> or click to browse</p>
+      <p>.ags &nbsp;·&nbsp; .xml (DIGGS) &nbsp;·&nbsp; .diggs</p>
+      ${fileName && html`<div className="file-name">${fileName}${fileSize ? ` (${formatBytes(fileSize)})` : ''}</div>`}
+    </div>
+  `;
 }
 
-function fixedName(name) {
-  const dot = name.lastIndexOf('.');
-  return dot > 0 ? name.slice(0, dot) + '_fixed' + name.slice(dot) : name + '_fixed';
+// ── DiagnosticsLog ────────────────────────────────────────────────────────────
+function DiagnosticsLog({ diagnostics }) {
+  const [filter, setFilter] = useState('all');
+  const counts = useMemo(() => {
+    const c = { error: 0, warning: 0, info: 0 };
+    diagnostics.forEach(d => { if (d.severity in c) c[d.severity]++; });
+    return c;
+  }, [diagnostics]);
+  const visible = useMemo(
+    () => filter === 'all' ? diagnostics : diagnostics.filter(d => d.severity === filter),
+    [diagnostics, filter]
+  );
+
+  if (diagnostics.length === 0) return html`
+    <div className="diag-panel">
+      <div className="diag-panel-head"><h2>Diagnostics</h2></div>
+      <div className="empty">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+        </svg>
+        <p>No issues found — file is valid.</p>
+      </div>
+    </div>
+  `;
+
+  const LABELS = { all: `ALL (${diagnostics.length})`, error: `ERR (${counts.error})`, warning: `WARN (${counts.warning})`, info: `INFO (${counts.info})` };
+  return html`
+    <div className="diag-panel">
+      <div className="diag-panel-head">
+        <h2>Diagnostics</h2>
+        <div className="filter-pills">
+          ${['all','error','warning','info'].map(f => html`
+            <button key=${f} className=${`pill${filter===f?' active':''}`} onClick=${()=>setFilter(f)}>${LABELS[f]}</button>
+          `)}
+        </div>
+      </div>
+      <div className="diag-scroll">
+        ${visible.map((d, i) => {
+          const group = d.location?.group ?? '—';
+          const line  = d.location?.line  != null ? `L${d.location.line}` : '—';
+          const sev   = d.severity === 'error' ? 'ERR' : d.severity === 'warning' ? 'WARN' : 'INFO';
+          return html`
+            <div key=${i} className="log-row">
+              <span className=${`log-sev sev-${d.severity}`}>${sev}</span>
+              <span className="log-rule">${d.rule_id}</span>
+              <span className="log-loc">${group} · ${line}</span>
+              <span className="log-msg">${d.message}</span>
+            </div>
+          `;
+        })}
+      </div>
+    </div>
+  `;
 }
 
-function digsName(name) {
-  const dot = name.lastIndexOf('.');
-  return (dot > 0 ? name.slice(0, dot) : name) + '.diggs.xml';
+// ── BoreholeMap ───────────────────────────────────────────────────────────────
+function BoreholeMap({ locations, selectedId, onSelect }) {
+  const mapped = locations.filter(l => l.easting != null && l.northing != null);
+  const W = 328, H = 220, PAD = 28;
+
+  let plot = null;
+  if (mapped.length > 0) {
+    const es = mapped.map(l => l.easting),  ns = mapped.map(l => l.northing);
+    const minE = Math.min(...es), maxE = Math.max(...es);
+    const minN = Math.min(...ns), maxN = Math.max(...ns);
+    const rE = Math.max(maxE - minE, 1), rN = Math.max(maxN - minN, 1);
+    const sx = e => PAD + ((e - minE) / rE) * (W - PAD * 2);
+    const sy = n => H - PAD - ((n - minN) / rN) * (H - PAD * 2);
+
+    plot = html`
+      <div className="map-svg-wrap">
+        <svg viewBox="0 0 ${W} ${H}" width="100%" xmlns="http://www.w3.org/2000/svg">
+          ${[0,.25,.5,.75,1].map(t => html`
+            <line key=${'eg'+t} x1=${PAD+t*(W-PAD*2)} y1=${PAD} x2=${PAD+t*(W-PAD*2)} y2=${H-PAD} stroke="#e5e7eb" strokeWidth="0.5"/>
+            <line key=${'ng'+t} x1=${PAD} y1=${PAD+t*(H-PAD*2)} x2=${W-PAD} y2=${PAD+t*(H-PAD*2)} stroke="#e5e7eb" strokeWidth="0.5"/>
+          `)}
+          <text x=${W/2} y=${H-6} fontSize="9" textAnchor="middle" fill="#9ca3af">Easting →</text>
+          <text x="8" y=${H/2} fontSize="9" textAnchor="middle" fill="#9ca3af" transform=${`rotate(-90,8,${H/2})`}>↑ Northing</text>
+          ${mapped.map(loc => html`
+            <g key=${loc.id} style="cursor:pointer" onClick=${()=>onSelect(loc)}>
+              <circle cx=${sx(loc.easting)} cy=${sy(loc.northing)} r="6"
+                fill=${selectedId===loc.id?'var(--navy)':'#3b82f6'}
+                stroke=${selectedId===loc.id?'#93c5fd':'#1d4ed8'} strokeWidth="1.5"/>
+              <text x=${sx(loc.easting)} y=${sy(loc.northing)-9}
+                fontSize="9" textAnchor="middle"
+                fill=${selectedId===loc.id?'var(--navy)':'#374151'}
+                fontWeight=${selectedId===loc.id?'700':'400'}
+              >${loc.id}</text>
+            </g>
+          `)}
+        </svg>
+      </div>
+    `;
+  }
+
+  return html`
+    <div className="map-card">
+      <div className="map-card-head">Borehole Locations (${locations.length})</div>
+      <div className="map-card-body">
+        ${plot ?? html`<p style="font-size:13px;color:var(--muted)">No coordinate data (LOCA_NATE / LOCA_NATN) in this file.</p>`}
+        <div className="bh-grid">
+          ${locations.map(loc => html`
+            <button key=${loc.id}
+              className=${`bh-btn${selectedId===loc.id?' active':''}`}
+              title=${loc.depth!=null?`Final depth: ${loc.depth} m`:''}
+              onClick=${()=>onSelect(loc)}
+            >${loc.id}</button>
+          `)}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
-function formatBytes(n) {
-  if (n < 1024)       return n + ' B';
-  if (n < 1024*1024)  return (n/1024).toFixed(1) + ' KB';
-  return (n/1024/1024).toFixed(1) + ' MB';
+// ── BoreholeSvgPanel ──────────────────────────────────────────────────────────
+function BoreholeSvgPanel({ loc, fileBytes, wasmReady, className }) {
+  const [svg, setSvg] = useState('');
+  useEffect(() => {
+    if (!loc || !fileBytes || !wasmReady) return;
+    setSvg('');
+    setTimeout(() => { try { setSvg(render_borehole_svg(fileBytes, loc.id) || ''); } catch(_) {} }, 0);
+  }, [loc?.id, fileBytes, wasmReady]);
+
+  if (!svg) return null;
+  return html`
+    <div className=${className ?? 'bh-preview'}>
+      <div className="bh-preview-meta">
+        <strong>${loc.id}</strong>
+        ${loc.easting  != null ? html`<span>E ${loc.easting}</span>` : null}
+        ${loc.northing != null ? html`<span>N ${loc.northing}</span>` : null}
+        ${loc.depth    != null ? html`<span>Depth ${loc.depth} m</span>` : null}
+      </div>
+      <div dangerouslySetInnerHTML=${{ __html: svg }}></div>
+    </div>
+  `;
 }
 
-function esc(s) {
-  return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// ── LogSheet ──────────────────────────────────────────────────────────────────
+function LogSheet({ loc, fileBytes, wasmReady, fileInfo }) {
+  const [svg, setSvg] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!loc || !fileBytes || !wasmReady) return;
+    setBusy(true); setSvg('');
+    setTimeout(() => {
+      try { setSvg(render_borehole_svg(fileBytes, loc.id) || ''); } catch(_) {}
+      setBusy(false);
+    }, 0);
+  }, [loc?.id, fileBytes, wasmReady]);
+
+  if (!loc) return html`
+    <div className="empty">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style="color:var(--muted)">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25"/>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 19.5h16.5M3.75 15h16.5M3.75 10.5H9"/>
+      </svg>
+      <p>Select a borehole from the list to view its log.</p>
+    </div>
+  `;
+
+  return html`
+    <div className="log-sheet">
+      <div className="log-sheet-hdr">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+        </svg>
+        <h2>Borehole Log — ${loc.id}</h2>
+        <span className="version">GeoFlow / AGS 4.x</span>
+      </div>
+
+      <div className="log-sheet-meta">
+        <div className="meta-cell">
+          <div className="lbl">Project</div>
+          <div className="val">${fileInfo?.project || '—'}</div>
+        </div>
+        <div className="meta-cell">
+          <div className="lbl">Borehole ID</div>
+          <div className="val">${loc.id}</div>
+        </div>
+        <div className="meta-cell">
+          <div className="lbl">Final Depth</div>
+          <div className="val">${loc.depth != null ? `${loc.depth} m` : '—'}</div>
+        </div>
+        <div className="meta-cell">
+          <div className="lbl">Easting (m E)</div>
+          <div className="val">${loc.easting != null ? loc.easting.toFixed(1) : '—'}</div>
+        </div>
+        <div className="meta-cell">
+          <div className="lbl">Northing (m N)</div>
+          <div className="val">${loc.northing != null ? loc.northing.toFixed(1) : '—'}</div>
+        </div>
+        <div className="meta-cell">
+          <div className="lbl">Ground Level (mOD)</div>
+          <div className="val">—</div>
+        </div>
+      </div>
+
+      <div className="log-sheet-col-hdr">
+        <div className="log-col-lbl" style="width:60px">Depth (m)</div>
+        <div className="log-col-lbl" style="width:80px">Lithology</div>
+        <div className="log-col-lbl" style="width:20px"></div>
+        <div className="log-col-lbl" style="width:100px">SPT N-value →</div>
+        <div className="log-col-lbl" style="width:50px">Water</div>
+      </div>
+
+      <div className="log-sheet-body">
+        ${busy ? html`<p style="padding:16px 0;font-size:13px;color:var(--muted)">Rendering…</p>` :
+          svg  ? html`<div dangerouslySetInnerHTML=${{ __html: svg }}></div>` :
+          html`<p style="padding:16px 0;font-size:13px;color:var(--muted)">No strip-log data available for this borehole.</p>`
+        }
+      </div>
+
+      <div className="log-sheet-legend">
+        <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-right:4px">Legend:</span>
+        <div className="legend-item">
+          <div className="legend-swatch" style="background:#d1d5db;border:1px solid #9ca3af"></div>
+          <span>Geology layer</span>
+        </div>
+        <div className="legend-item">
+          <div className="legend-swatch" style="background:#3b82f6;border:1px solid #1d4ed8"></div>
+          <span>Sample</span>
+        </div>
+        <div className="legend-item">
+          <div className="legend-swatch" style="background:#f97316;border:1px solid #c2410c"></div>
+          <span>SPT N-value</span>
+        </div>
+        <div className="legend-item">
+          <div className="legend-swatch" style="background:#06b6d4;border:1px solid #0891b2;transform:rotate(45deg)"></div>
+          <span>Water strike</span>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
-// ── Tab switching ─────────────────────────────────────────────────────────────
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-  });
-});
+// ── UploadTab ─────────────────────────────────────────────────────────────────
+function UploadTab({ fileBytes, fileName, fileSize, wasmReady, status, fileInfo, diagnostics, onFile, onValidate, onFix, onConvert }) {
+  const counts = useMemo(() => {
+    if (!diagnostics) return null;
+    const c = { error: 0, warning: 0, info: 0 };
+    diagnostics.forEach(d => { if (d.severity in c) c[d.severity]++; });
+    return c;
+  }, [diagnostics]);
 
-// ── Diff drop zones ───────────────────────────────────────────────────────────
-function setupDiffZone(zone, input, nameEl, side) {
-  zone.addEventListener('click', () => input.click());
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault(); zone.classList.remove('drag-over');
-    if (e.dataTransfer.files[0]) loadDiffFile(e.dataTransfer.files[0], zone, nameEl, side);
-  });
-  input.addEventListener('change', () => {
-    if (input.files[0]) loadDiffFile(input.files[0], zone, nameEl, side);
-  });
+  return html`
+    <div>
+      <${DropZone} onFile=${onFile} fileName=${fileName} fileSize=${fileSize} />
+      <div className="actions">
+        <button className="btn-primary"   disabled=${!fileBytes||!wasmReady} onClick=${onValidate}>Validate</button>
+        <button className="btn-secondary" disabled=${!fileBytes||!wasmReady} onClick=${onFix}>Fix &amp; Download</button>
+        <button className="btn-accent"    disabled=${!fileBytes||!wasmReady} onClick=${onConvert}>Convert to DIGGS</button>
+      </div>
+      <div className=${`status${status.type?' '+status.type:''}`}>${status.msg}</div>
+
+      ${fileInfo && html`
+        <div className="file-info-bar">
+          <span><strong>${fileInfo.group_count}</strong> groups</span>
+          <span><strong>${fileInfo.total_rows}</strong> rows</span>
+          ${fileInfo.locations > 0 ? html`<span><strong>${fileInfo.locations}</strong> locations</span>` : null}
+          ${fileInfo.ags_version ? html`<span>AGS <strong>${fileInfo.ags_version}</strong></span>` : null}
+          ${fileInfo.project ? html`<span>"${fileInfo.project}"</span>` : null}
+        </div>
+      `}
+
+      ${diagnostics !== null && html`
+        <div className="summary">
+          ${diagnostics.length === 0
+            ? html`<span className="badge badge-ok">✓ No issues found</span>`
+            : html`
+              ${counts.error   ? html`<span className="badge badge-error">✕ ${counts.error} error${counts.error!==1?'s':''}</span>` : null}
+              ${counts.warning ? html`<span className="badge badge-warning">⚠ ${counts.warning} warning${counts.warning!==1?'s':''}</span>` : null}
+              ${counts.info    ? html`<span className="badge badge-info">ℹ ${counts.info} info</span>` : null}
+            `
+          }
+        </div>
+      `}
+    </div>
+  `;
 }
 
-function loadDiffFile(file, zone, nameEl, side) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    const bytes = new Uint8Array(e.target.result);
-    if (side === 'A') diffBytesA = bytes;
-    else              diffBytesB = bytes;
-    nameEl.textContent = file.name;
-    zone.classList.add('loaded');
-    btnCompare.disabled = !(diffBytesA && diffBytesB && wasmReady);
-  };
-  reader.readAsArrayBuffer(file);
+// ── ValidationMapTab ──────────────────────────────────────────────────────────
+function ValidationMapTab({ diagnostics, locations, fileBytes, wasmReady }) {
+  const [selectedLoc, setSelectedLoc] = useState(null);
+
+  if (!diagnostics && locations.length === 0) return html`
+    <div className="empty">
+      <p>Load and validate a file in the <strong>Upload &amp; Convert</strong> tab to see results here.</p>
+    </div>
+  `;
+
+  return html`
+    <div className="val-map-grid">
+      <div>
+        ${diagnostics !== null
+          ? html`<${DiagnosticsLog} diagnostics=${diagnostics} />`
+          : html`<div className="empty"><p>Run <strong>Validate</strong> in the Upload tab to populate this view.</p></div>`
+        }
+      </div>
+      <div>
+        ${locations.length > 0
+          ? html`<${BoreholeMap} locations=${locations} selectedId=${selectedLoc?.id} onSelect=${setSelectedLoc} />`
+          : html`<div className="empty" style="padding:24px"><p>No boreholes (LOCA group) in this file.</p></div>`
+        }
+        ${selectedLoc && html`<${BoreholeSvgPanel} loc=${selectedLoc} fileBytes=${fileBytes} wasmReady=${wasmReady} />`}
+      </div>
+    </div>
+  `;
 }
 
-setupDiffZone(diffZoneA, diffInputA, diffNameA, 'A');
-setupDiffZone(diffZoneB, diffInputB, diffNameB, 'B');
+// ── LogTab ────────────────────────────────────────────────────────────────────
+function LogTab({ locations, fileBytes, wasmReady, fileInfo }) {
+  const [selectedLoc, setSelectedLoc] = useState(null);
 
-btnCompare.addEventListener('click', () => {
-  if (!diffBytesA || !diffBytesB || !wasmReady) return;
-  diffStatus.textContent = 'Comparing…';
-  diffResult.innerHTML = '';
-  setTimeout(() => {
-    try {
-      const raw = diff_ags(diffBytesA, diffBytesB);
-      const d   = JSON.parse(raw);
-      renderDiff(d);
-      diffStatus.textContent = '';
-    } catch (err) {
-      diffStatus.textContent = 'Error: ' + err.message;
+  if (locations.length === 0) return html`
+    <div className="empty">
+      <p>Load an AGS file with borehole data (LOCA group) in the <strong>Upload &amp; Convert</strong> tab.</p>
+    </div>
+  `;
+
+  return html`
+    <div className="log-tab-grid">
+      <div className="bh-list-panel">
+        <div className="bh-list-head">Boreholes (${locations.length})</div>
+        ${locations.map(loc => html`
+          <div key=${loc.id}
+            className=${`bh-list-item${selectedLoc?.id===loc.id?' active':''}`}
+            onClick=${()=>setSelectedLoc(loc)}
+          >
+            <span>${loc.id}</span>
+            ${loc.depth!=null ? html`<span className="depth">${loc.depth} m</span>` : null}
+          </div>
+        `)}
+      </div>
+      <div>
+        <${LogSheet} loc=${selectedLoc} fileBytes=${fileBytes} wasmReady=${wasmReady} fileInfo=${fileInfo} />
+      </div>
+    </div>
+  `;
+}
+
+// ── DiffTab ───────────────────────────────────────────────────────────────────
+function DiffTab({ wasmReady }) {
+  const [bytesA, setBytesA]   = useState(null);
+  const [bytesB, setBytesB]   = useState(null);
+  const [nameA, setNameA]     = useState('');
+  const [nameB, setNameB]     = useState('');
+  const [dragA, setDragA]     = useState(false);
+  const [dragB, setDragB]     = useState(false);
+  const [result, setResult]   = useState(null);
+  const [status, setStatus]   = useState('');
+  const refA = useRef(null), refB = useRef(null);
+
+  function loadFile(file, side) {
+    const r = new FileReader();
+    r.onload = e => {
+      const b = new Uint8Array(e.target.result);
+      if (side === 'A') { setBytesA(b); setNameA(file.name); }
+      else              { setBytesB(b); setNameB(file.name); }
+    };
+    r.readAsArrayBuffer(file);
+  }
+
+  function compare() {
+    if (!bytesA || !bytesB || !wasmReady) return;
+    setStatus('Comparing…'); setResult(null);
+    setTimeout(() => {
+      try { setResult(JSON.parse(diff_ags(bytesA, bytesB))); setStatus(''); }
+      catch(e) { setStatus('Error: ' + e.message); }
+    }, 0);
+  }
+
+  function zone(side, drag, setDrag, ref, name, bytes) {
+    return html`
+      <div>
+        <div className="diff-zone-lbl">File ${side} ${side==='A'?'(before)':'(after)'}</div>
+        <div className=${`diff-drop${drag?' drag-over':''}${bytes?' loaded':''}`}
+          onClick=${()=>ref.current.click()}
+          onDragOver=${e=>{e.preventDefault();setDrag(true);}}
+          onDragLeave=${()=>setDrag(false)}
+          onDrop=${e=>{e.preventDefault();setDrag(false);if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0],side);}}
+        >
+          <input ref=${ref} type="file" accept=".ags" style="display:none"
+            onChange=${e=>{if(e.target.files[0])loadFile(e.target.files[0],side);}} />
+          <p>${name||`Drop or click — AGS file ${side}`}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  return html`
+    <div>
+      <div className="diff-zones">
+        ${zone('A', dragA, setDragA, refA, nameA, bytesA)}
+        ${zone('B', dragB, setDragB, refB, nameB, bytesB)}
+      </div>
+      <div className="actions">
+        <button className="btn-primary" disabled=${!bytesA||!bytesB||!wasmReady} onClick=${compare}>Compare</button>
+      </div>
+      ${status && html`<div style="margin-top:10px;font-size:13px;color:var(--muted)">${status}</div>`}
+      ${result && html`<${DiffResult} d=${result} />`}
+    </div>
+  `;
+}
+
+function DiffResult({ d }) {
+  if (d.identical) return html`<div className="diff-identical" style="margin-top:20px">✓ Files are identical</div>`;
+  return html`
+    <div className="diff-result">
+      ${d.only_in_a?.length ? html`
+        <div className="diff-group-row">
+          <div className="diff-group-hdr">Groups only in A</div>
+          <div style="padding:10px 16px;font-size:12px">
+            ${d.only_in_a.map(g => html`<span key=${g} className="diff-only diff-removed">− ${g}</span>`)}
+          </div>
+        </div>
+      ` : null}
+      ${d.only_in_b?.length ? html`
+        <div className="diff-group-row">
+          <div className="diff-group-hdr">Groups only in B</div>
+          <div style="padding:10px 16px;font-size:12px">
+            ${d.only_in_b.map(g => html`<span key=${g} className="diff-only diff-added">+ ${g}</span>`)}
+          </div>
+        </div>
+      ` : null}
+      ${(d.groups||[]).map(g => html`
+        <div key=${g.group} className="diff-group-row">
+          <div className="diff-group-hdr">
+            <span>${g.group}</span>
+            ${g.rows_unchanged ? html`<span className="diff-badge diff-unchanged">${g.rows_unchanged} unchanged</span>` : null}
+            ${g.rows_added     ? html`<span className="diff-badge diff-added">+${g.rows_added} added</span>`           : null}
+            ${g.rows_removed   ? html`<span className="diff-badge diff-removed">−${g.rows_removed} removed</span>`      : null}
+            ${g.rows_modified  ? html`<span className="diff-badge diff-modified">~${g.rows_modified} modified</span>`   : null}
+          </div>
+        </div>
+      `)}
+    </div>
+  `;
+}
+
+// ── Data tab helpers ──────────────────────────────────────────────────────────
+function cellValue(val) {
+  if (val === null || val === undefined || val === '') return null;
+  return val;
+}
+
+function truncate(s, n = 60) {
+  const t = String(s);
+  return t.length > n ? t.slice(0, n) + '…' : t;
+}
+
+// ── MiniTable (compact read-only table used inside OntologyView) ──────────────
+function MiniTable({ rows, meta, onKeyClick }) {
+  if (!rows || rows.length === 0) return null;
+  const headings = meta ?? Object.keys(rows[0]).map(name => ({ name, unit: '', is_id: false }));
+  return html`
+    <div className="onto-tbl-wrap">
+      <table className="onto-tbl">
+        <thead>
+          <tr>
+            ${headings.map(h => html`<th key=${h.name} title=${h.unit||''}>${h.name}</th>`)}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row, ri) => html`
+            <tr key=${ri}>
+              ${headings.map(h => {
+                const v = cellValue(row[h.name]);
+                if (v === null) return html`<td key=${h.name} className="null">—</td>`;
+                const isNum = typeof v === 'number';
+                if (h.is_id && v !== '') return html`
+                  <td key=${h.name}>
+                    <button className="key-chip" onClick=${() => onKeyClick(h.name, v)}>${v}</button>
+                  </td>`;
+                return html`<td key=${h.name} className=${isNum?'num':''} title=${String(v)}>${truncate(String(v),40)}</td>`;
+              })}
+            </tr>
+          `)}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ── OntologyView ──────────────────────────────────────────────────────────────
+function OntologyView({ keyField, keyValue, allData, allMeta, onBack, onKeyClick }) {
+  const [expanded, setExpanded] = useState({});
+
+  // Find all groups that have at least one row matching keyField = keyValue
+  const matches = useMemo(() => {
+    const valStr = String(keyValue);
+    const result = [];
+    for (const [group, rows] of Object.entries(allData)) {
+      const hit = rows.filter(r => {
+        const v = r[keyField];
+        return v !== null && v !== undefined && String(v) === valStr;
+      });
+      if (hit.length > 0) result.push({ group, rows: hit });
     }
-  }, 0);
-});
+    // Put the group whose name matches the field prefix first (e.g. LOCA for LOCA_ID)
+    const prefix = keyField.replace(/_ID$|_REF$/, '');
+    result.sort((a, b) => {
+      if (a.group === prefix) return -1;
+      if (b.group === prefix) return  1;
+      return a.group.localeCompare(b.group);
+    });
+    return result;
+  }, [allData, keyField, keyValue]);
 
-function renderDiff(d) {
-  diffResult.innerHTML = '';
-  if (d.identical) {
-    diffResult.innerHTML = '<div class="diff-identical">✓ Files are identical</div>';
-    return;
-  }
+  // Start with all groups expanded
+  useEffect(() => {
+    const init = {};
+    matches.forEach(m => { init[m.group] = true; });
+    setExpanded(init);
+  }, [keyField, keyValue]);
 
-  if (d.only_in_a?.length) {
-    const el = document.createElement('div');
-    el.className = 'diff-group-row';
-    el.innerHTML = `<div class="diff-group-header">Groups only in A</div>
-      <div class="diff-group-body">${d.only_in_a.map(g => `<span class="diff-only diff-removed">- ${esc(g)}</span>`).join(' ')}</div>`;
-    diffResult.appendChild(el);
-  }
-  if (d.only_in_b?.length) {
-    const el = document.createElement('div');
-    el.className = 'diff-group-row';
-    el.innerHTML = `<div class="diff-group-header">Groups only in B</div>
-      <div class="diff-group-body">${d.only_in_b.map(g => `<span class="diff-only diff-added">+ ${esc(g)}</span>`).join(' ')}</div>`;
-    diffResult.appendChild(el);
-  }
+  const toggle = g => setExpanded(e => ({ ...e, [g]: !e[g] }));
 
-  (d.groups || []).forEach(g => {
-    const el = document.createElement('div');
-    el.className = 'diff-group-row';
-    const badges = [];
-    if (g.rows_unchanged)  badges.push(`<span class="diff-badge diff-unchanged">${g.rows_unchanged} unchanged</span>`);
-    if (g.rows_added)      badges.push(`<span class="diff-badge diff-added">+${g.rows_added} added</span>`);
-    if (g.rows_removed)    badges.push(`<span class="diff-badge diff-removed">-${g.rows_removed} removed</span>`);
-    if (g.rows_modified)   badges.push(`<span class="diff-badge diff-modified">~${g.rows_modified} modified</span>`);
-    el.innerHTML = `<div class="diff-group-header"><span>${esc(g.group)}</span>${badges.join('')}</div>`;
-    diffResult.appendChild(el);
-  });
+  return html`
+    <div>
+      <div className="onto-back-bar">
+        <button className="onto-back-btn" onClick=${onBack}>← Back</button>
+        <span className="onto-title">
+          <span className="onto-field">${keyField}</span>
+          ${' = '}
+          <span className="key-chip" style="font-size:13px;padding:3px 12px">${keyValue}</span>
+        </span>
+        <span style="margin-left:auto;font-size:12px;color:var(--muted)">${matches.length} group${matches.length!==1?'s':''}</span>
+      </div>
+      ${matches.length === 0 ? html`
+        <div className="empty"><p>No records found for ${keyField} = "${keyValue}".</p></div>
+      ` : html`
+        <div className="onto-scroll">
+          ${matches.map(({ group, rows }) => {
+            const meta = allMeta[group] ?? null;
+            const isOpen = !!expanded[group];
+            return html`
+              <div key=${group} className="onto-group-section">
+                <div className="onto-group-hdr" onClick=${() => toggle(group)}>
+                  <span className="onto-chevron ${isOpen?'open':''}">▶</span>
+                  <span>${group}</span>
+                  <span className="onto-row-count">${rows.length} row${rows.length!==1?'s':''}</span>
+                </div>
+                ${isOpen && html`
+                  <${MiniTable} rows=${rows} meta=${meta} onKeyClick=${onKeyClick} />
+                `}
+              </div>
+            `;
+          })}
+        </div>
+      `}
+    </div>
+  `;
 }
+
+// ── GroupTable ────────────────────────────────────────────────────────────────
+const PAGE = 150;
+
+function GroupTable({ groupName, rows, meta, onKeyClick }) {
+  const [search, setSearch] = useState('');
+  const [shown, setShown] = useState(PAGE);
+
+  useEffect(() => { setSearch(''); setShown(PAGE); }, [groupName]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return rows;
+    const q = search.toLowerCase();
+    return rows.filter(row =>
+      Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(q))
+    );
+  }, [rows, search]);
+
+  const visible = filtered.slice(0, shown);
+  const headings = meta ?? Object.keys(rows[0] ?? {}).map(name => ({ name, unit: '', is_id: false }));
+
+  return html`
+    <div className="data-panel">
+      <div className="data-panel-head">
+        <h2>${groupName}</h2>
+        <span style="font-size:12px;color:var(--muted)">${rows.length} row${rows.length!==1?'s':''}</span>
+        <input
+          className="data-search"
+          placeholder="Filter rows…"
+          value=${search}
+          onInput=${e => { setSearch(e.target.value); setShown(PAGE); }}
+        />
+      </div>
+      <div className="data-tbl-wrap">
+        <table className="data-tbl">
+          <thead>
+            <tr>
+              <th>#</th>
+              ${headings.map(h => html`
+                <th key=${h.name}>
+                  ${h.name}
+                  ${h.unit ? html`<span className="th-unit">${h.unit}</span>` : null}
+                </th>
+              `)}
+            </tr>
+          </thead>
+          <tbody>
+            ${visible.map((row, ri) => html`
+              <tr key=${ri}>
+                <td>${filtered.indexOf(row) + 1}</td>
+                ${headings.map(h => {
+                  const v = cellValue(row[h.name]);
+                  if (v === null) return html`<td key=${h.name} className="null">—</td>`;
+                  const isNum = typeof v === 'number';
+                  if (h.is_id) return html`
+                    <td key=${h.name}>
+                      <button className="key-chip" onClick=${() => onKeyClick(h.name, v)}
+                        title="Show all records where ${h.name} = ${v}">
+                        ${String(v)}
+                      </button>
+                    </td>`;
+                  return html`
+                    <td key=${h.name} className=${isNum?'num':''} title=${String(v)}>
+                      ${truncate(String(v))}
+                    </td>`;
+                })}
+              </tr>
+            `)}
+          </tbody>
+        </table>
+      </div>
+      ${filtered.length > shown ? html`
+        <div className="tbl-more">
+          Showing ${shown} of ${filtered.length} rows
+          <button className="btn-secondary" style="padding:4px 12px;font-size:12px"
+            onClick=${() => setShown(s => s + PAGE)}>
+            Show ${Math.min(PAGE, filtered.length - shown)} more
+          </button>
+        </div>
+      ` : filtered.length < rows.length ? html`
+        <div className="tbl-more">${filtered.length} of ${rows.length} rows match filter</div>
+      ` : null}
+    </div>
+  `;
+}
+
+// ── DataTab ───────────────────────────────────────────────────────────────────
+function DataTab({ allGroupData, allGroupsMeta, fileInfo }) {
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [ontologyCtx, setOntologyCtx] = useState(null); // { field, value }
+
+  // Auto-select first group when data loads
+  useEffect(() => {
+    if (!allGroupData) return;
+    const groups = Object.keys(allGroupData);
+    if (groups.length > 0 && !selectedGroup) setSelectedGroup(groups[0]);
+  }, [allGroupData]);
+
+  // Reset ontology when group changes
+  useEffect(() => { setOntologyCtx(null); }, [selectedGroup]);
+
+  function handleKeyClick(field, value) {
+    setOntologyCtx({ field, value: String(value) });
+  }
+  function handleBack() { setOntologyCtx(null); }
+
+  if (!allGroupData) return html`
+    <div className="empty">
+      <p>Load an AGS file in <strong>Upload &amp; Convert</strong> to explore its data.</p>
+    </div>
+  `;
+
+  const groups = Object.keys(allGroupData);
+
+  return html`
+    <div className="data-layout">
+      <!-- Left: group list -->
+      <div className="grp-list-panel">
+        <div className="grp-list-head">Groups (${groups.length})</div>
+        <div className="grp-list-scroll">
+          ${groups.map(g => html`
+            <div key=${g}
+              className=${`grp-list-item${selectedGroup===g?' active':''}`}
+              onClick=${() => setSelectedGroup(g)}
+            >
+              <span>${g}</span>
+              <span className="grp-count">${allGroupData[g].length}</span>
+            </div>
+          `)}
+        </div>
+      </div>
+
+      <!-- Right: table or ontology -->
+      <div>
+        ${ontologyCtx ? html`
+          <div className="data-panel">
+            <${OntologyView}
+              keyField=${ontologyCtx.field}
+              keyValue=${ontologyCtx.value}
+              allData=${allGroupData}
+              allMeta=${allGroupsMeta}
+              onBack=${handleBack}
+              onKeyClick=${handleKeyClick}
+            />
+          </div>
+        ` : selectedGroup && allGroupData[selectedGroup] ? html`
+          <${GroupTable}
+            groupName=${selectedGroup}
+            rows=${allGroupData[selectedGroup]}
+            meta=${allGroupsMeta?.[selectedGroup] ?? null}
+            onKeyClick=${handleKeyClick}
+          />
+        ` : html`<div className="empty"><p>Select a group from the list.</p></div>`}
+      </div>
+    </div>
+  `;
+}
+
+// ── Geology colour lookup ─────────────────────────────────────────────────────
+const GEOL_PALETTE = [
+  [/MADE\s*GROUND|FILL|HARDCORE/i,         '#A0785A', 'Made Ground / Fill'],
+  [/TOPSOIL|TOP\s*SOIL/i,                  '#5C7A3E', 'Topsoil'],
+  [/PEAT|ORGANIC/i,                        '#3D2B1F', 'Peat / Organic'],
+  [/CLAY|COHESIVE/i,                       '#7B9EC5', 'Clay'],
+  [/SILT(?!Y\s*SAND)/i,                    '#C4A87C', 'Silt'],
+  [/CHALK/i,                               '#F5F0C8', 'Chalk'],
+  [/SAND(?!STONE)/i,                       '#F0D870', 'Sand'],
+  [/GRAVEL(?!LY)/i,                        '#C87A45', 'Gravel'],
+  [/SANDY\s*GRAVEL|GRAVELLY\s*SAND/i,      '#D99055', 'Sandy Gravel / Gravelly Sand'],
+  [/SILTY\s*SAND|SANDY\s*SILT/i,           '#D8C080', 'Silty Sand / Sandy Silt'],
+  [/MUDSTONE|SHALE/i,                      '#7A7A90', 'Mudstone / Shale'],
+  [/SANDSTONE/i,                           '#D4B483', 'Sandstone'],
+  [/LIMESTONE/i,                           '#C8CEB8', 'Limestone'],
+  [/GRANITE|DIORITE|IGNEOUS/i,             '#808090', 'Igneous Rock'],
+  [/BASALT/i,                              '#505060', 'Basalt'],
+  [/ROCK|BEDROCK/i,                        '#9090A0', 'Rock'],
+];
+
+function geolColor(desc) {
+  const d = String(desc || '');
+  for (const [re, col] of GEOL_PALETTE) if (re.test(d)) return col;
+  // Deterministic fallback from description text
+  let h = 5381;
+  for (let i = 0; i < d.length; i++) h = ((h << 5) + h + d.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  return `hsl(${hue},40%,70%)`;
+}
+
+function geolLabel(desc) {
+  const d = String(desc || '');
+  for (const [re,, lbl] of GEOL_PALETTE) if (re.test(d)) return lbl;
+  return d || 'Unknown';
+}
+
+// ── Project Map helpers ───────────────────────────────────────────────────────
+function projectOntoLine(e, n, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const L2 = dx * dx + dy * dy;
+  if (L2 < 1e-9) return { t: 0, dist: 0, perp: 0 };
+  const t = ((e - x1) * dx + (n - y1) * dy) / L2;
+  const projE = x1 + t * dx, projN = y1 + t * dy;
+  const perp = Math.sqrt((e - projE) ** 2 + (n - projN) ** 2);
+  return { t, dist: t * Math.sqrt(L2), perp };
+}
+
+function buildSectionBoreholes(sectionA, sectionB, locations, geolByBH, locaById, tolerance) {
+  const { e: x1, n: y1 } = sectionA;
+  const { e: x2, n: y2 } = sectionB;
+  const L = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+  if (L < 1) return [];
+
+  const result = [];
+  for (const loc of locations) {
+    if (loc.easting == null || loc.northing == null) continue;
+    const { dist, perp } = projectOntoLine(loc.easting, loc.northing, x1, y1, x2, y2);
+    if (perp > tolerance) continue;
+    const loca = locaById[loc.id] ?? {};
+    const gl = typeof loca.LOCA_GL === 'number' ? loca.LOCA_GL : null;
+    const layers = (geolByBH[loc.id] ?? [])
+      .map(r => ({
+        top:  +(r.GEOL_TOP  ?? 0),
+        base: +(r.GEOL_BASE ?? 0),
+        desc: String(r.GEOL_DESC ?? r.GEOL_GEOL ?? ''),
+      }))
+      .filter(r => Number.isFinite(r.top) && Number.isFinite(r.base) && r.base > r.top)
+      .sort((a, b) => a.top - b.top);
+    result.push({ ...loc, chainage: dist, perp, groundLevel: gl, layers });
+  }
+  return result.sort((a, b) => a.chainage - b.chainage);
+}
+
+// ── CrossSectionSvg ───────────────────────────────────────────────────────────
+function CrossSectionSvg({ boreholes, sectionLength }) {
+  const SVG_W = 900;
+  const LM = 64, RM = 24, TM = 56, BM = 44;
+  const plotW = SVG_W - LM - RM;
+  const COL_W = 44;
+
+  const maxDepth = Math.max(
+    ...boreholes.flatMap(b => [b.depth ?? 0, ...b.layers.map(l => l.base)]),
+    10
+  );
+  const hasGL = boreholes.some(b => b.groundLevel != null);
+  // elevation range when GL is available
+  const maxGL = hasGL ? Math.max(...boreholes.filter(b => b.groundLevel != null).map(b => b.groundLevel)) : 0;
+  const minElev = hasGL
+    ? Math.min(...boreholes.flatMap(b => b.groundLevel != null
+        ? [b.groundLevel - (b.depth ?? maxDepth)]
+        : [])) - 2
+    : -maxDepth;
+  const elevRange = hasGL ? maxGL - minElev + 2 : maxDepth;
+  const SVG_H = Math.min(TM + (elevRange / maxDepth) * 400 + BM, 560);
+  const plotH = SVG_H - TM - BM;
+
+  const sx = ch => LM + (ch / Math.max(sectionLength, 1)) * plotW;
+  const sy = hasGL
+    ? elev  => TM + ((maxGL - elev) / elevRange) * plotH
+    : depth => TM + (depth / maxDepth) * plotH;
+  const depthToY = hasGL
+    ? (bh, d) => sy((bh.groundLevel ?? maxGL) - d)
+    : (_, d)  => sy(d);
+  const surfaceY = bh => hasGL ? sy(bh.groundLevel ?? maxGL) : sy(0);
+
+  // Depth/elevation axis ticks
+  const yTicks = [];
+  const tickStep = elevRange <= 20 ? 2 : elevRange <= 60 ? 5 : elevRange <= 150 ? 10 : 20;
+  if (hasGL) {
+    const start = Math.ceil(minElev / tickStep) * tickStep;
+    for (let v = start; v <= maxGL + 2; v += tickStep) yTicks.push({ label: v.toFixed(0), y: sy(v) });
+  } else {
+    for (let d = 0; d <= maxDepth; d += tickStep) yTicks.push({ label: d.toFixed(0), y: sy(d) });
+  }
+
+  // Unique geologies for legend
+  const legendItems = [];
+  const seenDescs = new Set();
+  for (const bh of boreholes) {
+    for (const l of bh.layers) {
+      const key = geolLabel(l.desc);
+      if (!seenDescs.has(key)) { seenDescs.add(key); legendItems.push({ desc: l.desc, label: key }); }
+    }
+  }
+
+  // Filled polygons between adjacent boreholes for each matching geology
+  const fillPolys = [];
+  for (let i = 0; i < boreholes.length - 1; i++) {
+    const bhA = boreholes[i], bhB = boreholes[i + 1];
+    const xA = sx(bhA.chainage), xB = sx(bhB.chainage);
+    const uniqueDescs = new Set([...bhA.layers.map(l => l.desc), ...bhB.layers.map(l => l.desc)]);
+    for (const desc of uniqueDescs) {
+      const lA = bhA.layers.find(l => l.desc === desc);
+      const lB = bhB.layers.find(l => l.desc === desc);
+      if (!lA || !lB) continue;
+      const col = geolColor(desc);
+      const pts = [
+        [xA + COL_W / 2, depthToY(bhA, lA.top)],
+        [xB - COL_W / 2, depthToY(bhB, lB.top)],
+        [xB - COL_W / 2, depthToY(bhB, lB.base)],
+        [xA + COL_W / 2, depthToY(bhA, lA.base)],
+      ].map(p => p.join(',')).join(' ');
+      fillPolys.push({ pts, col, desc });
+    }
+  }
+
+  return html`
+    <div>
+      <svg className="xsec-svg" width=${SVG_W} height=${SVG_H} viewBox="0 0 ${SVG_W} ${SVG_H}"
+        xmlns="http://www.w3.org/2000/svg" fontFamily="system-ui,sans-serif">
+
+        <!-- Axis lines -->
+        <line x1=${LM} y1=${TM} x2=${LM} y2=${SVG_H - BM} stroke="#374151" strokeWidth="1"/>
+        <line x1=${LM} y1=${SVG_H - BM} x2=${SVG_W - RM} y2=${SVG_H - BM} stroke="#374151" strokeWidth="1"/>
+
+        <!-- Y-axis ticks and grid -->
+        ${yTicks.map((t, i) => html`
+          <g key=${i}>
+            <line x1=${LM - 5} y1=${t.y} x2=${SVG_W - RM} y2=${t.y} stroke="#e5e7eb" strokeWidth="0.5"/>
+            <line x1=${LM - 5} y1=${t.y} x2=${LM} y2=${t.y} stroke="#374151" strokeWidth="1"/>
+            <text x=${LM - 8} y=${t.y + 4} fontSize="9" textAnchor="end" fill="#374151">${t.label}</text>
+          </g>
+        `)}
+        <text x="10" y=${TM + plotH / 2} fontSize="9" textAnchor="middle" fill="#64748b"
+          transform=${`rotate(-90,10,${TM + plotH / 2})`}>${hasGL ? 'Elevation (mOD)' : 'Depth (m)'}</text>
+
+        <!-- Section A/B labels -->
+        <text x=${LM} y=${TM - 8} fontSize="11" fontWeight="700" fill="var(--navy)" textAnchor="middle">A</text>
+        <text x=${SVG_W - RM} y=${TM - 8} fontSize="11" fontWeight="700" fill="var(--navy)" textAnchor="middle">B</text>
+
+        <!-- Section baseline -->
+        <line x1=${LM} y1=${TM - 2} x2=${SVG_W - RM} y2=${TM - 2} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,3"/>
+
+        <!-- Inter-borehole fill polygons -->
+        ${fillPolys.map((p, i) => html`
+          <polygon key=${i} points=${p.pts} fill=${p.col} opacity="0.45" stroke="none"/>
+        `)}
+
+        <!-- Per-borehole columns -->
+        ${boreholes.map((bh, bi) => {
+          const cx = sx(bh.chainage);
+          const surfY = surfaceY(bh);
+          const botY  = depthToY(bh, bh.depth ?? maxDepth);
+          return html`
+            <g key=${bi}>
+              <!-- Borehole trace line -->
+              <line x1=${cx} y1=${surfY} x2=${cx} y2=${botY} stroke="#374151" strokeWidth="1.5"/>
+              <!-- Ground surface tick -->
+              <line x1=${cx - 8} y1=${surfY} x2=${cx + 8} y2=${surfY} stroke="#374151" strokeWidth="1.5"/>
+              <!-- Base tick -->
+              <line x1=${cx - 5} y1=${botY} x2=${cx + 5} y2=${botY} stroke="#374151" strokeWidth="1"/>
+
+              <!-- GEOL rectangles -->
+              ${bh.layers.map((l, li) => html`
+                <rect key=${li}
+                  x=${cx - COL_W / 2} y=${depthToY(bh, l.top)}
+                  width=${COL_W} height=${Math.max(depthToY(bh, l.base) - depthToY(bh, l.top), 1)}
+                  fill=${geolColor(l.desc)} stroke="#555" strokeWidth="0.5" opacity="0.9">
+                  <title>${l.desc} (${l.top.toFixed(1)}–${l.base.toFixed(1)} m)</title>
+                </rect>
+              `)}
+
+              <!-- Borehole ID label -->
+              <text x=${cx} y=${TM - 22} fontSize="10" fontWeight="700" textAnchor="middle" fill="var(--navy)">${bh.id}</text>
+              <!-- Chainage label -->
+              <text x=${cx} y=${TM - 10} fontSize="9" textAnchor="middle" fill="#64748b">${bh.chainage.toFixed(0)} m</text>
+              <!-- Perp distance (if > 2m) -->
+              ${bh.perp > 2 ? html`
+                <text x=${cx} y=${SVG_H - BM + 14} fontSize="8" textAnchor="middle" fill="#94a3b8">±${bh.perp.toFixed(0)} m</text>
+              ` : null}
+            </g>
+          `;
+        })}
+      </svg>
+
+      <!-- Chainage axis labels -->
+      <svg className="xsec-svg" width=${SVG_W} height="20" viewBox="0 0 ${SVG_W} 20" xmlns="http://www.w3.org/2000/svg">
+        <text x=${LM + plotW / 2} y="14" fontSize="10" textAnchor="middle" fill="#64748b">Chainage along A–B (m)</text>
+      </svg>
+
+      <!-- Legend -->
+      ${legendItems.length > 0 && html`
+        <div className="xsec-legend">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-right:4px">Geology:</span>
+          ${legendItems.map((it, i) => html`
+            <div key=${i} className="xleg-item">
+              <div className="xleg-swatch" style=${{ background: geolColor(it.desc) }}></div>
+              <span>${it.label}</span>
+            </div>
+          `)}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ── ProjectMap ────────────────────────────────────────────────────────────────
+function ProjectMap({ locations, sectionA, sectionB, onMapClick, drawing }) {
+  const mapped = locations.filter(l => l.easting != null && l.northing != null);
+  const W = 900, H = 340, PAD = 40;
+
+  if (mapped.length === 0) return html`
+    <div className="proj-map-body">
+      <p style="font-size:13px;color:var(--muted)">No coordinate data (LOCA_NATE / LOCA_NATN) in this file.</p>
+    </div>
+  `;
+
+  const es = mapped.map(l => l.easting), ns = mapped.map(l => l.northing);
+  let [minE, maxE] = [Math.min(...es), Math.max(...es)];
+  let [minN, maxN] = [Math.min(...ns), Math.max(...ns)];
+  // Add 10% padding
+  const rE = Math.max(maxE - minE, 1), rN = Math.max(maxN - minN, 1);
+  const padE = rE * 0.12, padN = rN * 0.12;
+  minE -= padE; maxE += padE;
+  minN -= padN; maxN += padN;
+  const rangeE = maxE - minE, rangeN = maxN - minN;
+
+  const sx = e => PAD + ((e - minE) / rangeE) * (W - PAD * 2);
+  const sy = n => H - PAD - ((n - minN) / rangeN) * (H - PAD * 2);
+
+  // Inverse transform for click → E/N
+  function svgCoordsToEN(svgEl, clientX, clientY) {
+    const rect = svgEl.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const svgX = (clientX - rect.left) * scaleX;
+    const svgY = (clientY - rect.top)  * scaleX;
+    const e = minE + ((svgX - PAD) / (W - PAD * 2)) * rangeE;
+    const n = minN + (1 - (svgY - PAD) / (H - PAD * 2)) * rangeN;
+    return { e, n };
+  }
+
+  function handleClick(evt) {
+    if (!drawing) return;
+    onMapClick(svgCoordsToEN(evt.currentTarget, evt.clientX, evt.clientY));
+  }
+
+  // Grid / axis labels (4 ticks each)
+  const eTicks = [0, .25, .5, .75, 1].map(t => ({ v: minE + t * rangeE, x: PAD + t * (W - PAD * 2) }));
+  const nTicks = [0, .25, .5, .75, 1].map(t => ({ v: minN + t * rangeN, y: H - PAD - t * (H - PAD * 2) }));
+
+  return html`
+    <div className="proj-map-body">
+      <svg className=${`proj-map-svg${drawing ? ' drawing' : ''}`}
+        viewBox="0 0 ${W} ${H}" width="100%"
+        xmlns="http://www.w3.org/2000/svg"
+        onClick=${handleClick}>
+
+        <!-- Grid -->
+        ${eTicks.map((t, i) => html`
+          <line key=${i} x1=${t.x} y1=${PAD} x2=${t.x} y2=${H - PAD} stroke="#e5e7eb" strokeWidth="0.5"/>
+          <text key=${'el'+i} x=${t.x} y=${H - PAD + 14} fontSize="8" textAnchor="middle" fill="#9ca3af">
+            ${t.v.toFixed(0)}
+          </text>
+        `)}
+        ${nTicks.map((t, i) => html`
+          <line key=${i} x1=${PAD} y1=${t.y} x2=${W - PAD} y2=${t.y} stroke="#e5e7eb" strokeWidth="0.5"/>
+          <text key=${'nl'+i} x=${PAD - 4} y=${t.y + 3} fontSize="8" textAnchor="end" fill="#9ca3af">
+            ${t.v.toFixed(0)}
+          </text>
+        `)}
+        <text x=${W / 2} y=${H - 2} fontSize="9" textAnchor="middle" fill="#9ca3af">Easting (m E)</text>
+        <text x="10" y=${H / 2} fontSize="9" textAnchor="middle" fill="#9ca3af"
+          transform=${`rotate(-90,10,${H / 2})`}>Northing (m N)</text>
+
+        <!-- Section line -->
+        ${sectionA && sectionB && html`
+          <line
+            x1=${sx(sectionA.e)} y1=${sy(sectionA.n)}
+            x2=${sx(sectionB.e)} y2=${sy(sectionB.n)}
+            stroke="var(--navy)" strokeWidth="2" strokeDasharray="6,3"/>
+          <circle cx=${sx(sectionA.e)} cy=${sy(sectionA.n)} r="7"
+            fill="var(--navy)" stroke="#fff" strokeWidth="1.5"/>
+          <text x=${sx(sectionA.e)} y=${sy(sectionA.n) - 11} fontSize="11" fontWeight="700"
+            textAnchor="middle" fill="var(--navy)">A</text>
+          <circle cx=${sx(sectionB.e)} cy=${sy(sectionB.n)} r="7"
+            fill="var(--navy)" stroke="#fff" strokeWidth="1.5"/>
+          <text x=${sx(sectionB.e)} y=${sy(sectionB.n) - 11} fontSize="11" fontWeight="700"
+            textAnchor="middle" fill="var(--navy)">B</text>
+        `}
+        ${sectionA && !sectionB && html`
+          <circle cx=${sx(sectionA.e)} cy=${sy(sectionA.n)} r="7"
+            fill="var(--blue)" stroke="#fff" strokeWidth="1.5"/>
+          <text x=${sx(sectionA.e)} y=${sy(sectionA.n) - 11} fontSize="11" fontWeight="700"
+            textAnchor="middle" fill="var(--blue)">A</text>
+        `}
+
+        <!-- Borehole dots -->
+        ${mapped.map(loc => {
+          const onSec = sectionA && sectionB;
+          return html`
+            <g key=${loc.id}>
+              <circle cx=${sx(loc.easting)} cy=${sy(loc.northing)} r="7"
+                fill=${onSec ? '#3b82f6' : '#3b82f6'}
+                stroke="#1d4ed8" strokeWidth="1.5"/>
+              <text x=${sx(loc.easting)} y=${sy(loc.northing) - 10}
+                fontSize="9" textAnchor="middle" fill="#1e3a5f" fontWeight="600"
+              >${loc.id}</text>
+            </g>
+          `;
+        })}
+      </svg>
+    </div>
+  `;
+}
+
+// ── MapTab ────────────────────────────────────────────────────────────────────
+function MapTab({ locations, fileBytes, wasmReady, fileInfo }) {
+  const [geolRows, setGeolRows] = useState([]);
+  const [locaRows, setLocaRows] = useState([]);
+  const [sectionA, setSectionA] = useState(null);
+  const [sectionB, setSectionB] = useState(null);
+  const [drawStep, setDrawStep] = useState(0); // 0=idle, 1=place-A, 2=place-B
+  const [tolerance, setTolerance] = useState(200);
+
+  useEffect(() => {
+    if (!fileBytes || !wasmReady) return;
+    try { setGeolRows(JSON.parse(get_group_rows(fileBytes, 'GEOL'))); } catch(_) { setGeolRows([]); }
+    try { setLocaRows(JSON.parse(get_group_rows(fileBytes, 'LOCA'))); } catch(_) { setLocaRows([]); }
+  }, [fileBytes, wasmReady]);
+
+  const geolByBH = useMemo(() => {
+    const m = {};
+    for (const r of geolRows) {
+      const id = r.LOCA_ID;
+      if (!id) continue;
+      if (!m[id]) m[id] = [];
+      m[id].push(r);
+    }
+    return m;
+  }, [geolRows]);
+
+  const locaById = useMemo(() => {
+    const m = {};
+    for (const r of locaRows) { if (r.LOCA_ID) m[r.LOCA_ID] = r; }
+    return m;
+  }, [locaRows]);
+
+  const sectionBoreholes = useMemo(() => {
+    if (!sectionA || !sectionB) return [];
+    return buildSectionBoreholes(sectionA, sectionB, locations, geolByBH, locaById, tolerance);
+  }, [sectionA, sectionB, locations, geolByBH, locaById, tolerance]);
+
+  const sectionLength = sectionA && sectionB
+    ? Math.sqrt((sectionB.e - sectionA.e) ** 2 + (sectionB.n - sectionA.n) ** 2)
+    : 0;
+
+  const excluded = sectionA && sectionB
+    ? locations.filter(l => l.easting != null && l.northing != null &&
+        !sectionBoreholes.find(b => b.id === l.id))
+    : [];
+
+  function handleDraw() {
+    setSectionA(null); setSectionB(null);
+    setDrawStep(1);
+  }
+  function handleClear() {
+    setSectionA(null); setSectionB(null); setDrawStep(0);
+  }
+  function handleMapClick(pt) {
+    if (drawStep === 1) { setSectionA(pt); setDrawStep(2); }
+    else if (drawStep === 2) { setSectionB(pt); setDrawStep(0); }
+  }
+
+  const hintText = drawStep === 1 ? 'Click on the map to place point A'
+                 : drawStep === 2 ? 'Click on the map to place point B'
+                 : null;
+
+  if (locations.length === 0) return html`
+    <div className="empty">
+      <p>Load an AGS file with borehole locations (LOCA group) in <strong>Upload &amp; Convert</strong>.</p>
+    </div>
+  `;
+
+  return html`
+    <div>
+      <!-- Toolbar -->
+      <div className="map-toolbar">
+        <button className="btn-primary" onClick=${handleDraw} disabled=${drawStep > 0}>
+          ${drawStep === 0 ? 'Draw Section Line' : 'Drawing…'}
+        </button>
+        ${(sectionA || sectionB) && html`
+          <button className="btn-secondary" onClick=${handleClear}>Clear Section</button>
+        `}
+        ${hintText && html`<span className="draw-mode-hint">${hintText}</span>`}
+        <label style="margin-left:auto">
+          Tolerance
+          <input type="range" min="10" max="2000" step="10" value=${tolerance}
+            onChange=${e => setTolerance(+e.target.value)} />
+          <strong>${tolerance} m</strong>
+        </label>
+      </div>
+
+      <!-- Map -->
+      <div className="proj-map-wrap">
+        <div className="proj-map-head">
+          Project Map — ${locations.length} borehole${locations.length !== 1 ? 's' : ''}
+          ${sectionA && sectionB ? html`
+            &nbsp;·&nbsp; Section A–B: ${sectionLength.toFixed(0)} m
+            &nbsp;·&nbsp; ${sectionBoreholes.length} borehole${sectionBoreholes.length !== 1 ? 's' : ''} on section
+          ` : null}
+        </div>
+        <${ProjectMap}
+          locations=${locations}
+          sectionA=${sectionA}
+          sectionB=${sectionB}
+          onMapClick=${handleMapClick}
+          drawing=${drawStep > 0}
+        />
+      </div>
+
+      <!-- Cross Section -->
+      ${sectionA && sectionB && html`
+        <div className="xsec-wrap">
+          <div className="xsec-head">
+            Cross Section A–B
+            <span className="xsec-meta">
+              ${sectionLength.toFixed(0)} m · ${sectionBoreholes.length} boreholes
+              ${geolRows.length === 0 ? ' · No GEOL data in file' : ''}
+            </span>
+          </div>
+          ${sectionBoreholes.length === 0 ? html`
+            <div className="empty" style="padding:32px">
+              <p>No boreholes within ${tolerance} m of the section line.</p>
+              <p>Try increasing the tolerance or redrawing the section.</p>
+            </div>
+          ` : html`
+            <div className="xsec-body">
+              <${CrossSectionSvg}
+                boreholes=${sectionBoreholes}
+                sectionLength=${sectionLength}
+              />
+            </div>
+            ${excluded.length > 0 && html`
+              <div className="bh-excl-note">
+                ${excluded.length} borehole${excluded.length !== 1 ? 's' : ''} excluded (beyond ${tolerance} m tolerance):
+                ${excluded.map(b => b.id).join(', ')}
+              </div>
+            `}
+          `}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [wasmReady, setWasmReady]         = useState(false);
+  const [fileBytes, setFileBytes]         = useState(null);
+  const [fileName, setFileName]           = useState('');
+  const [fileSize, setFileSize]           = useState(0);
+  const [fileInfo, setFileInfo]           = useState(null);
+  const [diagnostics, setDiagnostics]     = useState(null);
+  const [locations, setLocations]         = useState([]);
+  const [allGroupData, setAllGroupData]   = useState(null);
+  const [allGroupsMeta, setAllGroupsMeta] = useState(null);
+  const [status, setStatus]               = useState({ msg: 'Loading WebAssembly engine…', type: 'loading' });
+  const [tab, setTab]                     = useState('upload');
+
+  useEffect(() => {
+    init()
+      .then(() => { setWasmReady(true); setStatus({ msg: 'Engine ready. Drop or select an AGS file.', type: '' }); })
+      .catch(e  => { setStatus({ msg: 'Failed to load WebAssembly engine: ' + e.message, type: 'error' }); });
+  }, []);
+
+  const handleFile = useCallback(file => {
+    setFileName(file.name);
+    setFileSize(file.size);
+    setDiagnostics(null);
+    setLocations([]);
+    setFileInfo(null);
+    const r = new FileReader();
+    r.onload = e => {
+      const bytes = new Uint8Array(e.target.result);
+      setFileBytes(bytes);
+      if (wasmReady) {
+        try {
+          const info = JSON.parse(ags_info(bytes));
+          setFileInfo(info);
+        } catch(_) {}
+        try {
+          setLocations(JSON.parse(list_locations(bytes)) || []);
+        } catch(_) {}
+        try {
+          setAllGroupData(JSON.parse(get_all_groups_data(bytes)));
+        } catch(_) {}
+        try {
+          setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes)));
+        } catch(_) {}
+      }
+      setStatus({ msg: 'File loaded. Click Validate to check for issues.', type: '' });
+    };
+    r.readAsArrayBuffer(file);
+  }, [wasmReady]);
+
+  const handleValidate = useCallback(() => {
+    if (!fileBytes || !wasmReady) return;
+    setStatus({ msg: 'Validating…', type: 'loading' });
+    setTimeout(() => {
+      try {
+        setDiagnostics(JSON.parse(validate_ags(fileBytes)));
+        setStatus({ msg: '', type: '' });
+      } catch(e) { setStatus({ msg: 'Validation error: ' + e.message, type: 'error' }); }
+    }, 0);
+  }, [fileBytes, wasmReady]);
+
+  const handleFix = useCallback(() => {
+    if (!fileBytes || !wasmReady) return;
+    setStatus({ msg: 'Applying fixes…', type: 'loading' });
+    setTimeout(() => {
+      try {
+        downloadBlob(new Blob([fix_ags(fileBytes)], { type: 'text/plain' }), fixedName(fileName));
+        setStatus({ msg: 'Fixed file downloaded.', type: '' });
+      } catch(e) { setStatus({ msg: 'Fix error: ' + e.message, type: 'error' }); }
+    }, 0);
+  }, [fileBytes, wasmReady, fileName]);
+
+  const handleConvert = useCallback(() => {
+    if (!fileBytes || !wasmReady) return;
+    setStatus({ msg: 'Converting to DIGGS…', type: 'loading' });
+    setTimeout(() => {
+      try {
+        const xml = convert_to_diggs(fileBytes);
+        if (!xml) { setStatus({ msg: 'Conversion produced no output (unmapped groups?)', type: 'error' }); return; }
+        downloadBlob(new Blob([xml], { type: 'application/xml' }), digsName(fileName));
+        setStatus({ msg: 'DIGGS file downloaded.', type: '' });
+      } catch(e) { setStatus({ msg: 'Conversion error: ' + e.message, type: 'error' }); }
+    }, 0);
+  }, [fileBytes, wasmReady, fileName]);
+
+  const TABS = [
+    { id: 'upload',     label: 'Upload & Convert' },
+    { id: 'data',       label: 'Data'             },
+    { id: 'validation', label: 'Validation'       },
+    { id: 'map',        label: 'Map'              },
+    { id: 'logs',       label: 'Logs'             },
+    { id: 'diff',       label: 'Diff'             },
+  ];
+
+  return html`
+    <div>
+      <header>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        <h1>GeoFlow</h1>
+        <span className="hdr-sub">AGS 4.x Validator &amp; Converter — runs entirely in your browser</span>
+      </header>
+
+      <main>
+        <div className="tab-bar">
+          ${TABS.map(t => html`
+            <button key=${t.id} className=${`tab-btn${tab===t.id?' active':''}`} onClick=${()=>setTab(t.id)}>
+              ${t.label}
+            </button>
+          `)}
+        </div>
+
+        ${tab === 'upload' && html`
+          <${UploadTab}
+            fileBytes=${fileBytes} fileName=${fileName} fileSize=${fileSize}
+            wasmReady=${wasmReady} status=${status} fileInfo=${fileInfo}
+            diagnostics=${diagnostics}
+            onFile=${handleFile} onValidate=${handleValidate}
+            onFix=${handleFix} onConvert=${handleConvert}
+          />
+        `}
+        ${tab === 'data' && html`
+          <${DataTab}
+            allGroupData=${allGroupData}
+            allGroupsMeta=${allGroupsMeta}
+            fileInfo=${fileInfo}
+          />
+        `}
+        ${tab === 'validation' && html`
+          <${ValidationMapTab}
+            diagnostics=${diagnostics} locations=${locations}
+            fileBytes=${fileBytes} wasmReady=${wasmReady}
+          />
+        `}
+        ${tab === 'map' && html`
+          <${MapTab}
+            locations=${locations} fileBytes=${fileBytes}
+            wasmReady=${wasmReady} fileInfo=${fileInfo}
+          />
+        `}
+        ${tab === 'logs' && html`
+          <${LogTab}
+            locations=${locations} fileBytes=${fileBytes}
+            wasmReady=${wasmReady} fileInfo=${fileInfo}
+          />
+        `}
+        ${tab === 'diff' && html`<${DiffTab} wasmReady=${wasmReady} />`}
+      </main>
+    </div>
+  `;
+}
+
+createRoot(document.getElementById('root')).render(html`<${App}/>`);
 </script>
 </body>
 </html>
