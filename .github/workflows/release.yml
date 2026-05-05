@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -9,8 +10,27 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VER="${{ github.ref_name }}"
+            VER="${VER#v}"
+          else
+            VER=$(date -u +'%Y.%m.%d')
+          fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VER" >> "$GITHUB_OUTPUT"
+
   binaries:
     name: ${{ matrix.target }}
+    needs: [version]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -45,7 +65,8 @@ jobs:
           mkdir -p dist
           cp target/${{ matrix.target }}/release/geoflow dist/
           cp README.md LICENSE dist/
-          tar -C dist -czf geoflow-${{ matrix.target }}.tar.gz .
+          tar -C dist -czf geoflow-${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz .
+
       - name: Package (windows)
         if: runner.os == 'Windows'
         run: |
@@ -53,18 +74,17 @@ jobs:
           copy target\${{ matrix.target }}\release\geoflow.exe dist\
           copy README.md dist\
           copy LICENSE dist\
-          Compress-Archive -Path dist\* -DestinationPath geoflow-${{ matrix.target }}.zip
+          Compress-Archive -Path dist\* -DestinationPath geoflow-${{ needs.version.outputs.version }}-${{ matrix.target }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: geoflow-${{ matrix.target }}
-          path: geoflow-${{ matrix.target }}.*
+          name: geoflow-${{ needs.version.outputs.version }}-${{ matrix.target }}
+          path: geoflow-${{ needs.version.outputs.version }}-${{ matrix.target }}.*
 
-  release:
-    needs: [binaries]
+  publish:
+    needs: [version, binaries]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -72,5 +92,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.version }}
+          prerelease: ${{ github.ref_type != 'tag' }}
           files: artifacts/**/*
           generate_release_notes: true
