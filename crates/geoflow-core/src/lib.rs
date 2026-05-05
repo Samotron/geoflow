@@ -4,6 +4,7 @@
 //! a CEL-based DSL), and AGS↔DIGGS conversion.
 
 pub mod ags;
+pub mod describe;
 pub mod diagnostics;
 pub mod dict;
 pub mod diff;

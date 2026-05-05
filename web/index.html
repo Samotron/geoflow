@@ -761,6 +761,156 @@
       padding: 8px 16px;
       border-top: 1px solid var(--border);
     }
+
+    /* ── Enhance tab ── */
+    .enhance-single {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .enhance-single h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .enhance-input-row { display: flex; gap: 8px; }
+    .enhance-input-row input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .enhance-result {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .enh-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: var(--text);
+    }
+    .enh-chip .enh-label { color: var(--muted); font-weight: 400; }
+    .enh-chip.material  { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .enh-chip.consistency { background: #fdf4ff; border-color: #e9d5ff; color: #7c3aed; }
+    .enh-chip.density   { background: #fdf4ff; border-color: #e9d5ff; color: #7c3aed; }
+    .enh-chip.colour    { background: #fff7ed; border-color: #fed7aa; color: var(--orange); }
+    .enh-chip.strength  { background: #f0fdf4; border-color: #bbf7d0; color: var(--green); }
+    .enh-chip.warn      { background: #fef2f2; border-color: #fecaca; color: var(--red); }
+    .conf-bar-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .conf-bar { flex: 1; max-width: 120px; height: 6px; border-radius: 99px; background: #e2e8f0; overflow: hidden; }
+    .conf-bar-fill { height: 100%; border-radius: 99px; background: var(--green); transition: width .3s; }
+    .enhance-table-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .enhance-table-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .enhance-table-head h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+    .enhance-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .enhance-tbl th {
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      padding: 7px 10px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+    }
+    .enhance-tbl td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    .enhance-tbl tr:last-child td { border-bottom: none; }
+    .enhance-tbl .raw-desc { color: var(--muted); font-style: italic; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .enh-tbl-chip {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .enh-tbl-chip.cons { background: #fdf4ff; color: #7c3aed; }
+    .enh-tbl-chip.dens { background: #fdf4ff; color: #7c3aed; }
+    .enh-tbl-chip.rock { background: #fef9c3; color: #854d0e; }
+    .enh-no-data { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    /* ── Rules editor ── */
+    .rules-layout {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 820px) { .rules-layout { grid-template-columns: 1fr; } }
+    .rules-editor-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .rules-editor-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+    }
+    .rules-editor-hint { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+    .rules-editor-body { position: relative; height: 480px; }
+    .rules-editor-wrap { position: absolute; inset: 0; }
+    .rules-editor-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--muted);
+      background: var(--card);
+      z-index: 1;
+    }
+    .rules-editor-footer {
+      display: flex;
+      gap: 10px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .rules-pack-error {
+      margin: 0 16px 16px;
+      padding: 10px 14px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--red);
+      font-family: 'Menlo','Consolas','Monaco',monospace;
+      word-break: break-all;
+    }
   </style>
 </head>
 <body>
@@ -770,14 +920,26 @@
     GeoFlow requires JavaScript to run the WebAssembly engine.
   </p>
 </noscript>
+<script>
+  window.MonacoEnvironment = {
+    getWorkerUrl: function() {
+      return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(
+        'self.MonacoEnvironment={baseUrl:"https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/"};' +
+        'importScripts("https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js");'
+      );
+    }
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.min.js"></script>
 <script type="module">
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'https://esm.sh/react@18';
 import { createRoot } from 'https://esm.sh/react-dom@18/client';
 import htm from 'https://esm.sh/htm@3';
 import init, {
-  validate_ags, fix_ags, convert_to_diggs, ags_info,
+  validate_ags, validate_ags_with_rules, fix_ags, convert_to_diggs, ags_info,
   list_locations, render_borehole_svg, diff_ags, get_group_rows,
   get_all_groups_data, get_all_groups_meta,
+  parse_description, enhance_ags,
 } from './pkg/geoflow_wasm.js';
 
 const html = htm.bind(React.createElement);
@@ -808,6 +970,100 @@ function s(str) {
     if (k && v) obj[k] = v;
   }
   return obj;
+}
+
+// ── Rules editor: module-level content cache ──────────────────────────────────
+const RULES_STARTER = `version: 1
+name: my-rules
+pack_version: "0.1"
+
+codelists:
+  sample_types:
+    inline: ["B", "U", "D", "ES", "WS", "PS"]
+
+rules:
+  - id: LOCA-001
+    description: "Locations must have coordinates."
+    severity: error
+    when: "group == 'LOCA'"
+    expr: "row.LOCA_NATE != null && row.LOCA_NATN != null"
+    message: "LOCA {row.LOCA_ID} is missing coordinates"
+
+  - id: SAMP-001
+    description: "Samples must reference an existing location."
+    severity: error
+    when: "group == 'SAMP'"
+    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
+    message: "Sample {row.SAMP_ID} references unknown location {row.LOCA_ID}"
+
+  - id: GEOL-001
+    description: "Geology depths must be monotonic per location."
+    severity: error
+    scope: "group:LOCA_ID"
+    when: "group == 'GEOL'"
+    expr: "is_monotonic(rows.map(r, r.GEOL_TOP))"
+    message: "Non-monotonic GEOL layers under LOCA {key.LOCA_ID}"
+`;
+let _rulesEditorContent = RULES_STARTER;
+
+function registerRulesCompletions(m) {
+  const K = m.languages.CompletionItemKind;
+  const R = m.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+  m.languages.registerCompletionItemProvider('yaml', {
+    triggerCharacters: [' ', ':', '-'],
+    provideCompletionItems(model, position) {
+      const line   = model.getLineContent(position.lineNumber);
+      const word   = model.getWordUntilPosition(position);
+      const range  = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: position.column };
+      const indent = line.match(/^(\s*)/)[1].length;
+      const trim   = line.trimStart();
+      const snip   = (label, text, kind, doc) => ({ label, kind, documentation: doc, insertText: text, insertTextRules: R, range });
+
+      // Severity enum
+      if (trim.match(/^severity:\s*/)) return { suggestions: [
+        snip('error',   'error',   K.EnumMember, 'Stops further processing'),
+        snip('warning', 'warning', K.EnumMember, 'Non-fatal issue'),
+        snip('info',    'info',    K.EnumMember, 'Informational note'),
+      ]};
+
+      // CEL suggestions in expr / when
+      if (trim.match(/^(expr|when):\s*"?/)) return { suggestions: [
+        snip("group == 'GROUP'",      "group == '${1:LOCA}'",                                   K.Snippet,  'Filter by group name'),
+        snip('row.FIELD != null',     'row.${1:FIELD} != null',                                  K.Snippet,  'Null check'),
+        snip('exists_in',             "exists_in('${1:LOCA}', '${2:LOCA_ID}', row.${3:LOCA_ID})", K.Function, 'Cross-group reference check'),
+        snip('codelist membership',   "row.${1:FIELD} in codelist('${2:list_name}')",             K.Snippet,  'Codelist membership check'),
+        snip('is_monotonic',          'is_monotonic(rows.map(r, r.${1:FIELD}))',                  K.Function, 'Monotonically increasing sequence'),
+        snip('codelist()',            "codelist('${1:list_name}')",                               K.Function, 'Get named codelist as a list'),
+      ]};
+
+      // Rule properties at 4-space indent (inside a list item)
+      if (indent === 4) return { suggestions: [
+        snip('id',          'id: ${1:GROUP-001}',                    K.Property, 'Unique rule ID (e.g. LOCA-001)'),
+        snip('description', 'description: "${1:Description}"',       K.Property, 'Human-readable description'),
+        snip('severity',    'severity: ${1|error,warning,info|}',    K.Property, 'error | warning | info'),
+        snip('when',        "when: \"group == '${1:LOCA}'\"",        K.Property, 'CEL filter — rule skipped if false'),
+        snip('expr',        'expr: "${1:true}"',                     K.Property, 'CEL expression — false triggers a violation'),
+        snip('message',     'message: "${1:Message {row.FIELD}}"',   K.Property, 'Diagnostic message template'),
+        snip('scope',       'scope: "group:${1:LOCA_ID}"',           K.Property, 'Grouping key for aggregate rules'),
+      ]};
+
+      // New list item under rules (indent 2, starts with -)
+      if (indent === 2 && trim.startsWith('-')) return { suggestions: [
+        snip('- new rule', `- id: \${1:GROUP-001}\n    description: "\${2:Description}"\n    severity: \${3|error,warning,info|}\n    when: "group == '\${4:LOCA}'"\n    expr: "\${5:true}"\n    message: "\${6:Message}"`, K.Snippet, 'Insert a complete rule skeleton'),
+      ]};
+
+      // Top-level keys
+      if (indent === 0 && !trim.startsWith('-')) return { suggestions: [
+        snip('version',      'version: 1',                                                             K.Property, 'Schema version (must be 1)'),
+        snip('name',         'name: ${1:my-rules}',                                                    K.Property, 'Rule pack name'),
+        snip('pack_version', 'pack_version: "${1:0.1}"',                                               K.Property, 'Pack version string'),
+        snip('codelists',    'codelists:\n  ${1:list_name}:\n    inline: ["${2:value1}", "${3:value2}"]', K.Property, 'Named codelists for use in rules'),
+        snip('rules',        'rules:',                                                                 K.Property, 'List of validation rules'),
+      ]};
+
+      return { suggestions: [] };
+    }
+  });
 }
 
 // ── DropZone ─────────────────────────────────────────────────────────────────
@@ -885,6 +1141,131 @@ function DiagnosticsLog({ diagnostics }) {
             </div>
           `;
         })}
+      </div>
+    </div>
+  `;
+}
+
+// ── RulesTab ──────────────────────────────────────────────────────────────────
+function RulesTab({ fileBytes, wasmReady }) {
+  const containerRef = useRef(null);
+  const editorRef    = useRef(null);
+  const [editorReady, setEditorReady] = useState(false);
+  const [packError,   setPackError]   = useState(null);
+  const [diagnostics, setDiagnostics] = useState(null);
+  const [validating,  setValidating]  = useState(false);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let alive = true;
+
+    function initEditor(m) {
+      if (!alive || !containerRef.current) return;
+      if (!m._geoflowCompletions) {
+        m._geoflowCompletions = true;
+        registerRulesCompletions(m);
+      }
+      editorRef.current = m.editor.create(containerRef.current, {
+        value: _rulesEditorContent,
+        language: 'yaml',
+        theme: 'vs',
+        fontSize: 13,
+        fontFamily: "'Menlo','Consolas','Monaco',monospace",
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        lineNumbers: 'on',
+        automaticLayout: true,
+        wordWrap: 'on',
+        tabSize: 2,
+        insertSpaces: true,
+        quickSuggestions: { other: true, comments: false, strings: true },
+      });
+      editorRef.current.onDidChangeModelContent(() => {
+        _rulesEditorContent = editorRef.current.getValue();
+      });
+      setEditorReady(true);
+    }
+
+    if (window.monaco) {
+      initEditor(window.monaco);
+    } else {
+      window.require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' } });
+      window.require(['vs/editor/editor.main'], () => initEditor(window.monaco));
+    }
+
+    return () => {
+      alive = false;
+      if (editorRef.current) {
+        _rulesEditorContent = editorRef.current.getValue();
+        editorRef.current.dispose();
+        editorRef.current = null;
+        setEditorReady(false);
+      }
+    };
+  }, []);
+
+  const handleValidate = useCallback(() => {
+    if (!fileBytes || !wasmReady || !editorRef.current) return;
+    const yaml = editorRef.current.getValue();
+    setValidating(true);
+    setPackError(null);
+    setTimeout(() => {
+      try {
+        const data = JSON.parse(validate_ags_with_rules(fileBytes, yaml));
+        if (Array.isArray(data)) {
+          setDiagnostics(data);
+          setPackError(null);
+        } else {
+          setPackError(data.error ?? 'Unknown error');
+          setDiagnostics(null);
+        }
+      } catch(e) { setPackError(e.message); }
+      setValidating(false);
+    }, 0);
+  }, [fileBytes, wasmReady]);
+
+  const handleDownload = useCallback(() => {
+    if (!editorRef.current) return;
+    downloadBlob(new Blob([editorRef.current.getValue()], { type: 'text/yaml' }), 'rules.yml');
+  }, []);
+
+  return html`
+    <div className="rules-layout">
+      <div>
+        <div className="rules-editor-card">
+          <div className="rules-editor-head">
+            <span>Rule Pack Editor</span>
+            <span className="rules-editor-hint">YAML · CEL expressions</span>
+          </div>
+          <div className="rules-editor-body">
+            <div ref=${containerRef} className="rules-editor-wrap" />
+            ${!editorReady && html`<div className="rules-editor-loading">Loading editor…</div>`}
+          </div>
+          <div className="rules-editor-footer">
+            <button className="btn-primary"
+              disabled=${!fileBytes || !wasmReady || !editorReady || validating}
+              onClick=${handleValidate}>
+              ${validating ? 'Validating…' : 'Validate with Pack'}
+            </button>
+            <button className="btn-secondary" disabled=${!editorReady} onClick=${handleDownload}>
+              Download .yml
+            </button>
+          </div>
+          ${packError && html`<div className="rules-pack-error"><strong>Pack error:</strong> ${packError}</div>`}
+        </div>
+      </div>
+      <div>
+        ${!fileBytes ? html`
+          <div className="empty">
+            <p>Load an AGS file in <strong>Upload &amp; Convert</strong> to validate against this pack.</p>
+          </div>
+        ` : diagnostics ? html`
+          <${DiagnosticsLog} diagnostics=${diagnostics} />
+        ` : html`
+          <div className="empty">
+            <p>Edit your rules above, then click <strong>Validate with Pack</strong>.</p>
+          </div>
+        `}
       </div>
     </div>
   `;
@@ -1891,6 +2272,186 @@ function ProjectMap({ locations, sectionA, sectionB, onMapClick, drawing }) {
   `;
 }
 
+// ── EnhanceTab ───────────────────────────────────────────────────────────────
+function EnhanceChips({ d }) {
+  const chips = [];
+  if (d.material_type && d.material_type !== 'unknown') {
+    chips.push(html`<span key="mat" className="enh-chip material"><span className="enh-label">material </span>${d.material_type}</span>`);
+  }
+  if (d.primary_soil_type) {
+    chips.push(html`<span key="soil" className="enh-chip material"><span className="enh-label">soil </span>${d.primary_soil_type}</span>`);
+  }
+  if (d.rock_type) {
+    chips.push(html`<span key="rock" className="enh-chip"><span className="enh-label">rock </span>${d.rock_type}</span>`);
+  }
+  if (d.consistency) {
+    chips.push(html`<span key="cons" className="enh-chip consistency"><span className="enh-label">consistency </span>${d.consistency.replace(/_/g,' ')}</span>`);
+  }
+  if (d.density) {
+    chips.push(html`<span key="dens" className="enh-chip density"><span className="enh-label">density </span>${d.density.replace(/_/g,' ')}</span>`);
+  }
+  if (d.moisture) {
+    chips.push(html`<span key="moist" className="enh-chip"><span className="enh-label">moisture </span>${d.moisture}</span>`);
+  }
+  if (d.particle_size) {
+    chips.push(html`<span key="ps" className="enh-chip"><span className="enh-label">particle </span>${d.particle_size.replace(/_/g,' ')}</span>`);
+  }
+  (d.colours||[]).forEach((c,i) => {
+    chips.push(html`<span key=${'c'+i} className="enh-chip colour">${c}</span>`);
+  });
+  if (d.cu_min_kpa != null || d.cu_max_kpa != null) {
+    const lo = d.cu_min_kpa != null ? d.cu_min_kpa : '?';
+    const hi = d.cu_max_kpa != null ? d.cu_max_kpa : '∞';
+    chips.push(html`<span key="cu" className="enh-chip strength"><span className="enh-label">cu </span>${lo}–${hi} kPa</span>`);
+  }
+  if (d.spt_n_min != null) {
+    chips.push(html`<span key="spt" className="enh-chip strength"><span className="enh-label">SPT N </span>${d.spt_n_min}–${d.spt_n_max}</span>`);
+  }
+  if (d.is_made_ground) {
+    chips.push(html`<span key="mg" className="enh-chip warn">made ground</span>`);
+  }
+  (d.warnings||[]).forEach((w,i) => {
+    chips.push(html`<span key=${'w'+i} className="enh-chip warn">${w.replace(/_/g,' ')}</span>`);
+  });
+  return html`<div className="enhance-result">${chips}</div>`;
+}
+
+function EnhanceTab({ fileBytes, wasmReady }) {
+  const [singleText, setSingleText] = useState('');
+  const [singleResult, setSingleResult] = useState(null);
+  const [batchRows, setBatchRows] = useState(null);
+  const [status, setStatus] = useState('');
+
+  function runSingle() {
+    if (!singleText.trim() || !wasmReady) return;
+    try {
+      setSingleResult(JSON.parse(parse_description(singleText.trim())));
+    } catch(e) {
+      setStatus('Error: ' + e.message);
+    }
+  }
+
+  function runBatch() {
+    if (!fileBytes || !wasmReady) return;
+    setStatus('Parsing GEOL descriptions…');
+    setBatchRows(null);
+    setTimeout(() => {
+      try {
+        const rows = JSON.parse(enhance_ags(fileBytes));
+        setBatchRows(rows);
+        setStatus(rows.length === 0 ? 'No GEOL_DESC rows found.' : '');
+      } catch(e) {
+        setStatus('Error: ' + e.message);
+      }
+    }, 0);
+  }
+
+  return html`
+    <div>
+      <div className="enhance-single">
+        <h3>Parse single description</h3>
+        <div className="enhance-input-row">
+          <input
+            type="text"
+            placeholder="e.g. Firm to stiff greyish brown sandy CLAY"
+            value=${singleText}
+            onInput=${e => setSingleText(e.target.value)}
+            onKeyDown=${e => e.key === 'Enter' && runSingle()}
+          />
+          <button className="btn-primary" disabled=${!singleText.trim()||!wasmReady} onClick=${runSingle}>Parse</button>
+        </div>
+        ${singleResult && html`
+          <div style=${{ marginTop: 10 }}>
+            <${EnhanceChips} d=${singleResult} />
+            <div className="conf-bar-wrap">
+              Confidence
+              <div className="conf-bar">
+                <div className="conf-bar-fill" style=${{ width: Math.round((singleResult.confidence||0)*100)+'%' }}></div>
+              </div>
+              ${Math.round((singleResult.confidence||0)*100)}%
+            </div>
+          </div>
+        `}
+      </div>
+
+      <div className="enhance-table-wrap">
+        <div className="enhance-table-head">
+          <h2>GEOL descriptions</h2>
+          <button className="btn-secondary" disabled=${!fileBytes||!wasmReady} onClick=${runBatch}
+            style=${{ marginLeft: 'auto', padding: '5px 14px', fontSize: '12px' }}>
+            Enhance file
+          </button>
+        </div>
+        ${status && html`<div style=${{ padding: '10px 16px', fontSize: 13, color: 'var(--muted)' }}>${status}</div>`}
+        ${!batchRows && !status && html`
+          <div className="enh-no-data">Load an AGS file then click <strong>Enhance file</strong> to parse all GEOL descriptions.</div>
+        `}
+        ${batchRows && batchRows.length === 0 && html`
+          <div className="enh-no-data">No GEOL group or no GEOL_DESC values found in this file.</div>
+        `}
+        ${batchRows && batchRows.length > 0 && html`
+          <div style=${{ overflowX: 'auto' }}>
+            <table className="enhance-tbl">
+              <thead>
+                <tr>
+                  <th>Location</th>
+                  <th>Depth (m)</th>
+                  <th>Material</th>
+                  <th>Consistency / Density</th>
+                  <th>Colours</th>
+                  <th>Strength</th>
+                  <th>Conf.</th>
+                  <th>Raw description</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${batchRows.map((r,i) => {
+                  const p = r.parsed;
+                  const depth = r.geol_top != null && r.geol_base != null
+                    ? `${r.geol_top}–${r.geol_base}`
+                    : r.geol_top != null ? String(r.geol_top) : '—';
+                  const material = p.primary_soil_type || p.rock_type || p.material_type || '—';
+                  const condense = p.consistency
+                    ? html`<span className="enh-tbl-chip cons">${p.consistency.replace(/_/g,' ')}</span>`
+                    : p.density
+                    ? html`<span className="enh-tbl-chip dens">${p.density.replace(/_/g,' ')}</span>`
+                    : '—';
+                  const strength = p.cu_min_kpa != null
+                    ? `cu ${p.cu_min_kpa}–${p.cu_max_kpa ?? '∞'} kPa`
+                    : p.spt_n_min != null
+                    ? `N ${p.spt_n_min}–${p.spt_n_max}`
+                    : '—';
+                  return html`
+                    <tr key=${i}>
+                      <td><strong>${r.loca_id}</strong></td>
+                      <td>${depth}</td>
+                      <td>
+                        ${p.rock_type
+                          ? html`<span className="enh-tbl-chip rock">${p.rock_type}</span>`
+                          : html`<span className="enh-tbl-chip">${material}</span>`}
+                      </td>
+                      <td>${condense}</td>
+                      <td>${(p.colours||[]).join(', ') || '—'}</td>
+                      <td>${strength}</td>
+                      <td>
+                        <div className="conf-bar" style=${{ maxWidth: 60 }}>
+                          <div className="conf-bar-fill" style=${{ width: Math.round((p.confidence||0)*100)+'%' }}></div>
+                        </div>
+                        ${Math.round((p.confidence||0)*100)}%
+                      </td>
+                      <td className="raw-desc" title=${r.geol_desc}>${r.geol_desc}</td>
+                    </tr>
+                  `;
+                })}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
 // ── MapTab ────────────────────────────────────────────────────────────────────
 function MapTab({ locations, fileBytes, wasmReady, fileInfo }) {
   const [geolRows, setGeolRows] = useState([]);
@@ -2123,6 +2684,8 @@ function App() {
     { id: 'map',        label: 'Map'              },
     { id: 'logs',       label: 'Logs'             },
     { id: 'diff',       label: 'Diff'             },
+    { id: 'enhance',    label: 'Enhance'          },
+    { id: 'rules',      label: 'Rules'            },
   ];
 
   return html`
@@ -2180,6 +2743,12 @@ function App() {
           />
         `}
         ${tab === 'diff' && html`<${DiffTab} wasmReady=${wasmReady} />`}
+        ${tab === 'enhance' && html`
+          <${EnhanceTab} fileBytes=${fileBytes} wasmReady=${wasmReady} />
+        `}
+        ${tab === 'rules' && html`
+          <${RulesTab} fileBytes=${fileBytes} wasmReady=${wasmReady} />
+        `}
       </main>
     </div>
   `;

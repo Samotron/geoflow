@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use geoflow_core::{
     ags,
+    describe,
     render::{self, Format},
     validate, Registry, Severity,
 };
@@ -120,6 +121,22 @@ enum Command {
         #[arg(long, default_value = "8080")]
         port: u16,
     },
+    /// Parse a single free-text soil description into structured fields.
+    Describe {
+        /// Soil description text (e.g. "Soft grey CLAY").
+        text: String,
+        /// Output format: text or json.
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
+    /// Enhance GEOL_DESC rows in an AGS file with structured description data.
+    Enhance {
+        /// Path to the AGS file.
+        file: PathBuf,
+        /// Output format: text, json, or csv.
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -173,6 +190,8 @@ fn main() -> ExitCode {
             serve,
             port,
         } => cmd_explore(&files, out.as_ref(), serve, port),
+        Command::Describe { text, format } => cmd_describe(&text, &format),
+        Command::Enhance { file, format } => cmd_enhance(&file, &format),
     };
 
     match result {
@@ -577,6 +596,114 @@ fn cmd_export(
         count += 1;
     }
     println!("exported {count} CSV file(s) to {}", out_dir.display());
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_describe(text: &str, format: &str) -> Result<ExitCode> {
+    let d = describe::parse_description(text);
+    match format {
+        "json" => println!("{}", serde_json::to_string_pretty(&d)?),
+        _ => {
+            println!("raw:          {}", d.raw);
+            println!("material:     {:?}", d.material_type);
+            if let Some(st) = &d.primary_soil_type {
+                println!("soil type:    {st:?}");
+            }
+            if let Some(rt) = &d.rock_type {
+                println!("rock type:    {rt:?}");
+            }
+            if let Some(c) = &d.consistency {
+                println!("consistency:  {c:?}");
+            }
+            if let Some(d2) = &d.density {
+                println!("density:      {d2:?}");
+            }
+            if !d.colours.is_empty() {
+                println!("colours:      {}", d.colours.join(", "));
+            }
+            if let Some(m) = &d.moisture {
+                println!("moisture:     {m:?}");
+            }
+            if let Some(ps) = &d.particle_size {
+                println!("particle:     {ps:?}");
+            }
+            if let Some(sp) = &d.strength_params {
+                if let (Some(lo), Some(hi)) = (sp.cu_min_kpa, sp.cu_max_kpa) {
+                    println!("cu (kPa):     {lo}–{hi}");
+                } else if let Some(lo) = sp.cu_min_kpa {
+                    println!("cu (kPa):     >{lo}");
+                }
+                if let (Some(lo), Some(hi)) = (sp.spt_n_min, sp.spt_n_max) {
+                    println!("SPT N:        {lo}–{hi}");
+                }
+            }
+            println!("confidence:   {:.0}%", d.confidence * 100.0);
+            if !d.warnings.is_empty() {
+                println!("warnings:     {}", d.warnings.join(", "));
+            }
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_enhance(path: &std::path::Path, format: &str) -> Result<ExitCode> {
+    let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let file = ags::parse_bytes(&bytes).file;
+    let rows = describe::enhance_geol(&file);
+
+    if rows.is_empty() {
+        eprintln!("no GEOL_DESC rows found in {}", path.display());
+        return Ok(ExitCode::from(1));
+    }
+
+    match format {
+        "json" => println!("{}", serde_json::to_string_pretty(&rows)?),
+        "csv" => {
+            println!("loca_id,geol_top,geol_base,material_type,primary_soil_type,rock_type,consistency,density,colours,confidence,raw");
+            for r in &rows {
+                let p = &r.parsed;
+                println!(
+                    "{},{},{},{},{},{},{},{},{},{:.2},\"{}\"",
+                    r.loca_id,
+                    r.geol_top.map(|v| v.to_string()).unwrap_or_default(),
+                    r.geol_base.map(|v| v.to_string()).unwrap_or_default(),
+                    serde_json::to_value(&p.material_type).unwrap().as_str().unwrap_or(""),
+                    p.primary_soil_type.as_ref().map(|v| serde_json::to_value(v).unwrap().as_str().unwrap_or("").to_string()).unwrap_or_default(),
+                    p.rock_type.as_ref().map(|v| serde_json::to_value(v).unwrap().as_str().unwrap_or("").to_string()).unwrap_or_default(),
+                    p.consistency.as_ref().map(|v| serde_json::to_value(v).unwrap().as_str().unwrap_or("").to_string()).unwrap_or_default(),
+                    p.density.as_ref().map(|v| serde_json::to_value(v).unwrap().as_str().unwrap_or("").to_string()).unwrap_or_default(),
+                    p.colours.join(";"),
+                    p.confidence,
+                    r.geol_desc.replace('"', "\"\""),
+                );
+            }
+        }
+        _ => {
+            for r in &rows {
+                let p = &r.parsed;
+                let depth = match (r.geol_top, r.geol_base) {
+                    (Some(t), Some(b)) => format!("{t}–{b} m"),
+                    (Some(t), None) => format!("{t} m"),
+                    _ => String::new(),
+                };
+                let material = if let Some(st) = &p.primary_soil_type {
+                    format!("{st:?}")
+                } else if let Some(rt) = &p.rock_type {
+                    format!("{rt:?}")
+                } else {
+                    format!("{:?}", p.material_type)
+                };
+                println!(
+                    "[{}] {} | {} | confidence {:.0}% | \"{}\"",
+                    r.loca_id,
+                    depth,
+                    material,
+                    p.confidence * 100.0,
+                    r.geol_desc,
+                );
+            }
+        }
+    }
     Ok(ExitCode::SUCCESS)
 }
 

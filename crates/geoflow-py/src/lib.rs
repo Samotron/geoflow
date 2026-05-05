@@ -11,6 +11,7 @@ use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
+use geoflow_core::describe;
 use geoflow_core::diagnostics::Severity;
 use geoflow_core::dsl;
 use geoflow_core::model::{AgsFile, AgsValue};
@@ -192,6 +193,83 @@ impl PyAgsFile {
         Ok(pd.call_method1("DataFrame", (&rows,))?.into())
     }
 
+    /// Parse every `GEOL_DESC` value in the `GEOL` group and return a list of
+    /// dicts with structured soil-description fields plus the raw description,
+    /// location id, and depth interval.
+    fn enhance_descriptions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let rows = describe::enhance_geol(&self.inner);
+        let list = PyList::empty_bound(py);
+        for r in rows {
+            let p = &r.parsed;
+            let dict = PyDict::new_bound(py);
+            dict.set_item("loca_id", &r.loca_id)?;
+            dict.set_item("geol_top", r.geol_top)?;
+            dict.set_item("geol_base", r.geol_base)?;
+            dict.set_item("geol_desc", &r.geol_desc)?;
+            // Flatten parsed fields
+            dict.set_item(
+                "material_type",
+                serde_json::to_value(&p.material_type)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_string)),
+            )?;
+            dict.set_item(
+                "primary_soil_type",
+                p.primary_soil_type
+                    .as_ref()
+                    .and_then(|v| serde_json::to_value(v).ok())
+                    .and_then(|v| v.as_str().map(str::to_string)),
+            )?;
+            dict.set_item(
+                "rock_type",
+                p.rock_type
+                    .as_ref()
+                    .and_then(|v| serde_json::to_value(v).ok())
+                    .and_then(|v| v.as_str().map(str::to_string)),
+            )?;
+            dict.set_item(
+                "consistency",
+                p.consistency
+                    .as_ref()
+                    .and_then(|v| serde_json::to_value(v).ok())
+                    .and_then(|v| v.as_str().map(str::to_string)),
+            )?;
+            dict.set_item(
+                "density",
+                p.density
+                    .as_ref()
+                    .and_then(|v| serde_json::to_value(v).ok())
+                    .and_then(|v| v.as_str().map(str::to_string)),
+            )?;
+            dict.set_item("colours", &p.colours)?;
+            dict.set_item(
+                "moisture",
+                p.moisture
+                    .as_ref()
+                    .and_then(|v| serde_json::to_value(v).ok())
+                    .and_then(|v| v.as_str().map(str::to_string)),
+            )?;
+            dict.set_item(
+                "particle_size",
+                p.particle_size
+                    .as_ref()
+                    .and_then(|v| serde_json::to_value(v).ok())
+                    .and_then(|v| v.as_str().map(str::to_string)),
+            )?;
+            dict.set_item("is_made_ground", p.is_made_ground)?;
+            if let Some(sp) = &p.strength_params {
+                dict.set_item("cu_min_kpa", sp.cu_min_kpa)?;
+                dict.set_item("cu_max_kpa", sp.cu_max_kpa)?;
+                dict.set_item("spt_n_min", sp.spt_n_min)?;
+                dict.set_item("spt_n_max", sp.spt_n_max)?;
+            }
+            dict.set_item("confidence", p.confidence)?;
+            dict.set_item("warnings", &p.warnings)?;
+            list.append(dict)?;
+        }
+        Ok(list)
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "AgsFile(groups={}, ags_version={:?})",
@@ -229,6 +307,79 @@ fn read_diggs(path: PathBuf) -> PyResult<PyAgsFile> {
     Ok(PyAgsFile { inner: file })
 }
 
+/// Parse a free-text soil description and return a dict of structured fields.
+///
+/// Example::
+///
+///     import geoflow
+///     d = geoflow.parse_description("Soft grey CLAY")
+///     print(d["consistency"])  # "soft"
+#[pyfunction]
+fn parse_description<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyDict>> {
+    let p = describe::parse_description(text);
+    let dict = PyDict::new_bound(py);
+    dict.set_item("raw", text)?;
+    dict.set_item(
+        "material_type",
+        serde_json::to_value(&p.material_type)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_string)),
+    )?;
+    dict.set_item(
+        "primary_soil_type",
+        p.primary_soil_type
+            .as_ref()
+            .and_then(|v| serde_json::to_value(v).ok())
+            .and_then(|v| v.as_str().map(str::to_string)),
+    )?;
+    dict.set_item(
+        "rock_type",
+        p.rock_type
+            .as_ref()
+            .and_then(|v| serde_json::to_value(v).ok())
+            .and_then(|v| v.as_str().map(str::to_string)),
+    )?;
+    dict.set_item(
+        "consistency",
+        p.consistency
+            .as_ref()
+            .and_then(|v| serde_json::to_value(v).ok())
+            .and_then(|v| v.as_str().map(str::to_string)),
+    )?;
+    dict.set_item(
+        "density",
+        p.density
+            .as_ref()
+            .and_then(|v| serde_json::to_value(v).ok())
+            .and_then(|v| v.as_str().map(str::to_string)),
+    )?;
+    dict.set_item("colours", &p.colours)?;
+    dict.set_item(
+        "moisture",
+        p.moisture
+            .as_ref()
+            .and_then(|v| serde_json::to_value(v).ok())
+            .and_then(|v| v.as_str().map(str::to_string)),
+    )?;
+    dict.set_item(
+        "particle_size",
+        p.particle_size
+            .as_ref()
+            .and_then(|v| serde_json::to_value(v).ok())
+            .and_then(|v| v.as_str().map(str::to_string)),
+    )?;
+    dict.set_item("is_made_ground", p.is_made_ground)?;
+    if let Some(sp) = &p.strength_params {
+        dict.set_item("cu_min_kpa", sp.cu_min_kpa)?;
+        dict.set_item("cu_max_kpa", sp.cu_max_kpa)?;
+        dict.set_item("spt_n_min", sp.spt_n_min)?;
+        dict.set_item("spt_n_max", sp.spt_n_max)?;
+    }
+    dict.set_item("confidence", p.confidence)?;
+    dict.set_item("warnings", &p.warnings)?;
+    Ok(dict)
+}
+
 /// List all built-in rule packs available in the registry.
 #[pyfunction]
 fn installed_pack_refs() -> Vec<String> {
@@ -243,6 +394,7 @@ fn geoflow(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_ags, m)?)?;
     m.add_function(wrap_pyfunction!(read_diggs, m)?)?;
     m.add_function(wrap_pyfunction!(installed_pack_refs, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_description, m)?)?;
     Ok(())
 }
 

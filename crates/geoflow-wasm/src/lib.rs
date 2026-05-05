@@ -1,4 +1,4 @@
-use geoflow_core::{ags, diff, diggs, fix, validate, Registry};
+use geoflow_core::{ags, describe, diff, diggs, dsl, fix, validate, Registry};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]
@@ -14,6 +14,28 @@ pub fn validate_ags(bytes: &[u8]) -> String {
     let mut diagnostics = parsed.diagnostics;
     diagnostics.extend(validate::validate(&parsed.file, &registry));
     serde_json::to_string(&diagnostics).unwrap_or_else(|e| format!("[{{\"error\":\"{e}\"}}]"))
+}
+
+/// Validate an AGS file with a custom YAML rule pack on top of built-in rules.
+/// Returns a JSON array of diagnostics on success, or `{"error":"..."}` if the
+/// pack is malformed or evaluation fails.
+#[wasm_bindgen]
+pub fn validate_ags_with_rules(bytes: &[u8], rules_yaml: &str) -> String {
+    let pack = match dsl::RulePack::parse(rules_yaml).and_then(|p| p.into_loaded()) {
+        Ok(loaded) => loaded,
+        Err(e) => return serde_json::json!({"error": e.to_string()}).to_string(),
+    };
+    let parsed = ags::parse_bytes(bytes);
+    let registry = Registry::standard();
+    let mut diagnostics = parsed.diagnostics;
+    diagnostics.extend(validate::validate(&parsed.file, &registry));
+    match dsl::evaluate(&parsed.file, &pack) {
+        Ok(diags) => {
+            diagnostics.extend(diags);
+            serde_json::to_string(&diagnostics).unwrap_or_else(|e| format!("[{{\"error\":\"{e}\"}}]"))
+        }
+        Err(e) => serde_json::json!({"error": format!("Evaluation error: {e}")}).to_string(),
+    }
 }
 
 /// Apply safe auto-fixes to an AGS file. Returns the fixed AGS bytes.
@@ -165,4 +187,21 @@ pub fn export_csv(bytes: &[u8]) -> String {
     let file = ags::parse_bytes(bytes).file;
     let csvs = geoflow_core::export::to_csv(&file);
     serde_json::to_string(&csvs).unwrap_or_default()
+}
+
+/// Parse a single free-text soil description. Returns a JSON object with
+/// structured fields (material_type, consistency, density, colours, etc.).
+#[wasm_bindgen]
+pub fn parse_description(text: &str) -> String {
+    let d = describe::parse_description(text);
+    serde_json::to_string(&d).unwrap_or_default()
+}
+
+/// Parse GEOL_DESC for every GEOL row in an AGS file.
+/// Returns a JSON array of enriched row objects.
+#[wasm_bindgen]
+pub fn enhance_ags(bytes: &[u8]) -> String {
+    let file = ags::parse_bytes(bytes).file;
+    let rows = describe::enhance_geol(&file);
+    serde_json::to_string(&rows).unwrap_or_default()
 }
