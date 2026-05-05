@@ -106,6 +106,19 @@ pub fn diff_ags(bytes_a: &[u8], bytes_b: &[u8]) -> String {
     serde_json::to_string(&result.to_summary()).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
 }
 
+/// Get all rows of a named AGS group as a JSON array of objects.
+/// Each row is `{ "HEADING": value }` where values are numbers, strings,
+/// booleans, or nulls as determined by the AGS type.  Returns `[]` if the
+/// group does not exist.
+#[wasm_bindgen]
+pub fn get_group_rows(bytes: &[u8], group: &str) -> String {
+    let file = ags::parse_bytes(bytes).file;
+    match file.group(group) {
+        Some(g) => serde_json::to_string(&g.rows).unwrap_or_default(),
+        None => "[]".to_string(),
+    }
+}
+
 /// Export all groups to CSV. Returns a JSON object {group: csv_text}.
 #[wasm_bindgen]
 pub fn export_csv(bytes: &[u8]) -> String {

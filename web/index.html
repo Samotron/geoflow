@@ -426,6 +426,98 @@
     .empty svg { margin: 0 auto 14px; display: block; }
     .empty p { line-height: 1.6; }
     .empty strong { color: var(--text); }
+
+    /* ── Project Map tab ── */
+    .map-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .map-toolbar label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .map-toolbar input[type=range] { width: 100px; accent-color: var(--navy); }
+    .draw-mode-hint {
+      font-size: 12px;
+      color: var(--blue);
+      font-weight: 600;
+      padding: 4px 10px;
+      background: #eff6ff;
+      border-radius: 99px;
+    }
+    .proj-map-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .proj-map-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .proj-map-body { padding: 16px; }
+    .proj-map-svg {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #f8fafc;
+      display: block;
+    }
+    .proj-map-svg.drawing { cursor: crosshair; }
+
+    /* ── Cross Section ── */
+    .xsec-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .xsec-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--navy);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .xsec-head .xsec-meta { margin-left: auto; font-size: 11px; opacity: 0.6; font-weight: 400; }
+    .xsec-body { padding: 0 16px 16px; overflow-x: auto; }
+    .xsec-svg { display: block; }
+    .xsec-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .xleg-item { display: flex; align-items: center; gap: 5px; }
+    .xleg-swatch { width: 14px; height: 10px; border-radius: 1px; border: 1px solid rgba(0,0,0,.2); flex-shrink: 0; }
+    .bh-excl-note {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 8px 16px;
+      border-top: 1px solid var(--border);
+    }
   </style>
 </head>
 <body>
@@ -441,7 +533,7 @@ import { createRoot } from 'https://esm.sh/react-dom@18/client';
 import htm from 'https://esm.sh/htm@3';
 import init, {
   validate_ags, fix_ags, convert_to_diggs, ags_info,
-  list_locations, render_borehole_svg, diff_ags,
+  list_locations, render_borehole_svg, diff_ags, get_group_rows,
 } from './pkg/geoflow_wasm.js';
 
 const html = htm.bind(React.createElement);
@@ -925,6 +1017,491 @@ function DiffResult({ d }) {
   `;
 }
 
+// ── Geology colour lookup ─────────────────────────────────────────────────────
+const GEOL_PALETTE = [
+  [/MADE\s*GROUND|FILL|HARDCORE/i,         '#A0785A', 'Made Ground / Fill'],
+  [/TOPSOIL|TOP\s*SOIL/i,                  '#5C7A3E', 'Topsoil'],
+  [/PEAT|ORGANIC/i,                        '#3D2B1F', 'Peat / Organic'],
+  [/CLAY|COHESIVE/i,                       '#7B9EC5', 'Clay'],
+  [/SILT(?!Y\s*SAND)/i,                    '#C4A87C', 'Silt'],
+  [/CHALK/i,                               '#F5F0C8', 'Chalk'],
+  [/SAND(?!STONE)/i,                       '#F0D870', 'Sand'],
+  [/GRAVEL(?!LY)/i,                        '#C87A45', 'Gravel'],
+  [/SANDY\s*GRAVEL|GRAVELLY\s*SAND/i,      '#D99055', 'Sandy Gravel / Gravelly Sand'],
+  [/SILTY\s*SAND|SANDY\s*SILT/i,           '#D8C080', 'Silty Sand / Sandy Silt'],
+  [/MUDSTONE|SHALE/i,                      '#7A7A90', 'Mudstone / Shale'],
+  [/SANDSTONE/i,                           '#D4B483', 'Sandstone'],
+  [/LIMESTONE/i,                           '#C8CEB8', 'Limestone'],
+  [/GRANITE|DIORITE|IGNEOUS/i,             '#808090', 'Igneous Rock'],
+  [/BASALT/i,                              '#505060', 'Basalt'],
+  [/ROCK|BEDROCK/i,                        '#9090A0', 'Rock'],
+];
+
+function geolColor(desc) {
+  const d = String(desc || '');
+  for (const [re, col] of GEOL_PALETTE) if (re.test(d)) return col;
+  // Deterministic fallback from description text
+  let h = 5381;
+  for (let i = 0; i < d.length; i++) h = ((h << 5) + h + d.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  return `hsl(${hue},40%,70%)`;
+}
+
+function geolLabel(desc) {
+  const d = String(desc || '');
+  for (const [re,, lbl] of GEOL_PALETTE) if (re.test(d)) return lbl;
+  return d || 'Unknown';
+}
+
+// ── Project Map helpers ───────────────────────────────────────────────────────
+function projectOntoLine(e, n, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const L2 = dx * dx + dy * dy;
+  if (L2 < 1e-9) return { t: 0, dist: 0, perp: 0 };
+  const t = ((e - x1) * dx + (n - y1) * dy) / L2;
+  const projE = x1 + t * dx, projN = y1 + t * dy;
+  const perp = Math.sqrt((e - projE) ** 2 + (n - projN) ** 2);
+  return { t, dist: t * Math.sqrt(L2), perp };
+}
+
+function buildSectionBoreholes(sectionA, sectionB, locations, geolByBH, locaById, tolerance) {
+  const { e: x1, n: y1 } = sectionA;
+  const { e: x2, n: y2 } = sectionB;
+  const L = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+  if (L < 1) return [];
+
+  const result = [];
+  for (const loc of locations) {
+    if (loc.easting == null || loc.northing == null) continue;
+    const { dist, perp } = projectOntoLine(loc.easting, loc.northing, x1, y1, x2, y2);
+    if (perp > tolerance) continue;
+    const loca = locaById[loc.id] ?? {};
+    const gl = typeof loca.LOCA_GL === 'number' ? loca.LOCA_GL : null;
+    const layers = (geolByBH[loc.id] ?? [])
+      .map(r => ({
+        top:  +(r.GEOL_TOP  ?? 0),
+        base: +(r.GEOL_BASE ?? 0),
+        desc: String(r.GEOL_DESC ?? r.GEOL_GEOL ?? ''),
+      }))
+      .filter(r => Number.isFinite(r.top) && Number.isFinite(r.base) && r.base > r.top)
+      .sort((a, b) => a.top - b.top);
+    result.push({ ...loc, chainage: dist, perp, groundLevel: gl, layers });
+  }
+  return result.sort((a, b) => a.chainage - b.chainage);
+}
+
+// ── CrossSectionSvg ───────────────────────────────────────────────────────────
+function CrossSectionSvg({ boreholes, sectionLength }) {
+  const SVG_W = 900;
+  const LM = 64, RM = 24, TM = 56, BM = 44;
+  const plotW = SVG_W - LM - RM;
+  const COL_W = 44;
+
+  const maxDepth = Math.max(
+    ...boreholes.flatMap(b => [b.depth ?? 0, ...b.layers.map(l => l.base)]),
+    10
+  );
+  const hasGL = boreholes.some(b => b.groundLevel != null);
+  // elevation range when GL is available
+  const maxGL = hasGL ? Math.max(...boreholes.filter(b => b.groundLevel != null).map(b => b.groundLevel)) : 0;
+  const minElev = hasGL
+    ? Math.min(...boreholes.flatMap(b => b.groundLevel != null
+        ? [b.groundLevel - (b.depth ?? maxDepth)]
+        : [])) - 2
+    : -maxDepth;
+  const elevRange = hasGL ? maxGL - minElev + 2 : maxDepth;
+  const SVG_H = Math.min(TM + (elevRange / maxDepth) * 400 + BM, 560);
+  const plotH = SVG_H - TM - BM;
+
+  const sx = ch => LM + (ch / Math.max(sectionLength, 1)) * plotW;
+  const sy = hasGL
+    ? elev  => TM + ((maxGL - elev) / elevRange) * plotH
+    : depth => TM + (depth / maxDepth) * plotH;
+  const depthToY = hasGL
+    ? (bh, d) => sy((bh.groundLevel ?? maxGL) - d)
+    : (_, d)  => sy(d);
+  const surfaceY = bh => hasGL ? sy(bh.groundLevel ?? maxGL) : sy(0);
+
+  // Depth/elevation axis ticks
+  const yTicks = [];
+  const tickStep = elevRange <= 20 ? 2 : elevRange <= 60 ? 5 : elevRange <= 150 ? 10 : 20;
+  if (hasGL) {
+    const start = Math.ceil(minElev / tickStep) * tickStep;
+    for (let v = start; v <= maxGL + 2; v += tickStep) yTicks.push({ label: v.toFixed(0), y: sy(v) });
+  } else {
+    for (let d = 0; d <= maxDepth; d += tickStep) yTicks.push({ label: d.toFixed(0), y: sy(d) });
+  }
+
+  // Unique geologies for legend
+  const legendItems = [];
+  const seenDescs = new Set();
+  for (const bh of boreholes) {
+    for (const l of bh.layers) {
+      const key = geolLabel(l.desc);
+      if (!seenDescs.has(key)) { seenDescs.add(key); legendItems.push({ desc: l.desc, label: key }); }
+    }
+  }
+
+  // Filled polygons between adjacent boreholes for each matching geology
+  const fillPolys = [];
+  for (let i = 0; i < boreholes.length - 1; i++) {
+    const bhA = boreholes[i], bhB = boreholes[i + 1];
+    const xA = sx(bhA.chainage), xB = sx(bhB.chainage);
+    const uniqueDescs = new Set([...bhA.layers.map(l => l.desc), ...bhB.layers.map(l => l.desc)]);
+    for (const desc of uniqueDescs) {
+      const lA = bhA.layers.find(l => l.desc === desc);
+      const lB = bhB.layers.find(l => l.desc === desc);
+      if (!lA || !lB) continue;
+      const col = geolColor(desc);
+      const pts = [
+        [xA + COL_W / 2, depthToY(bhA, lA.top)],
+        [xB - COL_W / 2, depthToY(bhB, lB.top)],
+        [xB - COL_W / 2, depthToY(bhB, lB.base)],
+        [xA + COL_W / 2, depthToY(bhA, lA.base)],
+      ].map(p => p.join(',')).join(' ');
+      fillPolys.push({ pts, col, desc });
+    }
+  }
+
+  return html`
+    <div>
+      <svg className="xsec-svg" width=${SVG_W} height=${SVG_H} viewBox="0 0 ${SVG_W} ${SVG_H}"
+        xmlns="http://www.w3.org/2000/svg" fontFamily="system-ui,sans-serif">
+
+        <!-- Axis lines -->
+        <line x1=${LM} y1=${TM} x2=${LM} y2=${SVG_H - BM} stroke="#374151" strokeWidth="1"/>
+        <line x1=${LM} y1=${SVG_H - BM} x2=${SVG_W - RM} y2=${SVG_H - BM} stroke="#374151" strokeWidth="1"/>
+
+        <!-- Y-axis ticks and grid -->
+        ${yTicks.map((t, i) => html`
+          <g key=${i}>
+            <line x1=${LM - 5} y1=${t.y} x2=${SVG_W - RM} y2=${t.y} stroke="#e5e7eb" strokeWidth="0.5"/>
+            <line x1=${LM - 5} y1=${t.y} x2=${LM} y2=${t.y} stroke="#374151" strokeWidth="1"/>
+            <text x=${LM - 8} y=${t.y + 4} fontSize="9" textAnchor="end" fill="#374151">${t.label}</text>
+          </g>
+        `)}
+        <text x="10" y=${TM + plotH / 2} fontSize="9" textAnchor="middle" fill="#64748b"
+          transform=${`rotate(-90,10,${TM + plotH / 2})`}>${hasGL ? 'Elevation (mOD)' : 'Depth (m)'}</text>
+
+        <!-- Section A/B labels -->
+        <text x=${LM} y=${TM - 8} fontSize="11" fontWeight="700" fill="var(--navy)" textAnchor="middle">A</text>
+        <text x=${SVG_W - RM} y=${TM - 8} fontSize="11" fontWeight="700" fill="var(--navy)" textAnchor="middle">B</text>
+
+        <!-- Section baseline -->
+        <line x1=${LM} y1=${TM - 2} x2=${SVG_W - RM} y2=${TM - 2} stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,3"/>
+
+        <!-- Inter-borehole fill polygons -->
+        ${fillPolys.map((p, i) => html`
+          <polygon key=${i} points=${p.pts} fill=${p.col} opacity="0.45" stroke="none"/>
+        `)}
+
+        <!-- Per-borehole columns -->
+        ${boreholes.map((bh, bi) => {
+          const cx = sx(bh.chainage);
+          const surfY = surfaceY(bh);
+          const botY  = depthToY(bh, bh.depth ?? maxDepth);
+          return html`
+            <g key=${bi}>
+              <!-- Borehole trace line -->
+              <line x1=${cx} y1=${surfY} x2=${cx} y2=${botY} stroke="#374151" strokeWidth="1.5"/>
+              <!-- Ground surface tick -->
+              <line x1=${cx - 8} y1=${surfY} x2=${cx + 8} y2=${surfY} stroke="#374151" strokeWidth="1.5"/>
+              <!-- Base tick -->
+              <line x1=${cx - 5} y1=${botY} x2=${cx + 5} y2=${botY} stroke="#374151" strokeWidth="1"/>
+
+              <!-- GEOL rectangles -->
+              ${bh.layers.map((l, li) => html`
+                <rect key=${li}
+                  x=${cx - COL_W / 2} y=${depthToY(bh, l.top)}
+                  width=${COL_W} height=${Math.max(depthToY(bh, l.base) - depthToY(bh, l.top), 1)}
+                  fill=${geolColor(l.desc)} stroke="#555" strokeWidth="0.5" opacity="0.9">
+                  <title>${l.desc} (${l.top.toFixed(1)}–${l.base.toFixed(1)} m)</title>
+                </rect>
+              `)}
+
+              <!-- Borehole ID label -->
+              <text x=${cx} y=${TM - 22} fontSize="10" fontWeight="700" textAnchor="middle" fill="var(--navy)">${bh.id}</text>
+              <!-- Chainage label -->
+              <text x=${cx} y=${TM - 10} fontSize="9" textAnchor="middle" fill="#64748b">${bh.chainage.toFixed(0)} m</text>
+              <!-- Perp distance (if > 2m) -->
+              ${bh.perp > 2 ? html`
+                <text x=${cx} y=${SVG_H - BM + 14} fontSize="8" textAnchor="middle" fill="#94a3b8">±${bh.perp.toFixed(0)} m</text>
+              ` : null}
+            </g>
+          `;
+        })}
+      </svg>
+
+      <!-- Chainage axis labels -->
+      <svg className="xsec-svg" width=${SVG_W} height="20" viewBox="0 0 ${SVG_W} 20" xmlns="http://www.w3.org/2000/svg">
+        <text x=${LM + plotW / 2} y="14" fontSize="10" textAnchor="middle" fill="#64748b">Chainage along A–B (m)</text>
+      </svg>
+
+      <!-- Legend -->
+      ${legendItems.length > 0 && html`
+        <div className="xsec-legend">
+          <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-right:4px">Geology:</span>
+          ${legendItems.map((it, i) => html`
+            <div key=${i} className="xleg-item">
+              <div className="xleg-swatch" style=${{ background: geolColor(it.desc) }}></div>
+              <span>${it.label}</span>
+            </div>
+          `)}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ── ProjectMap ────────────────────────────────────────────────────────────────
+function ProjectMap({ locations, sectionA, sectionB, onMapClick, drawing }) {
+  const mapped = locations.filter(l => l.easting != null && l.northing != null);
+  const W = 900, H = 340, PAD = 40;
+
+  if (mapped.length === 0) return html`
+    <div className="proj-map-body">
+      <p style="font-size:13px;color:var(--muted)">No coordinate data (LOCA_NATE / LOCA_NATN) in this file.</p>
+    </div>
+  `;
+
+  const es = mapped.map(l => l.easting), ns = mapped.map(l => l.northing);
+  let [minE, maxE] = [Math.min(...es), Math.max(...es)];
+  let [minN, maxN] = [Math.min(...ns), Math.max(...ns)];
+  // Add 10% padding
+  const rE = Math.max(maxE - minE, 1), rN = Math.max(maxN - minN, 1);
+  const padE = rE * 0.12, padN = rN * 0.12;
+  minE -= padE; maxE += padE;
+  minN -= padN; maxN += padN;
+  const rangeE = maxE - minE, rangeN = maxN - minN;
+
+  const sx = e => PAD + ((e - minE) / rangeE) * (W - PAD * 2);
+  const sy = n => H - PAD - ((n - minN) / rangeN) * (H - PAD * 2);
+
+  // Inverse transform for click → E/N
+  function svgCoordsToEN(svgEl, clientX, clientY) {
+    const rect = svgEl.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const svgX = (clientX - rect.left) * scaleX;
+    const svgY = (clientY - rect.top)  * scaleX;
+    const e = minE + ((svgX - PAD) / (W - PAD * 2)) * rangeE;
+    const n = minN + (1 - (svgY - PAD) / (H - PAD * 2)) * rangeN;
+    return { e, n };
+  }
+
+  function handleClick(evt) {
+    if (!drawing) return;
+    onMapClick(svgCoordsToEN(evt.currentTarget, evt.clientX, evt.clientY));
+  }
+
+  // Grid / axis labels (4 ticks each)
+  const eTicks = [0, .25, .5, .75, 1].map(t => ({ v: minE + t * rangeE, x: PAD + t * (W - PAD * 2) }));
+  const nTicks = [0, .25, .5, .75, 1].map(t => ({ v: minN + t * rangeN, y: H - PAD - t * (H - PAD * 2) }));
+
+  return html`
+    <div className="proj-map-body">
+      <svg className=${`proj-map-svg${drawing ? ' drawing' : ''}`}
+        viewBox="0 0 ${W} ${H}" width="100%"
+        xmlns="http://www.w3.org/2000/svg"
+        onClick=${handleClick}>
+
+        <!-- Grid -->
+        ${eTicks.map((t, i) => html`
+          <line key=${i} x1=${t.x} y1=${PAD} x2=${t.x} y2=${H - PAD} stroke="#e5e7eb" strokeWidth="0.5"/>
+          <text key=${'el'+i} x=${t.x} y=${H - PAD + 14} fontSize="8" textAnchor="middle" fill="#9ca3af">
+            ${t.v.toFixed(0)}
+          </text>
+        `)}
+        ${nTicks.map((t, i) => html`
+          <line key=${i} x1=${PAD} y1=${t.y} x2=${W - PAD} y2=${t.y} stroke="#e5e7eb" strokeWidth="0.5"/>
+          <text key=${'nl'+i} x=${PAD - 4} y=${t.y + 3} fontSize="8" textAnchor="end" fill="#9ca3af">
+            ${t.v.toFixed(0)}
+          </text>
+        `)}
+        <text x=${W / 2} y=${H - 2} fontSize="9" textAnchor="middle" fill="#9ca3af">Easting (m E)</text>
+        <text x="10" y=${H / 2} fontSize="9" textAnchor="middle" fill="#9ca3af"
+          transform=${`rotate(-90,10,${H / 2})`}>Northing (m N)</text>
+
+        <!-- Section line -->
+        ${sectionA && sectionB && html`
+          <line
+            x1=${sx(sectionA.e)} y1=${sy(sectionA.n)}
+            x2=${sx(sectionB.e)} y2=${sy(sectionB.n)}
+            stroke="var(--navy)" strokeWidth="2" strokeDasharray="6,3"/>
+          <circle cx=${sx(sectionA.e)} cy=${sy(sectionA.n)} r="7"
+            fill="var(--navy)" stroke="#fff" strokeWidth="1.5"/>
+          <text x=${sx(sectionA.e)} y=${sy(sectionA.n) - 11} fontSize="11" fontWeight="700"
+            textAnchor="middle" fill="var(--navy)">A</text>
+          <circle cx=${sx(sectionB.e)} cy=${sy(sectionB.n)} r="7"
+            fill="var(--navy)" stroke="#fff" strokeWidth="1.5"/>
+          <text x=${sx(sectionB.e)} y=${sy(sectionB.n) - 11} fontSize="11" fontWeight="700"
+            textAnchor="middle" fill="var(--navy)">B</text>
+        `}
+        ${sectionA && !sectionB && html`
+          <circle cx=${sx(sectionA.e)} cy=${sy(sectionA.n)} r="7"
+            fill="var(--blue)" stroke="#fff" strokeWidth="1.5"/>
+          <text x=${sx(sectionA.e)} y=${sy(sectionA.n) - 11} fontSize="11" fontWeight="700"
+            textAnchor="middle" fill="var(--blue)">A</text>
+        `}
+
+        <!-- Borehole dots -->
+        ${mapped.map(loc => {
+          const onSec = sectionA && sectionB;
+          return html`
+            <g key=${loc.id}>
+              <circle cx=${sx(loc.easting)} cy=${sy(loc.northing)} r="7"
+                fill=${onSec ? '#3b82f6' : '#3b82f6'}
+                stroke="#1d4ed8" strokeWidth="1.5"/>
+              <text x=${sx(loc.easting)} y=${sy(loc.northing) - 10}
+                fontSize="9" textAnchor="middle" fill="#1e3a5f" fontWeight="600"
+              >${loc.id}</text>
+            </g>
+          `;
+        })}
+      </svg>
+    </div>
+  `;
+}
+
+// ── MapTab ────────────────────────────────────────────────────────────────────
+function MapTab({ locations, fileBytes, wasmReady, fileInfo }) {
+  const [geolRows, setGeolRows] = useState([]);
+  const [locaRows, setLocaRows] = useState([]);
+  const [sectionA, setSectionA] = useState(null);
+  const [sectionB, setSectionB] = useState(null);
+  const [drawStep, setDrawStep] = useState(0); // 0=idle, 1=place-A, 2=place-B
+  const [tolerance, setTolerance] = useState(200);
+
+  useEffect(() => {
+    if (!fileBytes || !wasmReady) return;
+    try { setGeolRows(JSON.parse(get_group_rows(fileBytes, 'GEOL'))); } catch(_) { setGeolRows([]); }
+    try { setLocaRows(JSON.parse(get_group_rows(fileBytes, 'LOCA'))); } catch(_) { setLocaRows([]); }
+  }, [fileBytes, wasmReady]);
+
+  const geolByBH = useMemo(() => {
+    const m = {};
+    for (const r of geolRows) {
+      const id = r.LOCA_ID;
+      if (!id) continue;
+      if (!m[id]) m[id] = [];
+      m[id].push(r);
+    }
+    return m;
+  }, [geolRows]);
+
+  const locaById = useMemo(() => {
+    const m = {};
+    for (const r of locaRows) { if (r.LOCA_ID) m[r.LOCA_ID] = r; }
+    return m;
+  }, [locaRows]);
+
+  const sectionBoreholes = useMemo(() => {
+    if (!sectionA || !sectionB) return [];
+    return buildSectionBoreholes(sectionA, sectionB, locations, geolByBH, locaById, tolerance);
+  }, [sectionA, sectionB, locations, geolByBH, locaById, tolerance]);
+
+  const sectionLength = sectionA && sectionB
+    ? Math.sqrt((sectionB.e - sectionA.e) ** 2 + (sectionB.n - sectionA.n) ** 2)
+    : 0;
+
+  const excluded = sectionA && sectionB
+    ? locations.filter(l => l.easting != null && l.northing != null &&
+        !sectionBoreholes.find(b => b.id === l.id))
+    : [];
+
+  function handleDraw() {
+    setSectionA(null); setSectionB(null);
+    setDrawStep(1);
+  }
+  function handleClear() {
+    setSectionA(null); setSectionB(null); setDrawStep(0);
+  }
+  function handleMapClick(pt) {
+    if (drawStep === 1) { setSectionA(pt); setDrawStep(2); }
+    else if (drawStep === 2) { setSectionB(pt); setDrawStep(0); }
+  }
+
+  const hintText = drawStep === 1 ? 'Click on the map to place point A'
+                 : drawStep === 2 ? 'Click on the map to place point B'
+                 : null;
+
+  if (locations.length === 0) return html`
+    <div className="empty">
+      <p>Load an AGS file with borehole locations (LOCA group) in <strong>Upload &amp; Convert</strong>.</p>
+    </div>
+  `;
+
+  return html`
+    <div>
+      <!-- Toolbar -->
+      <div className="map-toolbar">
+        <button className="btn-primary" onClick=${handleDraw} disabled=${drawStep > 0}>
+          ${drawStep === 0 ? 'Draw Section Line' : 'Drawing…'}
+        </button>
+        ${(sectionA || sectionB) && html`
+          <button className="btn-secondary" onClick=${handleClear}>Clear Section</button>
+        `}
+        ${hintText && html`<span className="draw-mode-hint">${hintText}</span>`}
+        <label style="margin-left:auto">
+          Tolerance
+          <input type="range" min="10" max="2000" step="10" value=${tolerance}
+            onChange=${e => setTolerance(+e.target.value)} />
+          <strong>${tolerance} m</strong>
+        </label>
+      </div>
+
+      <!-- Map -->
+      <div className="proj-map-wrap">
+        <div className="proj-map-head">
+          Project Map — ${locations.length} borehole${locations.length !== 1 ? 's' : ''}
+          ${sectionA && sectionB ? html`
+            &nbsp;·&nbsp; Section A–B: ${sectionLength.toFixed(0)} m
+            &nbsp;·&nbsp; ${sectionBoreholes.length} borehole${sectionBoreholes.length !== 1 ? 's' : ''} on section
+          ` : null}
+        </div>
+        <${ProjectMap}
+          locations=${locations}
+          sectionA=${sectionA}
+          sectionB=${sectionB}
+          onMapClick=${handleMapClick}
+          drawing=${drawStep > 0}
+        />
+      </div>
+
+      <!-- Cross Section -->
+      ${sectionA && sectionB && html`
+        <div className="xsec-wrap">
+          <div className="xsec-head">
+            Cross Section A–B
+            <span className="xsec-meta">
+              ${sectionLength.toFixed(0)} m · ${sectionBoreholes.length} boreholes
+              ${geolRows.length === 0 ? ' · No GEOL data in file' : ''}
+            </span>
+          </div>
+          ${sectionBoreholes.length === 0 ? html`
+            <div className="empty" style="padding:32px">
+              <p>No boreholes within ${tolerance} m of the section line.</p>
+              <p>Try increasing the tolerance or redrawing the section.</p>
+            </div>
+          ` : html`
+            <div className="xsec-body">
+              <${CrossSectionSvg}
+                boreholes=${sectionBoreholes}
+                sectionLength=${sectionLength}
+              />
+            </div>
+            ${excluded.length > 0 && html`
+              <div className="bh-excl-note">
+                ${excluded.length} borehole${excluded.length !== 1 ? 's' : ''} excluded (beyond ${tolerance} m tolerance):
+                ${excluded.map(b => b.id).join(', ')}
+              </div>
+            `}
+          `}
+        </div>
+      `}
+    </div>
+  `;
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   const [wasmReady, setWasmReady]     = useState(false);
@@ -1004,7 +1581,8 @@ function App() {
 
   const TABS = [
     { id: 'upload',     label: 'Upload & Convert' },
-    { id: 'validation', label: 'Validation / Map'  },
+    { id: 'validation', label: 'Validation'        },
+    { id: 'map',        label: 'Map'               },
     { id: 'logs',       label: 'Logs'              },
     { id: 'diff',       label: 'Diff'              },
   ];
@@ -1042,6 +1620,12 @@ function App() {
           <${ValidationMapTab}
             diagnostics=${diagnostics} locations=${locations}
             fileBytes=${fileBytes} wasmReady=${wasmReady}
+          />
+        `}
+        ${tab === 'map' && html`
+          <${MapTab}
+            locations=${locations} fileBytes=${fileBytes}
+            wasmReady=${wasmReady} fileInfo=${fileInfo}
           />
         `}
         ${tab === 'logs' && html`
