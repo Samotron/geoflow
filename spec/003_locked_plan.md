@@ -253,6 +253,9 @@ Tasks are intended to be granular enough that each ≈ 0.5–1 day of work.
        *(Clean-fixture test in place; per-fixture `.diagnostics.json`
        golden files arrive as we add intentionally-broken fixtures.)*
 - [x] **M2.9** `geoflow rules list / show` to introspect the built-in set.
+- [x] **M2.10** `AGS-TYPE-002` rule: validate data values conform to their declared AGS type
+       (YN, numeric types, DT/T date-time formats).
+- [x] **M2.11** `geoflow export <file> [--out DIR] [--group G]` — export groups to CSV files.
 
 ## Milestone 3 — Custom Validation (CEL DSL)
 - [x] **M3.1** YAML rule-pack schema + loader with good error messages
@@ -297,10 +300,10 @@ Tasks are intended to be granular enough that each ≈ 0.5–1 day of work.
 - [x] **M4.6** AGS→DIGGS mapping — **wave B**: lab tests
        (`LBST`, `LDEN`, `LLPL`, `LPDN`, `LPEN`, `LSPT`, `LCPT`, `LCBR`,
        `LRES`, `LCON`, `LTRT`, `LDOC`, …).
-- [ ] **M4.7** AGS→DIGGS mapping — **wave C**: in-situ tests (`ICBR`,
-       `IDEN`, `IPRM`, `IPRT`, `IRDX`, `IVAN`, `CDIA`, `CMET`, …).
-- [ ] **M4.8** AGS→DIGGS mapping — **wave D**: monitoring & instrumentation
-       (`MOND`, `PREM`, `PRTM`, `STCN`, `RELD`, …) and remaining groups.
+- [x] **M4.7** AGS→DIGGS mapping — **wave C**: in-situ tests (`ICBR`,
+       `IDEN`, `IPRM`, `IPRT`, `IRDX`, `IVAN`, `CDIA`, `CMET`).
+- [x] **M4.8** AGS→DIGGS mapping — **wave D**: monitoring & instrumentation
+       (`MOND`, `PREM`, `PRTM`, `STCN`, `RELD`).
 - [ ] **M4.9** DIGGS→AGS reverse mappings (waves A–D in same order).
 - [x] **M4.10** Lossy-conversion report listing unmapped fields/elements.
 - [x] **M4.11** Round-trip tests (AGS→DIGGS→AGS and DIGGS→AGS→DIGGS) per wave.
@@ -351,6 +354,8 @@ Tasks are intended to be granular enough that each ≈ 0.5–1 day of work.
 - [x] **M8.4** `pytest` suite mirroring Rust fixtures.
 - [x] **M8.5** `maturin` wheels: Linux (manylinux), macOS (x86_64+arm64),
        Windows (x86_64) + sdist; published to PyPI on tagged release.
+- [x] **M8.6** `AgsFile.to_csv()` Python binding returns `dict[str, str]` (group → CSV text).
+- [x] **M8.7** Complete `.pyi` type stub file (`geoflow.pyi`) for the full public Python API.
 
 ## Milestone 9 — Web App (GitHub Pages + WASM)
 
@@ -388,7 +393,10 @@ AGS validator / converter as a static GitHub Pages site — no server required.
 - [x] **M9.5** GitHub Actions `gh-pages.yml`: on push to `main`, build WASM
        with `wasm-pack --release`, deploy `web/` to GitHub Pages via
        `peaceiris/actions-gh-pages`.
-- [ ] **M9.6** Smoke-test the deployed page: upload a known-bad AGS fixture,
+- [x] **M9.6** `diff_ags` WASM binding + **Diff tab** in the web UI: two drop-zones,
+       Compare button, per-group added/removed/modified/unchanged badges.
+- [x] **M9.7** `export_csv` WASM binding — returns `{group: csv_text}` JSON for client-side download.
+- [ ] **M9.8** Smoke-test the deployed page: upload a known-bad AGS fixture,
        confirm diagnostics appear; upload a valid fixture, confirm DIGGS
        download works.
 
