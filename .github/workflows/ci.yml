@@ -48,7 +48,7 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Build WASM
-        run: wasm-pack build crates/geoflow-wasm --target web --out-dir $(pwd)/web/pkg
+        run: wasm-pack build crates/geoflow-wasm --target web --dev --out-dir $(pwd)/web/pkg
 
   msrv:
     name: msrv (1.85)
