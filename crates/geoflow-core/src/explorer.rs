@@ -38,11 +38,13 @@ impl Explorer {
             .unwrap();
         env.add_template("validation", include_str!("explorer/validation.html"))
             .unwrap();
+        env.add_template("certificate", include_str!("explorer/certificate.html"))
+            .unwrap();
         Self { env }
     }
 
     pub fn render_overview(&self, file: &AgsFile) -> Result<String> {
-        let diagnostics = validation_diagnostics(file);
+        let diagnostics = run_validation(file, &[]);
         let summary = diagnostic_summary(&diagnostics);
         let tmpl = self.env.get_template("overview")?;
         let html = tmpl.render(context!(
@@ -166,8 +168,16 @@ impl Explorer {
         ))?)
     }
 
-    pub fn render_validation(&self, file: &AgsFile) -> Result<String> {
-        let diagnostics = validation_diagnostics(file);
+    pub fn render_validation(
+        &self,
+        file: &AgsFile,
+        extra_packs: &[crate::dsl::LoadedPack],
+        available_packs: &[String],
+        active_pack_refs: &[String],
+        custom_yaml: Option<&str>,
+        is_serve: bool,
+    ) -> Result<String> {
+        let diagnostics = run_validation(file, extra_packs);
         let summary = diagnostic_summary(&diagnostics);
         let groups: std::collections::BTreeSet<_> = diagnostics
             .iter()
@@ -184,6 +194,32 @@ impl Explorer {
             summary => summary,
             groups => groups,
             rules => rules,
+            available_packs => available_packs,
+            active_pack_refs => active_pack_refs,
+            custom_yaml => custom_yaml.unwrap_or(""),
+            is_serve => is_serve,
+        ))?;
+        Ok(html)
+    }
+
+    pub fn render_certificate(
+        &self,
+        file: &AgsFile,
+        extra_packs: &[crate::dsl::LoadedPack],
+        active_pack_refs: &[String],
+        validated_at: &str,
+    ) -> Result<String> {
+        let diagnostics = run_validation(file, extra_packs);
+        let summary = diagnostic_summary(&diagnostics);
+        let passed = summary.get("error").copied().unwrap_or(0) == 0;
+        let tmpl = self.env.get_template("certificate")?;
+        let html = tmpl.render(context!(
+            file => file,
+            diagnostics => diagnostics,
+            summary => summary,
+            active_pack_refs => active_pack_refs,
+            validated_at => validated_at,
+            passed => passed,
         ))?;
         Ok(html)
     }
@@ -194,7 +230,14 @@ impl Explorer {
 
         // Index
         pages.push(("index.html".to_string(), self.render_overview(file)?));
-        pages.push(("validation.html".to_string(), self.render_validation(file)?));
+        pages.push((
+            "validation.html".to_string(),
+            self.render_validation(file, &[], &[], &[], None, false)?,
+        ));
+        pages.push((
+            "certificate.html".to_string(),
+            self.render_certificate(file, &[], &[], "static export")?,
+        ));
 
         // Groups
         for group_name in file.groups.keys() {
@@ -220,8 +263,24 @@ impl Explorer {
     }
 }
 
-fn validation_diagnostics(file: &AgsFile) -> Vec<crate::diagnostics::Diagnostic> {
-    validate::validate(file, &Registry::standard())
+fn run_validation(
+    file: &AgsFile,
+    extra_packs: &[crate::dsl::LoadedPack],
+) -> Vec<crate::diagnostics::Diagnostic> {
+    let mut diagnostics = validate::validate(file, &Registry::standard());
+    for pack in extra_packs {
+        match crate::dsl::evaluate(file, pack) {
+            Ok(pd) => diagnostics.extend(pd),
+            Err(e) => {
+                diagnostics.push(crate::diagnostics::Diagnostic::new(
+                    "RULE-PACK-ERR".to_string(),
+                    crate::diagnostics::Severity::Error,
+                    format!("rule pack error: {e}"),
+                ));
+            }
+        }
+    }
+    diagnostics
 }
 
 fn diagnostic_summary(
