@@ -14,6 +14,11 @@ pub fn standard_rules() -> Vec<Box<dyn Rule>> {
         Box::new(crate::typecheck::TypeValueRule),
         Box::new(abbr::AbbrCodelistRule),
         Box::new(unit::UnitCodelistRule),
+        Box::new(xref_loca::XrefLocaRule),
+        Box::new(id_unique::IdColumnUniquenessRule),
+        Box::new(samp_key::SampCompositeKeyRule),
+        Box::new(required_nonempty::RequiredNonEmptyRule),
+        Box::new(heading_fmt::HeadingNameFormatRule),
     ]
 }
 
@@ -345,6 +350,312 @@ mod unit {
     }
 }
 
+// ── AGS-XREF-LOCA: generic LOCA_ID cross-reference check ────────────────────
+
+mod xref_loca {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::AgsFile;
+    use crate::validate::Rule;
+    use std::collections::HashSet;
+
+    pub struct XrefLocaRule;
+
+    impl Rule for XrefLocaRule {
+        fn id(&self) -> &str {
+            "AGS-XREF-LOCA"
+        }
+
+        fn description(&self) -> &str {
+            "All LOCA_ID references must resolve to an existing LOCA row"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Error
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let Some(loca_group) = file.group("LOCA") else {
+                return;
+            };
+
+            let loca_ids: HashSet<String> = loca_group
+                .rows
+                .iter()
+                .filter_map(|r| r.get("LOCA_ID").and_then(|v| v.as_text()))
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect();
+
+            for (group_name, group) in &file.groups {
+                if group_name == "LOCA" {
+                    continue;
+                }
+                if !group.headings.iter().any(|h| h.name == "LOCA_ID") {
+                    continue;
+                }
+                for row in &group.rows {
+                    if let Some(id_val) = row.get("LOCA_ID").and_then(|v| v.as_text()) {
+                        if !id_val.is_empty() && !loca_ids.contains(id_val) {
+                            diagnostics.push(
+                                Diagnostic::new(
+                                    "AGS-XREF-LOCA",
+                                    Severity::Error,
+                                    format!(
+                                        "{group_name}: LOCA_ID {id_val:?} does not exist in LOCA"
+                                    ),
+                                )
+                                .at_group(group_name),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-ID-001: primary key ID column uniqueness ─────────────────────────────
+
+mod id_unique {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::{AgsFile, AgsType};
+    use crate::validate::Rule;
+    use std::collections::HashSet;
+
+    pub struct IdColumnUniquenessRule;
+
+    impl Rule for IdColumnUniquenessRule {
+        fn id(&self) -> &str {
+            "AGS-ID-001"
+        }
+
+        fn description(&self) -> &str {
+            "ID-type primary key columns must have unique values within their group"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Error
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            for (group_name, group) in &file.groups {
+                let primary_key = format!("{group_name}_ID");
+                for heading in &group.headings {
+                    if heading.name != primary_key || heading.data_type != AgsType::ID {
+                        continue;
+                    }
+                    let mut seen: HashSet<String> = HashSet::new();
+                    let mut reported: HashSet<String> = HashSet::new();
+                    for row in &group.rows {
+                        if let Some(val) = row.get(&heading.name).and_then(|v| v.as_text()) {
+                            if !val.is_empty()
+                                && !seen.insert(val.to_string())
+                                && reported.insert(val.to_string())
+                            {
+                                diagnostics.push(
+                                    Diagnostic::new(
+                                        "AGS-ID-001",
+                                        Severity::Error,
+                                        format!(
+                                            "{group_name}.{}: duplicate value {val:?}",
+                                            heading.name
+                                        ),
+                                    )
+                                    .at_group(group_name),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-KEY-002: SAMP composite key uniqueness ────────────────────────────────
+
+mod samp_key {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::AgsFile;
+    use crate::validate::Rule;
+    use std::collections::HashSet;
+
+    pub struct SampCompositeKeyRule;
+
+    impl Rule for SampCompositeKeyRule {
+        fn id(&self) -> &str {
+            "AGS-KEY-002"
+        }
+
+        fn description(&self) -> &str {
+            "Within a borehole, LOCA_ID + SAMP_TOP + SAMP_REF must be unique in SAMP"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Error
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let Some(samp) = file.group("SAMP") else {
+                return;
+            };
+
+            let mut seen: HashSet<String> = HashSet::new();
+            let mut reported: HashSet<String> = HashSet::new();
+
+            for row in &samp.rows {
+                let loca_id = row
+                    .get("LOCA_ID")
+                    .and_then(|v| v.as_text())
+                    .unwrap_or("")
+                    .to_string();
+                let samp_top = match row.get("SAMP_TOP") {
+                    Some(v) => match v {
+                        crate::model::AgsValue::Number(n) => format!("{n}"),
+                        crate::model::AgsValue::Text(s) | crate::model::AgsValue::Raw(s) => {
+                            s.clone()
+                        }
+                        _ => String::new(),
+                    },
+                    None => String::new(),
+                };
+                let samp_ref = row
+                    .get("SAMP_REF")
+                    .and_then(|v| v.as_text())
+                    .unwrap_or("")
+                    .to_string();
+
+                let composite = format!("{loca_id}\x00{samp_top}\x00{samp_ref}");
+                if !seen.insert(composite.clone()) && reported.insert(composite) {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            "AGS-KEY-002",
+                            Severity::Error,
+                            format!(
+                                "SAMP: duplicate composite key LOCA_ID={loca_id:?} SAMP_TOP={samp_top:?} SAMP_REF={samp_ref:?}"
+                            ),
+                        )
+                        .at_group("SAMP"),
+                    );
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-DICT-003: required headings must not be empty ────────────────────────
+
+mod required_nonempty {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::{AgsFile, AgsValue};
+    use crate::validate::Rule;
+
+    pub struct RequiredNonEmptyRule;
+
+    impl Rule for RequiredNonEmptyRule {
+        fn id(&self) -> &str {
+            "AGS-DICT-003"
+        }
+
+        fn description(&self) -> &str {
+            "Required headings must have non-empty values in every DATA row"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Error
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let dict = crate::dict::ags4_dict();
+            for (group_name, group_def) in dict {
+                if group_def.required_headings.is_empty() {
+                    continue;
+                }
+                let Some(group) = file.group(group_name) else {
+                    continue;
+                };
+                for req in &group_def.required_headings {
+                    // AGS-DICT-001 covers absence; here we only flag empty values.
+                    if !group.headings.iter().any(|h| &h.name == req) {
+                        continue;
+                    }
+                    for row in &group.rows {
+                        let empty = match row.get(req.as_str()) {
+                            None | Some(AgsValue::Null) => true,
+                            Some(AgsValue::Text(s)) | Some(AgsValue::Raw(s)) => s.is_empty(),
+                            _ => false,
+                        };
+                        if empty {
+                            diagnostics.push(
+                                Diagnostic::new(
+                                    "AGS-DICT-003",
+                                    Severity::Error,
+                                    format!(
+                                        "{group_name}.{req}: required heading has an empty value"
+                                    ),
+                                )
+                                .at_group(group_name),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-HEAD-004: heading name format (Rule 19a) ─────────────────────────────
+
+mod heading_fmt {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::AgsFile;
+    use crate::validate::Rule;
+
+    pub struct HeadingNameFormatRule;
+
+    impl Rule for HeadingNameFormatRule {
+        fn id(&self) -> &str {
+            "AGS-HEAD-004"
+        }
+
+        fn description(&self) -> &str {
+            "Heading names should be ≤9 characters, uppercase alphanumeric and underscore only"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Warning
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            for (group_name, group) in &file.groups {
+                for heading in &group.headings {
+                    if !is_valid_heading_name(&heading.name) {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                "AGS-HEAD-004",
+                                Severity::Warning,
+                                format!(
+                                    "{group_name}: heading {:?} does not follow AGS naming convention (≤9 uppercase alphanumeric/underscore chars)",
+                                    heading.name
+                                ),
+                            )
+                            .at_group(group_name),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn is_valid_heading_name(name: &str) -> bool {
+        !name.is_empty()
+            && name.len() <= 9
+            && name
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::ags::parse_str;
@@ -417,8 +728,8 @@ mod tests {
 "#;
         let d = check(input);
         assert!(
-            d.iter().any(|x| x.rule_id == "AGS-XREF-001"),
-            "expected AGS-XREF-001, got: {d:?}"
+            d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
+            "expected AGS-XREF-LOCA, got: {d:?}"
         );
     }
 
@@ -546,8 +857,8 @@ mod tests {
 "#;
         let d = check(input);
         assert!(
-            d.iter().any(|x| x.rule_id == "AGS-KEY-001"),
-            "expected AGS-KEY-001, got: {d:?}"
+            d.iter().any(|x| x.rule_id == "AGS-ID-001"),
+            "expected AGS-ID-001, got: {d:?}"
         );
     }
 
@@ -562,8 +873,8 @@ mod tests {
 "#;
         let d = check(input);
         assert!(
-            !d.iter().any(|x| x.rule_id == "AGS-KEY-001"),
-            "unique LOCA_IDs should not fire AGS-KEY-001: {d:?}"
+            !d.iter().any(|x| x.rule_id == "AGS-ID-001"),
+            "unique LOCA_IDs should not fire AGS-ID-001: {d:?}"
         );
     }
 
@@ -583,8 +894,8 @@ mod tests {
 "#;
         let d = check(input);
         assert!(
-            d.iter().any(|x| x.rule_id == "AGS-XREF-003"),
-            "expected AGS-XREF-003, got: {d:?}"
+            d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
+            "expected AGS-XREF-LOCA, got: {d:?}"
         );
     }
 
@@ -604,8 +915,8 @@ mod tests {
 "#;
         let d = check(input);
         assert!(
-            d.iter().any(|x| x.rule_id == "AGS-XREF-004"),
-            "expected AGS-XREF-004, got: {d:?}"
+            d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
+            "expected AGS-XREF-LOCA, got: {d:?}"
         );
     }
 
@@ -625,8 +936,8 @@ mod tests {
 "#;
         let d = check(input);
         assert!(
-            d.iter().any(|x| x.rule_id == "AGS-XREF-005"),
-            "expected AGS-XREF-005, got: {d:?}"
+            d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
+            "expected AGS-XREF-LOCA, got: {d:?}"
         );
     }
 }

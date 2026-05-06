@@ -45,6 +45,8 @@ pub enum AgsType {
     U,
     /// Record link to another row in another group.
     RecordLink,
+    /// Degrees-minutes-seconds (D:MM:SS or D:MM:SS.ss, colon-delimited).
+    DMS,
     /// Anything we did not recognise.
     Other(String),
 }
@@ -68,6 +70,7 @@ impl AgsType {
             "RL" => AgsType::RL,
             "U" => AgsType::U,
             "RECORD_LINK" => AgsType::RecordLink,
+            "DMS" => AgsType::DMS,
             other => {
                 if let Some(stripped) = other.strip_suffix("DP") {
                     if let Ok(n) = stripped.parse::<u8>() {

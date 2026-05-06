@@ -366,7 +366,7 @@ fn rule13a_abbr_no_group_silently_skipped() {
     );
 }
 
-// ── py-ags4 Rule 16: key uniqueness ───────────────────────────────────────────
+// ── py-ags4 Rule 16: key uniqueness (now AGS-ID-001) ─────────────────────────
 
 #[test]
 fn rule16_duplicate_loca_id_flagged() {
@@ -376,8 +376,8 @@ fn rule16_duplicate_loca_id_flagged() {
     let r = Registry::standard();
     let d = validate(&out.file, &r);
     assert!(
-        d.iter().any(|x| x.rule_id == "AGS-KEY-001"),
-        "key_dup_loca.ags should fire AGS-KEY-001: {d:?}"
+        d.iter().any(|x| x.rule_id == "AGS-ID-001"),
+        "key_dup_loca.ags should fire AGS-ID-001: {d:?}"
     );
 }
 
@@ -393,12 +393,12 @@ fn rule16_unique_loca_ids_pass() {
 "#;
     let d = check(input);
     assert!(
-        !d.iter().any(|x| x.rule_id == "AGS-KEY-001"),
-        "unique LOCA_IDs should not fire: {d:?}"
+        !d.iter().any(|x| x.rule_id == "AGS-ID-001"),
+        "unique LOCA_IDs should not fire AGS-ID-001: {d:?}"
     );
 }
 
-// ── py-ags4 Rule 17: LOCA_ID cross-references ─────────────────────────────────
+// ── py-ags4 Rule 17: LOCA_ID cross-references (now AGS-XREF-LOCA) ────────────
 
 #[test]
 fn rule17_geol_orphan_flagged() {
@@ -417,7 +417,7 @@ fn rule17_geol_orphan_flagged() {
 "#,
     );
     assert!(
-        d.iter().any(|x| x.rule_id == "AGS-XREF-001"),
+        d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
         "orphan GEOL: {d:?}"
     );
 }
@@ -439,7 +439,7 @@ fn rule17_samp_orphan_flagged() {
 "#,
     );
     assert!(
-        d.iter().any(|x| x.rule_id == "AGS-XREF-002"),
+        d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
         "orphan SAMP: {d:?}"
     );
 }
@@ -461,7 +461,7 @@ fn rule17_ispt_orphan_flagged() {
 "#,
     );
     assert!(
-        d.iter().any(|x| x.rule_id == "AGS-XREF-003"),
+        d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
         "orphan ISPT: {d:?}"
     );
 }
@@ -483,7 +483,7 @@ fn rule17_wstk_orphan_flagged() {
 "#,
     );
     assert!(
-        d.iter().any(|x| x.rule_id == "AGS-XREF-004"),
+        d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
         "orphan WSTK: {d:?}"
     );
 }
@@ -505,22 +505,22 @@ fn rule17_hole_orphan_flagged() {
 "#,
     );
     assert!(
-        d.iter().any(|x| x.rule_id == "AGS-XREF-005"),
+        d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
         "orphan HOLE: {d:?}"
     );
 }
 
 #[test]
-fn rule17_xref_multi_invalid_fixture_fires_all() {
+fn rule17_xref_multi_invalid_fixture_fires() {
     let path = fixtures_dir().join("xref_multi_invalid.ags");
     let bytes = std::fs::read(&path).unwrap();
     let out = parse_bytes(&bytes);
     let r = Registry::standard();
     let d = validate(&out.file, &r);
-    let ids: Vec<_> = d.iter().map(|x| x.rule_id.as_str()).collect();
-    assert!(ids.contains(&"AGS-XREF-003"), "ISPT xref: {d:?}");
-    assert!(ids.contains(&"AGS-XREF-004"), "WSTK xref: {d:?}");
-    assert!(ids.contains(&"AGS-XREF-005"), "HOLE xref: {d:?}");
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-XREF-LOCA"),
+        "xref_multi_invalid.ags should fire AGS-XREF-LOCA: {d:?}"
+    );
 }
 
 // ── py-ags4 Rule 18: required headings ────────────────────────────────────────
@@ -682,6 +682,319 @@ fn abbr_group_self_referential_not_flagged() {
     assert!(
         !d.iter().any(|x| x.rule_id == "AGS-ABBR-001"),
         "ABBR self-check should not fire: {d:?}"
+    );
+}
+
+// ── py-ags4 Rule 19: GROUP name format ────────────────────────────────────────
+
+#[test]
+fn group_name_too_long_produces_warning() {
+    let bad = "\"GROUP\",\"TOOLONG\"\n\"HEADING\",\"TOOLONG_ID\"\n\"UNIT\",\"\"\n\"TYPE\",\"ID\"\n";
+    let out = parse_str(bad);
+    assert!(
+        out.diagnostics.iter().any(|d| d.rule_id == "AGS-GROUP-FMT"),
+        "overlong GROUP name should fire AGS-GROUP-FMT: {:?}",
+        out.diagnostics
+    );
+}
+
+#[test]
+fn group_name_lowercase_produces_warning() {
+    let bad = "\"GROUP\",\"loca\"\n\"HEADING\",\"LOCA_ID\"\n\"UNIT\",\"\"\n\"TYPE\",\"ID\"\n";
+    let out = parse_str(bad);
+    assert!(
+        out.diagnostics.iter().any(|d| d.rule_id == "AGS-GROUP-FMT"),
+        "lowercase GROUP name should fire AGS-GROUP-FMT: {:?}",
+        out.diagnostics
+    );
+}
+
+#[test]
+fn standard_group_names_pass_format() {
+    for name in ["LOCA", "GEOL", "SAMP", "ISPT", "TRAN", "PROJ"] {
+        let input = format!(
+            "\"GROUP\",\"{name}\"\n\"HEADING\",\"{name}_ID\"\n\"UNIT\",\"\"\n\"TYPE\",\"ID\"\n"
+        );
+        let out = parse_str(&input);
+        assert!(
+            !out.diagnostics.iter().any(|d| d.rule_id == "AGS-GROUP-FMT"),
+            "standard GROUP name {name} should not fire AGS-GROUP-FMT: {:?}",
+            out.diagnostics
+        );
+    }
+}
+
+// ── py-ags4 Rule 19a: heading name format (AGS-HEAD-004) ──────────────────────
+
+#[test]
+fn heading_name_too_long_produces_warning() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_VERYLONGNAME"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","BH01","foo"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-HEAD-004"),
+        "overlong heading should fire AGS-HEAD-004: {d:?}"
+    );
+}
+
+#[test]
+fn standard_heading_names_pass_format() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_TYPE","LOCA_NATE"
+"UNIT","","","m"
+"TYPE","ID","X","2DP"
+"DATA","BH01","CP","500000.00"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-HEAD-004"),
+        "standard headings should not fire AGS-HEAD-004: {d:?}"
+    );
+}
+
+// ── py-ags4 Rule 8 / YN strictness ───────────────────────────────────────────
+
+#[test]
+fn yn_yes_string_is_rejected() {
+    let d = check(
+        r#""GROUP","ISPT"
+"HEADING","LOCA_ID","ISPT_TOP","ISPT_NVAL","ISPT_REJ"
+"UNIT","","m","","YN"
+"TYPE","ID","2DP","0DP","YN"
+"DATA","BH01","1.00","10","YES"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-TYPE-002"),
+        "YES in YN column should fire AGS-TYPE-002: {d:?}"
+    );
+}
+
+#[test]
+fn yn_no_string_is_rejected() {
+    let d = check(
+        r#""GROUP","ISPT"
+"HEADING","LOCA_ID","ISPT_TOP","ISPT_NVAL","ISPT_REJ"
+"UNIT","","m","","YN"
+"TYPE","ID","2DP","0DP","YN"
+"DATA","BH01","1.00","10","NO"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-TYPE-002"),
+        "NO in YN column should fire AGS-TYPE-002: {d:?}"
+    );
+}
+
+#[test]
+fn yn_lowercase_y_accepted() {
+    let d = check(
+        r#""GROUP","ISPT"
+"HEADING","LOCA_ID","ISPT_TOP","ISPT_NVAL","ISPT_REJ"
+"UNIT","","m","","YN"
+"TYPE","ID","2DP","0DP","YN"
+"DATA","BH01","1.00","10","y"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-TYPE-002"),
+        "lowercase y should be accepted: {d:?}"
+    );
+}
+
+// ── py-ags4 Rule 8 / DMS type ─────────────────────────────────────────────────
+
+#[test]
+fn dms_bad_format_comma_rejected() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_LAT"
+"UNIT","","degrees"
+"TYPE","ID","DMS"
+"DATA","BH01","51,30,00"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-TYPE-002"),
+        "comma-separated DMS should fire AGS-TYPE-002: {d:?}"
+    );
+}
+
+#[test]
+fn dms_colon_format_accepted() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_LAT"
+"UNIT","","degrees"
+"TYPE","ID","DMS"
+"DATA","BH01","51:30:00"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-TYPE-002"),
+        "colon DMS should pass: {d:?}"
+    );
+}
+
+#[test]
+fn dms_negative_colon_format_accepted() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_LON"
+"UNIT","","degrees"
+"TYPE","ID","DMS"
+"DATA","BH01","-0:07:36.00"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-TYPE-002"),
+        "negative DMS should pass: {d:?}"
+    );
+}
+
+// ── py-ags4 Rule 10c: SAMP composite key (AGS-KEY-002) ────────────────────────
+
+#[test]
+fn samp_composite_key_dup_fixture_flagged() {
+    let path = fixtures_dir().join("samp_key_dup.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-KEY-002"),
+        "samp_key_dup.ags should fire AGS-KEY-002: {d:?}"
+    );
+}
+
+#[test]
+fn samp_unique_composite_keys_pass() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID"
+"UNIT",""
+"TYPE","ID"
+"DATA","BH01"
+
+"GROUP","SAMP"
+"HEADING","LOCA_ID","SAMP_TOP","SAMP_REF","SAMP_TYPE"
+"UNIT","","m","",""
+"TYPE","ID","2DP","ID","PA"
+"DATA","BH01","1.00","S1","B"
+"DATA","BH01","2.00","S2","B"
+"DATA","BH01","1.00","S3","B"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-KEY-002"),
+        "unique SAMP composite keys should not fire: {d:?}"
+    );
+}
+
+// ── AGS-DICT-003: required heading must be non-empty ─────────────────────────
+
+#[test]
+fn required_heading_empty_value_flagged() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_TYPE"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","BH01",""
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-DICT-003"),
+        "empty required LOCA_TYPE should fire AGS-DICT-003: {d:?}"
+    );
+}
+
+#[test]
+fn required_heading_non_empty_passes() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_TYPE"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","BH01","CP"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-DICT-003"),
+        "non-empty required field should not fire: {d:?}"
+    );
+}
+
+// ── AGS-VAL-002: GEOL layer monotonicity ─────────────────────────────────────
+
+#[test]
+fn geol_non_monotonic_depth_flagged() {
+    let path = fixtures_dir().join("geol_overlap.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-VAL-002"),
+        "geol_overlap.ags should fire AGS-VAL-002: {d:?}"
+    );
+}
+
+#[test]
+fn geol_monotonic_depths_pass() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID"
+"UNIT",""
+"TYPE","ID"
+"DATA","BH01"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_DESC"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","X"
+"DATA","BH01","0.00","1.50","Sand"
+"DATA","BH01","1.50","3.00","Clay"
+"DATA","BH01","3.00","5.00","Rock"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-VAL-002"),
+        "monotonic GEOL depths should not fire AGS-VAL-002: {d:?}"
+    );
+}
+
+// ── Unit codelist fixtures ────────────────────────────────────────────────────
+
+#[test]
+fn unit_codelist_valid_fixture_has_no_unit_errors() {
+    let path = fixtures_dir().join("unit_codelist_valid.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-UNIT-001"),
+        "unit_codelist_valid.ags should not fire AGS-UNIT-001: {d:?}"
+    );
+}
+
+#[test]
+fn unit_codelist_invalid_fixture_fires() {
+    let path = fixtures_dir().join("unit_codelist_invalid.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-UNIT-001"),
+        "unit_codelist_invalid.ags should fire AGS-UNIT-001: {d:?}"
     );
 }
 

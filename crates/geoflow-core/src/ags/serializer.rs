@@ -111,6 +111,7 @@ fn ags_type_to_string(t: &AgsType) -> String {
         AgsType::RL => "RL".into(),
         AgsType::U => "U".into(),
         AgsType::RecordLink => "RECORD_LINK".into(),
+        AgsType::DMS => "DMS".into(),
         AgsType::Dp(n) => format!("{n}DP"),
         AgsType::Sf(n) => format!("{n}SF"),
         AgsType::Sci(n) => format!("{n}SCI"),

@@ -121,6 +121,18 @@ impl ParserState {
             );
             return;
         }
+        if !is_valid_group_name(&name) {
+            self.diagnostics.push(
+                Diagnostic::new(
+                    "AGS-GROUP-FMT",
+                    Severity::Warning,
+                    format!(
+                        "GROUP name {name:?} does not follow AGS convention (1\u{2013}4 uppercase letters)"
+                    ),
+                )
+                .at_line(line_no),
+            );
+        }
         let mut grp = AgsGroup::new(&name);
         grp.source_line = Some(line_no);
         self.file.groups.insert(name.clone(), grp);
@@ -310,6 +322,11 @@ impl ParserState {
     }
 }
 
+/// Returns true when a GROUP name matches the AGS 4 convention: 1–4 uppercase letters.
+fn is_valid_group_name(name: &str) -> bool {
+    !name.is_empty() && name.len() <= 4 && name.chars().all(|c| c.is_ascii_uppercase())
+}
+
 /// Coerce a raw textual value into an [`AgsValue`] using the column's
 /// declared AGS type.
 fn coerce(raw: &str, ty: &AgsType) -> AgsValue {
@@ -318,8 +335,8 @@ fn coerce(raw: &str, ty: &AgsType) -> AgsValue {
     }
     match ty {
         AgsType::YN => match raw.trim().to_ascii_uppercase().as_str() {
-            "Y" | "YES" | "TRUE" => AgsValue::Bool(true),
-            "N" | "NO" | "FALSE" => AgsValue::Bool(false),
+            "Y" => AgsValue::Bool(true),
+            "N" => AgsValue::Bool(false),
             _ => AgsValue::Raw(raw.to_string()),
         },
         t if t.is_numeric() => match raw.trim().parse::<f64>() {

@@ -14,6 +14,8 @@ static DATE_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$").unwrap());
 static TIME_RE: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new(r"^\d{2}:\d{2}(:\d{2})?$").unwrap());
+static DMS_RE: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"^-?\d+:[0-5]\d:[0-5]\d(\.\d+)?$").unwrap());
 
 pub struct TypeValueRule;
 
@@ -55,7 +57,7 @@ fn type_violation(group: &str, heading: &str, value: &AgsValue, ty: &AgsType) ->
     match (value, ty) {
         // Raw = coercion failed (numeric or YN)
         (AgsValue::Raw(s), AgsType::YN) => Some(format!(
-            "{group}.{heading}: {s:?} is not a valid Y/N value (expected Y, N, YES, NO)"
+            "{group}.{heading}: {s:?} is not a valid Y/N value (expected Y or N)"
         )),
         (AgsValue::Raw(s), t) if t.is_numeric() => Some(format!(
             "{group}.{heading}: {s:?} cannot be parsed as a number (declared type {})",
@@ -68,6 +70,10 @@ fn type_violation(group: &str, heading: &str, value: &AgsValue, ty: &AgsType) ->
         // T: must match HH:MM[:SS]
         (AgsValue::Text(s), AgsType::T) if !s.is_empty() && !TIME_RE.is_match(s) => Some(format!(
             "{group}.{heading}: {s:?} does not match time format HH:MM or HH:MM:SS"
+        )),
+        // DMS: must match D:MM:SS or D:MM:SS.ss (colon-delimited, comma rejected)
+        (AgsValue::Text(s), AgsType::DMS) if !s.is_empty() && !DMS_RE.is_match(s) => Some(format!(
+            "{group}.{heading}: {s:?} does not match DMS format D:MM:SS (colon-separated)"
         )),
         _ => None,
     }
