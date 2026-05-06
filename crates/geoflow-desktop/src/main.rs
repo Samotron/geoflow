@@ -226,7 +226,9 @@ impl GeoflowApp {
         let (tx, rx) = mpsc::sync_channel(1);
         self.task_rx = Some(rx);
         std::thread::spawn(move || {
-            let r = write_xlsx(&ags, &dest).map(|_| dest).map_err(|e| e.to_string());
+            let r = write_xlsx(&ags, &dest)
+                .map(|_| dest)
+                .map_err(|e| e.to_string());
             let _ = tx.send(TaskResult::Exported(r));
             ctx.request_repaint();
         });
@@ -288,7 +290,9 @@ impl GeoflowApp {
         let (tx, rx) = mpsc::sync_channel(1);
         self.task_rx = Some(rx);
         std::thread::spawn(move || {
-            let r = xlsx_to_ags(&src, &dest).map(|_| dest).map_err(|e| e.to_string());
+            let r = xlsx_to_ags(&src, &dest)
+                .map(|_| dest)
+                .map_err(|e| e.to_string());
             let _ = tx.send(TaskResult::Imported(r));
             ctx.request_repaint();
         });
@@ -462,13 +466,26 @@ impl GeoflowApp {
         };
 
         // Summary bar
-        let errors = diags.iter().filter(|d| d.severity == Severity::Error).count();
-        let warnings = diags.iter().filter(|d| d.severity == Severity::Warning).count();
-        let infos = diags.iter().filter(|d| d.severity == Severity::Info).count();
+        let errors = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .count();
+        let warnings = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .count();
+        let infos = diags
+            .iter()
+            .filter(|d| d.severity == Severity::Info)
+            .count();
 
         ui.horizontal(|ui| {
             if errors == 0 && warnings == 0 {
-                ui.label(RichText::new("✓ No issues found").color(Color32::GREEN).strong());
+                ui.label(
+                    RichText::new("✓ No issues found")
+                        .color(Color32::GREEN)
+                        .strong(),
+                );
             } else {
                 if errors > 0 {
                     ui.label(
@@ -504,7 +521,11 @@ impl GeoflowApp {
                 };
                 ui.horizontal_wrapped(|ui| {
                     ui.label(RichText::new(icon).color(color).strong().monospace());
-                    ui.label(RichText::new(&diag.rule_id).monospace().color(Color32::GRAY));
+                    ui.label(
+                        RichText::new(&diag.rule_id)
+                            .monospace()
+                            .color(Color32::GRAY),
+                    );
                     ui.label(&diag.message);
                     if let Some(group) = &diag.location.group {
                         ui.label(
@@ -622,14 +643,11 @@ impl GeoflowApp {
             match status {
                 Ok(p) => {
                     ui.label(
-                        RichText::new(format!("✓ Saved: {}", p.display()))
-                            .color(Color32::GREEN),
+                        RichText::new(format!("✓ Saved: {}", p.display())).color(Color32::GREEN),
                     );
                 }
                 Err(e) => {
-                    ui.label(
-                        RichText::new(format!("✗ Export failed: {e}")).color(Color32::RED),
-                    );
+                    ui.label(RichText::new(format!("✗ Export failed: {e}")).color(Color32::RED));
                 }
             }
         }
@@ -672,8 +690,7 @@ impl GeoflowApp {
             match status {
                 Ok(ref path) => {
                     ui.label(
-                        RichText::new(format!("✓ Saved: {}", path.display()))
-                            .color(Color32::GREEN),
+                        RichText::new(format!("✓ Saved: {}", path.display())).color(Color32::GREEN),
                     );
                     if ui.button("Open converted file in GeoFlow").clicked() {
                         let p = path.clone();
@@ -777,7 +794,7 @@ fn fmt_f64(f: f64) -> String {
 // ── XLSX import ───────────────────────────────────────────────────────────────
 
 fn xlsx_to_ags(src: &Path, dest: &Path) -> anyhow::Result<()> {
-    use calamine::{Reader, open_workbook_auto};
+    use calamine::{open_workbook_auto, Reader};
 
     let mut wb = open_workbook_auto(src)?;
     let sheets = wb.sheet_names().to_vec();
@@ -807,7 +824,11 @@ fn xlsx_to_ags(src: &Path, dest: &Path) -> anyhow::Result<()> {
 
         out.push_str(&format!("\"GROUP\",\"{}\"\n", esc(sheet)));
 
-        for (kind, row) in [("HEADING", &rows[0]), ("UNIT", &rows[1]), ("TYPE", &rows[2])] {
+        for (kind, row) in [
+            ("HEADING", &rows[0]),
+            ("UNIT", &rows[1]),
+            ("TYPE", &rows[2]),
+        ] {
             out.push_str(&format!("\"{}\"", kind));
             for cell in &row[col_start..] {
                 out.push_str(&format!(",\"{}\"", esc(cell)));
@@ -819,7 +840,10 @@ fn xlsx_to_ags(src: &Path, dest: &Path) -> anyhow::Result<()> {
             // Skip rows whose first cell is a section marker we don't understand.
             let first_up = row.first().map(|s| s.to_ascii_uppercase());
             if has_marker
-                && matches!(first_up.as_deref(), Some("HEADING") | Some("UNIT") | Some("TYPE"))
+                && matches!(
+                    first_up.as_deref(),
+                    Some("HEADING") | Some("UNIT") | Some("TYPE")
+                )
             {
                 continue;
             }
