@@ -10,6 +10,7 @@ use geoflow_core::{
     render::{self, Format},
     validate, Registry, Severity,
 };
+use serde::Deserialize;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -771,24 +772,75 @@ fn cmd_explore(
     Ok(ExitCode::SUCCESS)
 }
 
+#[derive(Default)]
+struct PackState {
+    /// Predefined pack references, e.g. "ags:standard@4.x".
+    selected_refs: Vec<String>,
+    /// Raw YAML for an uploaded custom rule pack.
+    custom_yaml: Option<String>,
+}
+
+impl PackState {
+    fn load_packs(&self) -> Vec<geoflow_core::dsl::LoadedPack> {
+        let mut packs = Vec::new();
+        for r in &self.selected_refs {
+            match geoflow_core::dsl::RulePack::load_spec(r) {
+                Ok(p) => packs.push(p),
+                Err(e) => tracing::warn!("failed to load pack {r}: {e}"),
+            }
+        }
+        if let Some(yaml) = &self.custom_yaml {
+            match geoflow_core::dsl::RulePack::parse(yaml).and_then(|p| p.into_loaded()) {
+                Ok(p) => packs.push(p),
+                Err(e) => tracing::warn!("failed to load custom pack: {e}"),
+            }
+        }
+        packs
+    }
+
+    fn all_active_refs(&self) -> Vec<String> {
+        let mut refs = self.selected_refs.clone();
+        if self.custom_yaml.is_some() {
+            refs.push("custom".to_string());
+        }
+        refs
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ValidateForm {
+    /// Comma-separated pack references encoded by JS before submit.
+    #[serde(default)]
+    packs: String,
+    /// Custom YAML rule pack content.
+    #[serde(default)]
+    custom_yaml: String,
+}
+
 #[tokio::main]
 async fn run_server(file: geoflow_core::model::AgsFile, port: u16) -> Result<()> {
     use axum::{
         extract::{Path, State},
-        response::Html,
-        routing::get,
-        Router,
+        response::{Html, Redirect},
+        routing::{get, post},
+        Form, Router,
     };
     use std::sync::Arc;
+    use tokio::sync::Mutex;
 
     struct AppState {
         file: geoflow_core::model::AgsFile,
         explorer: geoflow_core::explorer::Explorer,
+        pack_state: Mutex<PackState>,
+        available_packs: Vec<String>,
     }
 
+    let available_packs = geoflow_core::dsl::installed_pack_refs();
     let state = Arc::new(AppState {
         file,
         explorer: geoflow_core::explorer::Explorer::new(),
+        pack_state: Mutex::new(PackState::default()),
+        available_packs,
     });
 
     let app = Router::new()
@@ -807,7 +859,62 @@ async fn run_server(file: geoflow_core::model::AgsFile, port: u16) -> Result<()>
         .route(
             "/validation.html",
             get(|State(s): State<Arc<AppState>>| async move {
-                Html(s.explorer.render_validation(&s.file).unwrap())
+                let ps = s.pack_state.lock().await;
+                let packs = ps.load_packs();
+                let active_refs = ps.all_active_refs();
+                let custom_yaml = ps.custom_yaml.clone();
+                drop(ps);
+                Html(
+                    s.explorer
+                        .render_validation(
+                            &s.file,
+                            &packs,
+                            &s.available_packs,
+                            &active_refs,
+                            custom_yaml.as_deref(),
+                        )
+                        .unwrap_or_else(|e| format!("Error: {e}")),
+                )
+            }),
+        )
+        .route(
+            "/validate",
+            post(
+                |State(s): State<Arc<AppState>>, Form(form): Form<ValidateForm>| async move {
+                    let selected_refs: Vec<String> = form
+                        .packs
+                        .split(',')
+                        .map(|r| r.trim().to_string())
+                        .filter(|r| !r.is_empty())
+                        .collect();
+                    let custom_yaml = if form.custom_yaml.trim().is_empty() {
+                        None
+                    } else {
+                        Some(form.custom_yaml.trim().to_string())
+                    };
+                    let mut ps = s.pack_state.lock().await;
+                    ps.selected_refs = selected_refs;
+                    ps.custom_yaml = custom_yaml;
+                    drop(ps);
+                    Redirect::to("/validation.html")
+                },
+            ),
+        )
+        .route(
+            "/certificate.html",
+            get(|State(s): State<Arc<AppState>>| async move {
+                let ps = s.pack_state.lock().await;
+                let packs = ps.load_packs();
+                let active_refs = ps.all_active_refs();
+                drop(ps);
+                let now = chrono::Local::now()
+                    .format("%Y-%m-%d %H:%M:%S %Z")
+                    .to_string();
+                Html(
+                    s.explorer
+                        .render_certificate(&s.file, &packs, &active_refs, &now)
+                        .unwrap_or_else(|e| format!("Error: {e}")),
+                )
             }),
         )
         .route(

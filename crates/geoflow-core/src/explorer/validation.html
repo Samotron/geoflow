@@ -1,85 +1,170 @@
 {% extends "base" %}
 {% block title %}Validation - GeoFlow{% endblock %}
 {% block content %}
-    <h1>Validation Report</h1>
-    <p>
-        <span class="severity-error">{{ summary.error }} error</span>,
-        <span class="severity-warning">{{ summary.warning }} warning</span>,
-        <span>{{ summary.info }} info</span>
-    </p>
+<style>
+  .pack-form { background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; padding: 1rem 1.2rem; margin-bottom: 1.5rem; }
+  .pack-form h2 { margin: 0 0 0.8rem 0; font-size: 1rem; }
+  .pack-options { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-bottom: 0.8rem; }
+  .pack-option label { display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.95rem; }
+  .custom-pack-toggle { font-size: 0.9rem; color: #0066cc; cursor: pointer; background: none; border: none; padding: 0; text-decoration: underline; }
+  .custom-pack-area { display: none; margin-top: 0.8rem; }
+  .custom-pack-area textarea { width: 100%; height: 140px; font-family: monospace; font-size: 0.85rem; box-sizing: border-box; }
+  .pack-form-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 0.8rem; }
+  .active-packs { font-size: 0.85rem; color: #555; }
+  .active-packs strong { color: #333; }
+  .cert-link { margin-left: auto; font-size: 0.9rem; }
+</style>
 
-    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+<h1>Validation Report</h1>
+
+<div class="pack-form">
+  <h2>Rule Packs</h2>
+  <form id="pack-form" method="POST" action="/validate">
+    <div class="pack-options">
+      {% for pack_ref in available_packs %}
+      <div class="pack-option">
         <label>
-            Severity
-            <select id="severity-filter">
-                <option value="">All</option>
-                <option value="error">Error</option>
-                <option value="warning">Warning</option>
-                <option value="info">Info</option>
-            </select>
+          <input
+            type="checkbox"
+            name="pack_cb"
+            value="{{ pack_ref }}"
+            {% if pack_ref in active_pack_refs %}checked{% endif %}
+          >
+          {{ pack_ref }}
         </label>
-        <label>
-            Group
-            <select id="group-filter">
-                <option value="">All</option>
-                {% for group in groups %}
-                <option value="{{ group }}">{{ group }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>
-            Rule
-            <select id="rule-filter">
-                <option value="">All</option>
-                {% for rule in rules %}
-                <option value="{{ rule }}">{{ rule }}</option>
-                {% endfor %}
-            </select>
-        </label>
+      </div>
+      {% endfor %}
+      {% if not available_packs %}
+      <em style="color:#888">No predefined packs installed.</em>
+      {% endif %}
     </div>
 
-    <table id="diagnostics-table">
-        <thead>
-            <tr>
-                <th>Severity</th>
-                <th>Rule</th>
-                <th>Group</th>
-                <th>Message</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for diagnostic in diagnostics %}
-            <tr
-                data-severity="{{ diagnostic.severity }}"
-                data-group="{{ diagnostic.location.group or '' }}"
-                data-rule="{{ diagnostic.rule_id }}"
-            >
-                <td class="severity-{{ diagnostic.severity }}">{{ diagnostic.severity }}</td>
-                <td>{{ diagnostic.rule_id }}</td>
-                <td>{{ diagnostic.location.group or "-" }}</td>
-                <td>{{ diagnostic.message }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <button type="button" class="custom-pack-toggle" onclick="toggleCustomPack()">
+      + Custom rules (YAML)
+    </button>
+    <div class="custom-pack-area" id="custom-pack-area">
+      <label for="custom_yaml" style="display:block; font-size:0.85rem; margin-bottom:0.3rem;">
+        Paste a rule pack YAML below:
+      </label>
+      <textarea id="custom_yaml" name="custom_yaml" placeholder="version: 1&#10;name: my-rules&#10;rules:&#10;  - id: MY-001&#10;    ...">{{ custom_yaml or "" }}</textarea>
+    </div>
 
-    <script>
-        const severity = document.getElementById("severity-filter");
-        const group = document.getElementById("group-filter");
-        const rule = document.getElementById("rule-filter");
-        const rows = Array.from(document.querySelectorAll("#diagnostics-table tbody tr"));
+    <input type="hidden" name="packs" id="packs-hidden">
 
-        function applyFilters() {
-            for (const row of rows) {
-                const severityOk = !severity.value || row.dataset.severity === severity.value;
-                const groupOk = !group.value || row.dataset.group === group.value;
-                const ruleOk = !rule.value || row.dataset.rule === rule.value;
-                row.style.display = severityOk && groupOk && ruleOk ? "" : "none";
-            }
-        }
+    <div class="pack-form-actions">
+      <button type="submit" onclick="encodePacksBeforeSubmit()">Run Validation</button>
+      {% if active_pack_refs %}
+      <span class="active-packs">Active packs: <strong>{{ active_pack_refs | join(", ") }}</strong></span>
+      {% endif %}
+      {% if custom_yaml %}
+      <span class="active-packs">+ custom rules active</span>
+      {% endif %}
+      <a class="cert-link" href="/certificate.html">Download Certificate</a>
+    </div>
+  </form>
+</div>
 
-        severity.addEventListener("change", applyFilters);
-        group.addEventListener("change", applyFilters);
-        rule.addEventListener("change", applyFilters);
-    </script>
+<p>
+  <span class="severity-error">{{ summary.error }} error</span>,
+  <span class="severity-warning">{{ summary.warning }} warning</span>,
+  <span>{{ summary.info }} info</span>
+</p>
+
+<div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+  <label>
+    Severity
+    <select id="severity-filter">
+      <option value="">All</option>
+      <option value="error">Error</option>
+      <option value="warning">Warning</option>
+      <option value="info">Info</option>
+    </select>
+  </label>
+  <label>
+    Group
+    <select id="group-filter">
+      <option value="">All</option>
+      {% for group in groups %}
+      <option value="{{ group }}">{{ group }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Rule
+    <select id="rule-filter">
+      <option value="">All</option>
+      {% for rule in rules %}
+      <option value="{{ rule }}">{{ rule }}</option>
+      {% endfor %}
+    </select>
+  </label>
+</div>
+
+<table id="diagnostics-table">
+  <thead>
+    <tr>
+      <th>Severity</th>
+      <th>Rule</th>
+      <th>Group</th>
+      <th>Message</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for diagnostic in diagnostics %}
+    <tr
+      data-severity="{{ diagnostic.severity }}"
+      data-group="{{ diagnostic.location.group or '' }}"
+      data-rule="{{ diagnostic.rule_id }}"
+    >
+      <td class="severity-{{ diagnostic.severity }}">{{ diagnostic.severity }}</td>
+      <td>{{ diagnostic.rule_id }}</td>
+      <td>{{ diagnostic.location.group or "-" }}</td>
+      <td>{{ diagnostic.message }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if not diagnostics %}
+<p style="color: #1a7f37; font-weight: bold;">No issues found.</p>
+{% endif %}
+
+<script>
+  function toggleCustomPack() {
+    const area = document.getElementById('custom-pack-area');
+    area.style.display = area.style.display === 'block' ? 'none' : 'block';
+  }
+
+  function encodePacksBeforeSubmit() {
+    const checkboxes = document.querySelectorAll('input[name="pack_cb"]:checked');
+    const values = Array.from(checkboxes).map(cb => cb.value);
+    document.getElementById('packs-hidden').value = values.join(',');
+  }
+
+  // Restore custom pack area visibility if content present
+  (function() {
+    const ta = document.getElementById('custom_yaml');
+    if (ta && ta.value.trim()) {
+      document.getElementById('custom-pack-area').style.display = 'block';
+    }
+  })();
+
+  const severity = document.getElementById("severity-filter");
+  const group = document.getElementById("group-filter");
+  const rule = document.getElementById("rule-filter");
+  const rows = Array.from(document.querySelectorAll("#diagnostics-table tbody tr"));
+
+  function applyFilters() {
+    for (const row of rows) {
+      const severityOk = !severity.value || row.dataset.severity === severity.value;
+      const groupOk = !group.value || row.dataset.group === group.value;
+      const ruleOk = !rule.value || row.dataset.rule === rule.value;
+      row.style.display = severityOk && groupOk && ruleOk ? "" : "none";
+    }
+  }
+
+  severity.addEventListener("change", applyFilters);
+  group.addEventListener("change", applyFilters);
+  rule.addEventListener("change", applyFilters);
+</script>
 {% endblock %}
