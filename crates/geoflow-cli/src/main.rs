@@ -121,6 +121,11 @@ enum Command {
         #[arg(long, default_value = "8080")]
         port: u16,
     },
+    /// Manage a local GeoPackage ground investigation database.
+    Db {
+        #[command(subcommand)]
+        action: DbAction,
+    },
     /// Parse a single free-text soil description into structured fields.
     Describe {
         /// Soil description text (e.g. "Soft grey CLAY").
@@ -136,6 +141,62 @@ enum Command {
         /// Output format: text, json, or csv.
         #[arg(long, default_value = "text")]
         format: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DbAction {
+    /// Create a new GeoPackage database file.
+    Init {
+        /// Path to the new GeoPackage (e.g. site.gpkg).
+        path: PathBuf,
+    },
+    /// Import one or more AGS files into a GeoPackage.
+    Import {
+        /// AGS files to import.
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+        /// Path to the target GeoPackage (created if absent with --create).
+        #[arg(short, long)]
+        db: PathBuf,
+        /// Create the GeoPackage if it does not exist yet.
+        #[arg(long)]
+        create: bool,
+    },
+    /// Query LOCA records within a bounding box.
+    Query {
+        /// Path to the GeoPackage.
+        db: PathBuf,
+        /// Bounding box as min_e,min_n,max_e,max_n (WGS 84 degrees or BNG metres).
+        #[arg(long)]
+        bbox: Option<String>,
+        /// AGS group to query (e.g. GEOL, SAMP).
+        #[arg(long)]
+        group: Option<String>,
+        /// Filter group rows by LOCA_ID.
+        #[arg(long)]
+        loca: Option<String>,
+        /// Coordinate system for bbox input: wgs84 (default) or bng.
+        #[arg(long, default_value = "wgs84")]
+        crs: String,
+        /// Output format: text (default) or json.
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
+    /// Export records from a GeoPackage back to an AGS file.
+    Export {
+        /// Path to the GeoPackage.
+        db: PathBuf,
+        /// Output AGS file.
+        out: PathBuf,
+        /// Comma-separated LOCA_IDs to export (omit for all).
+        #[arg(long)]
+        loca: Option<String>,
+    },
+    /// List imports recorded in a GeoPackage.
+    Imports {
+        /// Path to the GeoPackage.
+        db: PathBuf,
     },
 }
 
@@ -190,6 +251,15 @@ fn main() -> ExitCode {
             serve,
             port,
         } => cmd_explore(&files, out.as_ref(), serve, port),
+        Command::Db { action } => match action {
+            DbAction::Init { path } => cmd_db_init(&path),
+            DbAction::Import { files, db, create } => cmd_db_import(&files, &db, create),
+            DbAction::Query { db, bbox, group, loca, crs, format } => {
+                cmd_db_query(&db, bbox.as_deref(), group.as_deref(), loca.as_deref(), &crs, &format)
+            }
+            DbAction::Export { db, out, loca } => cmd_db_export(&db, &out, loca.as_deref()),
+            DbAction::Imports { db } => cmd_db_imports(&db),
+        },
         Command::Describe { text, format } => cmd_describe(&text, &format),
         Command::Enhance { file, format } => cmd_enhance(&file, &format),
     };
@@ -734,6 +804,166 @@ fn cmd_enhance(path: &std::path::Path, format: &str) -> Result<ExitCode> {
                 );
             }
         }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_db_init(path: &std::path::Path) -> Result<ExitCode> {
+    geoflow_core::db::GpkgDb::create(path)?;
+    println!("created GeoPackage: {}", path.display());
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_db_import(files: &[PathBuf], db_path: &std::path::Path, create: bool) -> Result<ExitCode> {
+    let mut db = if create && !db_path.exists() {
+        geoflow_core::db::GpkgDb::create(db_path)
+            .with_context(|| format!("creating {}", db_path.display()))?
+    } else {
+        geoflow_core::db::GpkgDb::open(db_path)
+            .with_context(|| format!("opening {}", db_path.display()))?
+    };
+
+    for path in files {
+        let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+        let file = ags::parse_bytes(&bytes).file;
+        let report = db
+            .import(&file, Some(&path.display().to_string()))
+            .with_context(|| format!("importing {}", path.display()))?;
+        println!(
+            "imported {} — {} LOCA records, {} groups",
+            path.display(),
+            report.loca_count,
+            report.groups_imported.len(),
+        );
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_db_query(
+    db_path: &std::path::Path,
+    bbox: Option<&str>,
+    group: Option<&str>,
+    loca_id: Option<&str>,
+    crs: &str,
+    format: &str,
+) -> Result<ExitCode> {
+    let db = geoflow_core::db::GpkgDb::open(db_path)?;
+
+    if let Some(bbox_str) = bbox {
+        let parts: Vec<f64> = bbox_str
+            .split(',')
+            .map(|s| s.trim().parse::<f64>())
+            .collect::<std::result::Result<_, _>>()
+            .with_context(|| format!("bbox must be four comma-separated numbers: {bbox_str}"))?;
+        if parts.len() != 4 {
+            anyhow::bail!("bbox requires exactly four values: min_e,min_n,max_e,max_n");
+        }
+        let (min_lon, min_lat, max_lon, max_lat) = if crs == "bng" {
+            use geoflow_core::spatial::{reproject, Crs};
+            let (min_lon, min_lat) = reproject((parts[0], parts[1]), Crs::Bng, Crs::Wgs84);
+            let (max_lon, max_lat) = reproject((parts[2], parts[3]), Crs::Bng, Crs::Wgs84);
+            (min_lon, min_lat, max_lon, max_lat)
+        } else {
+            (parts[0], parts[1], parts[2], parts[3])
+        };
+
+        let records = db.query_bbox(min_lon, min_lat, max_lon, max_lat)?;
+        if format == "json" {
+            let json: Vec<serde_json::Value> = records
+                .iter()
+                .map(|r| {
+                    let mut m = serde_json::Map::new();
+                    m.insert("loca_id".into(), r.loca_id.clone().into());
+                    m.insert("lon".into(), r.lon.into());
+                    m.insert("lat".into(), r.lat.into());
+                    for (k, v) in &r.attrs {
+                        m.insert(k.clone(), v.clone().map(Into::into).unwrap_or(serde_json::Value::Null));
+                    }
+                    serde_json::Value::Object(m)
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&json)?);
+        } else {
+            println!("{:<20} {:>12} {:>12}", "LOCA_ID", "LON", "LAT");
+            println!("{}", "-".repeat(46));
+            for r in &records {
+                println!("{:<20} {:>12.6} {:>12.6}", r.loca_id, r.lon, r.lat);
+            }
+            println!("\n{} location(s) found", records.len());
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    if let Some(grp) = group {
+        let result = db.query_group(grp, loca_id)?;
+        if format == "json" {
+            let rows: Vec<serde_json::Value> = result
+                .rows
+                .iter()
+                .map(|row| {
+                    let mut m = serde_json::Map::new();
+                    for (col, val) in result.columns.iter().zip(row) {
+                        m.insert(col.clone(), val.clone().map(Into::into).unwrap_or(serde_json::Value::Null));
+                    }
+                    serde_json::Value::Object(m)
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&rows)?);
+        } else {
+            println!("{}", result.columns.join("\t"));
+            println!("{}", "-".repeat(result.columns.len() * 12));
+            for row in &result.rows {
+                let cells: Vec<&str> = row.iter().map(|v| v.as_deref().unwrap_or("")).collect();
+                println!("{}", cells.join("\t"));
+            }
+            println!("\n{} row(s)", result.rows.len());
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    anyhow::bail!("specify --bbox or --group");
+}
+
+fn cmd_db_export(
+    db_path: &std::path::Path,
+    out: &std::path::Path,
+    loca_filter: Option<&str>,
+) -> Result<ExitCode> {
+    let db = geoflow_core::db::GpkgDb::open(db_path)?;
+    let ids: Vec<&str> = loca_filter
+        .map(|s| s.split(',').map(str::trim).collect())
+        .unwrap_or_default();
+    let file = db.export_ags(&ids)?;
+    let text = geoflow_core::ags::serialize(&file);
+    std::fs::write(out, text.as_bytes())
+        .with_context(|| format!("writing {}", out.display()))?;
+    let total: usize = file.groups.values().map(|g| g.rows.len()).sum();
+    println!(
+        "exported {} groups / {} rows to {}",
+        file.groups.len(),
+        total,
+        out.display()
+    );
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_db_imports(db_path: &std::path::Path) -> Result<ExitCode> {
+    let db = geoflow_core::db::GpkgDb::open(db_path)?;
+    let imports = db.list_imports()?;
+    if imports.is_empty() {
+        println!("no imports recorded in {}", db_path.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+    println!("{:>4}  {:<40} {:>6}  IMPORTED AT", "ID", "FILE", "LOCA");
+    println!("{}", "-".repeat(72));
+    for imp in &imports {
+        println!(
+            "{:>4}  {:<40} {:>6}  {}",
+            imp.id,
+            imp.source_file,
+            imp.loca_count,
+            imp.imported_at,
+        );
     }
     Ok(ExitCode::SUCCESS)
 }

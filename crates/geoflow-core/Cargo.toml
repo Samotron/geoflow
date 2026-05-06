@@ -25,6 +25,10 @@ chrono.workspace = true
 cel-interpreter.workspace = true
 geo.workspace = true
 minijinja.workspace = true
+rusqlite = { workspace = true, optional = true }
+
+[features]
+db = ["dep:rusqlite"]
 
 [dev-dependencies]
 insta.workspace = true

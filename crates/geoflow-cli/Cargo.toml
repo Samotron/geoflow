@@ -14,7 +14,8 @@ name = "geoflow"
 path = "src/main.rs"
 
 [dependencies]
-geoflow-core = { path = "../geoflow-core", version = "0.1.0" }
+geoflow-core = { path = "../geoflow-core", version = "0.1.0", features = ["db"] }
+rusqlite = { workspace = true }
 clap.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
