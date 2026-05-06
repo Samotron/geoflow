@@ -254,9 +254,21 @@ fn main() -> ExitCode {
         Command::Db { action } => match action {
             DbAction::Init { path } => cmd_db_init(&path),
             DbAction::Import { files, db, create } => cmd_db_import(&files, &db, create),
-            DbAction::Query { db, bbox, group, loca, crs, format } => {
-                cmd_db_query(&db, bbox.as_deref(), group.as_deref(), loca.as_deref(), &crs, &format)
-            }
+            DbAction::Query {
+                db,
+                bbox,
+                group,
+                loca,
+                crs,
+                format,
+            } => cmd_db_query(
+                &db,
+                bbox.as_deref(),
+                group.as_deref(),
+                loca.as_deref(),
+                &crs,
+                &format,
+            ),
             DbAction::Export { db, out, loca } => cmd_db_export(&db, &out, loca.as_deref()),
             DbAction::Imports { db } => cmd_db_imports(&db),
         },
@@ -877,7 +889,10 @@ fn cmd_db_query(
                     m.insert("lon".into(), r.lon.into());
                     m.insert("lat".into(), r.lat.into());
                     for (k, v) in &r.attrs {
-                        m.insert(k.clone(), v.clone().map(Into::into).unwrap_or(serde_json::Value::Null));
+                        m.insert(
+                            k.clone(),
+                            v.clone().map(Into::into).unwrap_or(serde_json::Value::Null),
+                        );
                     }
                     serde_json::Value::Object(m)
                 })
@@ -903,7 +918,12 @@ fn cmd_db_query(
                 .map(|row| {
                     let mut m = serde_json::Map::new();
                     for (col, val) in result.columns.iter().zip(row) {
-                        m.insert(col.clone(), val.clone().map(Into::into).unwrap_or(serde_json::Value::Null));
+                        m.insert(
+                            col.clone(),
+                            val.clone()
+                                .map(Into::into)
+                                .unwrap_or(serde_json::Value::Null),
+                        );
                     }
                     serde_json::Value::Object(m)
                 })
@@ -935,8 +955,7 @@ fn cmd_db_export(
         .unwrap_or_default();
     let file = db.export_ags(&ids)?;
     let text = geoflow_core::ags::serialize(&file);
-    std::fs::write(out, text.as_bytes())
-        .with_context(|| format!("writing {}", out.display()))?;
+    std::fs::write(out, text.as_bytes()).with_context(|| format!("writing {}", out.display()))?;
     let total: usize = file.groups.values().map(|g| g.rows.len()).sum();
     println!(
         "exported {} groups / {} rows to {}",
@@ -959,10 +978,7 @@ fn cmd_db_imports(db_path: &std::path::Path) -> Result<ExitCode> {
     for imp in &imports {
         println!(
             "{:>4}  {:<40} {:>6}  {}",
-            imp.id,
-            imp.source_file,
-            imp.loca_count,
-            imp.imported_at,
+            imp.id, imp.source_file, imp.loca_count, imp.imported_at,
         );
     }
     Ok(ExitCode::SUCCESS)

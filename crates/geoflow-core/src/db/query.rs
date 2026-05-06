@@ -51,7 +51,11 @@ pub fn query_loca_by_bbox(
 
     let select = format!(
         "SELECT geom, {} FROM loca",
-        col_list.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ")
+        col_list
+            .iter()
+            .map(|c| format!("\"{c}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
     );
 
     let mut stmt = conn.prepare(&select)?;
@@ -88,7 +92,12 @@ pub fn query_loca_by_bbox(
             .map(|(k, v)| (k.clone(), v))
             .collect();
 
-        out.push(LocaRecord { loca_id, lon, lat, attrs });
+        out.push(LocaRecord {
+            loca_id,
+            lon,
+            lat,
+            attrs,
+        });
     }
 
     Ok(out)
@@ -96,11 +105,7 @@ pub fn query_loca_by_bbox(
 
 /// Return all rows for `group` (table name, case-insensitive), optionally
 /// filtered by `loca_id`.
-pub fn query_group(
-    db: &GpkgDb,
-    group: &str,
-    loca_id: Option<&str>,
-) -> Result<QueryResult> {
+pub fn query_group(db: &GpkgDb, group: &str, loca_id: Option<&str>) -> Result<QueryResult> {
     let table = group.to_lowercase();
     let conn = db.conn();
 
@@ -144,7 +149,11 @@ pub fn query_group(
         }
     }
 
-    Ok(QueryResult { group: group.to_uppercase(), columns: display_cols, rows })
+    Ok(QueryResult {
+        group: group.to_uppercase(),
+        columns: display_cols,
+        rows,
+    })
 }
 
 /// Reconstruct an `AgsFile` for the given `loca_ids` (or all if empty).
@@ -204,8 +213,7 @@ pub fn export_to_ags(db: &GpkgDb, loca_ids: &[&str]) -> Result<AgsFile> {
         let (sql, filter_loca): (String, bool) = if loca_ids.is_empty() {
             (format!("SELECT {col_select} FROM \"{table}\""), false)
         } else if cols.contains(&"loca_id".to_string()) {
-            let placeholders: Vec<String> =
-                (1..=loca_ids.len()).map(|i| format!("?{i}")).collect();
+            let placeholders: Vec<String> = (1..=loca_ids.len()).map(|i| format!("?{i}")).collect();
             (
                 format!(
                     "SELECT {col_select} FROM \"{table}\" WHERE loca_id IN ({})",
@@ -289,8 +297,7 @@ pub(super) fn table_columns(conn: &rusqlite::Connection, table: &str) -> Result<
 
 /// Return all non-system tables registered in gpkg_contents.
 fn attribute_tables(conn: &rusqlite::Connection) -> Result<Vec<String>> {
-    let mut stmt =
-        conn.prepare("SELECT table_name FROM gpkg_contents ORDER BY table_name")?;
+    let mut stmt = conn.prepare("SELECT table_name FROM gpkg_contents ORDER BY table_name")?;
     let names: Vec<String> = stmt
         .query_map([], |row| row.get(0))?
         .filter_map(|r| r.ok())

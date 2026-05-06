@@ -128,7 +128,11 @@ fn ags_to_text(v: &AgsValue) -> Option<String> {
         AgsValue::Number(n) => Some(n.to_string()),
         AgsValue::Bool(b) => Some(if *b { "Y" } else { "N" }.to_string()),
         AgsValue::Text(s) | AgsValue::Raw(s) => {
-            if s.is_empty() { None } else { Some(s.clone()) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.clone())
+            }
         }
     }
 }
@@ -147,7 +151,11 @@ fn insert_loca_row(
         (Some(e), Some(n)) => {
             let epsg = geometry::guess_epsg(e, n);
             let (lon, lat) = if epsg == 27700 {
-                crate::spatial::reproject((e, n), crate::spatial::Crs::Bng, crate::spatial::Crs::Wgs84)
+                crate::spatial::reproject(
+                    (e, n),
+                    crate::spatial::Crs::Bng,
+                    crate::spatial::Crs::Wgs84,
+                )
             } else {
                 (e, n)
             };
@@ -165,9 +173,7 @@ fn insert_loca_row(
         text_vals.push(ags_to_text(row.get(name).unwrap_or(&AgsValue::Null)));
     }
 
-    let placeholders: Vec<String> = (1..=col_names.len())
-        .map(|i| format!("?{i}"))
-        .collect();
+    let placeholders: Vec<String> = (1..=col_names.len()).map(|i| format!("?{i}")).collect();
 
     let sql = format!(
         "INSERT INTO \"{table}\" ({}) VALUES ({})",
@@ -208,10 +214,12 @@ fn insert_generic_row(
 
     if has_loca_id {
         col_names.push("loca_id".into());
-        values.push(match ags_to_text(row.get("LOCA_ID").unwrap_or(&AgsValue::Null)) {
-            Some(s) => rusqlite::types::Value::Text(s),
-            None => rusqlite::types::Value::Null,
-        });
+        values.push(
+            match ags_to_text(row.get("LOCA_ID").unwrap_or(&AgsValue::Null)) {
+                Some(s) => rusqlite::types::Value::Text(s),
+                None => rusqlite::types::Value::Null,
+            },
+        );
     }
 
     for &name in heading_names {
@@ -219,10 +227,12 @@ fn insert_generic_row(
             continue;
         }
         col_names.push(format!("\"{}\"", name.replace('"', "\"\"")));
-        values.push(match ags_to_text(row.get(name).unwrap_or(&AgsValue::Null)) {
-            Some(s) => rusqlite::types::Value::Text(s),
-            None => rusqlite::types::Value::Null,
-        });
+        values.push(
+            match ags_to_text(row.get(name).unwrap_or(&AgsValue::Null)) {
+                Some(s) => rusqlite::types::Value::Text(s),
+                None => rusqlite::types::Value::Null,
+            },
+        );
     }
 
     let placeholders: Vec<String> = (1..=col_names.len()).map(|i| format!("?{i}")).collect();
