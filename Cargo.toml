@@ -9,7 +9,9 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+# CalVer: YYYY.MMDD.N — year, month+day (no leading zero), daily build sequence.
+# Example: 2026.506.0 = 2026-05-06 build 0; same-day second build = 2026.506.1.
+version = "2026.506.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT"
@@ -53,6 +55,13 @@ pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"] }
 
 # Local DB (GeoPackage via SQLite)
 rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Self-upgrade (HTTP + archive extraction) and hashing
+ureq = { version = "2", features = ["tls"] }
+flate2 = "1"
+tar = "0.4"
+sha2 = "0.10"
+hex = "0.4"
 
 # Testing
 insta = "1"
