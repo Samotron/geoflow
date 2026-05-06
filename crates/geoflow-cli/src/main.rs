@@ -6,8 +6,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use geoflow_core::{
-    ags,
-    describe,
+    ags, describe,
     render::{self, Format},
     validate, Registry, Severity,
 };
@@ -667,11 +666,42 @@ fn cmd_enhance(path: &std::path::Path, format: &str) -> Result<ExitCode> {
                     r.loca_id,
                     r.geol_top.map(|v| v.to_string()).unwrap_or_default(),
                     r.geol_base.map(|v| v.to_string()).unwrap_or_default(),
-                    serde_json::to_value(&p.material_type).unwrap().as_str().unwrap_or(""),
-                    p.primary_soil_type.as_ref().map(|v| serde_json::to_value(v).unwrap().as_str().unwrap_or("").to_string()).unwrap_or_default(),
-                    p.rock_type.as_ref().map(|v| serde_json::to_value(v).unwrap().as_str().unwrap_or("").to_string()).unwrap_or_default(),
-                    p.consistency.as_ref().map(|v| serde_json::to_value(v).unwrap().as_str().unwrap_or("").to_string()).unwrap_or_default(),
-                    p.density.as_ref().map(|v| serde_json::to_value(v).unwrap().as_str().unwrap_or("").to_string()).unwrap_or_default(),
+                    serde_json::to_value(&p.material_type)
+                        .unwrap()
+                        .as_str()
+                        .unwrap_or(""),
+                    p.primary_soil_type
+                        .as_ref()
+                        .map(|v| serde_json::to_value(v)
+                            .unwrap()
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string())
+                        .unwrap_or_default(),
+                    p.rock_type
+                        .as_ref()
+                        .map(|v| serde_json::to_value(v)
+                            .unwrap()
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string())
+                        .unwrap_or_default(),
+                    p.consistency
+                        .as_ref()
+                        .map(|v| serde_json::to_value(v)
+                            .unwrap()
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string())
+                        .unwrap_or_default(),
+                    p.density
+                        .as_ref()
+                        .map(|v| serde_json::to_value(v)
+                            .unwrap()
+                            .as_str()
+                            .unwrap_or("")
+                            .to_string())
+                        .unwrap_or_default(),
                     p.colours.join(";"),
                     p.confidence,
                     r.geol_desc.replace('"', "\"\""),

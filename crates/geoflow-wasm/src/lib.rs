@@ -32,7 +32,8 @@ pub fn validate_ags_with_rules(bytes: &[u8], rules_yaml: &str) -> String {
     match dsl::evaluate(&parsed.file, &pack) {
         Ok(diags) => {
             diagnostics.extend(diags);
-            serde_json::to_string(&diagnostics).unwrap_or_else(|e| format!("[{{\"error\":\"{e}\"}}]"))
+            serde_json::to_string(&diagnostics)
+                .unwrap_or_else(|e| format!("[{{\"error\":\"{e}\"}}]"))
         }
         Err(e) => serde_json::json!({"error": format!("Evaluation error: {e}")}).to_string(),
     }
