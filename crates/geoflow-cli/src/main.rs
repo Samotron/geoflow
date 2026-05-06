@@ -662,21 +662,46 @@ fn cmd_upgrade(check: bool, force: bool) -> Result<ExitCode> {
         .as_array()
         .ok_or_else(|| anyhow::anyhow!("release has no assets"))?;
 
-    let (download_url, asset_name) = assets
+    // Collect asset names → download URLs for quick lookup.
+    let asset_map: std::collections::HashMap<&str, &str> = assets
         .iter()
-        .filter_map(|a| {
-            let url: &str = a["browser_download_url"].as_str()?;
-            let name: &str = a["name"].as_str()?;
-            Some((url, name))
-        })
-        .find(|(_, name)| name.contains(target))
-        .map(|(url, name)| (url.to_owned(), name.to_owned()))
+        .filter_map(|a| Some((a["name"].as_str()?, a["browser_download_url"].as_str()?)))
+        .collect();
+
+    let (download_url, asset_name) = asset_map
+        .iter()
+        .find(|(name, _)| name.contains(target))
+        .map(|(name, url)| ((*url).to_owned(), (*name).to_owned()))
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "no release asset for platform {target} in v{tag}; \
                  download manually from https://github.com/samotron/geoflow/releases"
             )
         })?;
+
+    // Try to fetch the checksums file so we can verify the download.
+    let checksums_name = format!("geoflow-{tag}-checksums.txt");
+    let expected_hash: Option<String> = asset_map
+        .get(checksums_name.as_str())
+        .and_then(|url| {
+            let mut buf = String::new();
+            ureq::get(url)
+                .set("User-Agent", &format!("geoflow/{current}"))
+                .call()
+                .ok()?
+                .into_reader()
+                .read_to_string(&mut buf)
+                .ok()?;
+            // Lines: "{hash}  {filename}"
+            buf.lines()
+                .find(|l| l.ends_with(&asset_name))
+                .and_then(|l| l.split_whitespace().next())
+                .map(str::to_owned)
+        });
+
+    if expected_hash.is_some() {
+        println!("checksums file found — download will be verified.");
+    }
 
     println!("downloading {asset_name}…");
 
@@ -688,6 +713,16 @@ fn cmd_upgrade(check: bool, force: bool) -> Result<ExitCode> {
         .into_reader()
         .read_to_end(&mut compressed)
         .context("reading download")?;
+
+    if let Some(ref expected) = expected_hash {
+        use sha2::{Digest, Sha256};
+        let actual = hex::encode(Sha256::digest(&compressed));
+        anyhow::ensure!(
+            actual.eq_ignore_ascii_case(expected),
+            "checksum mismatch — download may be corrupt or tampered\n  expected {expected}\n  got      {actual}"
+        );
+        println!("checksum verified.");
+    }
 
     println!("extracting…");
 

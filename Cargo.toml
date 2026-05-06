@@ -56,10 +56,12 @@ pyo3 = { version = "0.22", features = ["extension-module", "abi3-py39"] }
 # Local DB (GeoPackage via SQLite)
 rusqlite = { version = "0.31", features = ["bundled"] }
 
-# Self-upgrade (HTTP + archive extraction)
+# Self-upgrade (HTTP + archive extraction) and hashing
 ureq = { version = "2", features = ["tls"] }
 flate2 = "1"
 tar = "0.4"
+sha2 = "0.10"
+hex = "0.4"
 
 # Testing
 insta = "1"

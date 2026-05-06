@@ -29,6 +29,8 @@ chrono.workspace = true
 ureq.workspace = true
 flate2.workspace = true
 tar.workspace = true
+sha2.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
