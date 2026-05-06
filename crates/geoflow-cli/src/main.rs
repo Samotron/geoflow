@@ -142,6 +142,20 @@ enum Command {
         #[arg(long, default_value = "text")]
         format: String,
     },
+    /// Launch the GeoFlow desktop GUI application.
+    Gui {
+        /// AGS file to open on launch (passed to geoflow-desktop if supported).
+        file: Option<PathBuf>,
+    },
+    /// Upgrade geoflow to the latest release from GitHub.
+    Upgrade {
+        /// Only report whether an upgrade is available; do not install.
+        #[arg(long)]
+        check: bool,
+        /// Install even if the local version matches the latest release.
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -274,6 +288,8 @@ fn main() -> ExitCode {
         },
         Command::Describe { text, format } => cmd_describe(&text, &format),
         Command::Enhance { file, format } => cmd_enhance(&file, &format),
+        Command::Gui { file } => cmd_gui(file.as_deref()),
+        Command::Upgrade { check, force } => cmd_upgrade(check, force),
     };
 
     match result {
@@ -544,6 +560,191 @@ fn cmd_fix(
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+// ── gui ───────────────────────────────────────────────────────────────────────
+
+fn cmd_gui(file: Option<&std::path::Path>) -> Result<ExitCode> {
+    let exe_name = if cfg!(windows) {
+        "geoflow-desktop.exe"
+    } else {
+        "geoflow-desktop"
+    };
+
+    // Search next to the current executable first, then fall back to PATH.
+    let candidate = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join(exe_name)))
+        .filter(|p| p.exists());
+
+    let desktop = candidate.unwrap_or_else(|| std::path::PathBuf::from(exe_name));
+
+    let mut cmd = std::process::Command::new(&desktop);
+    if let Some(f) = file {
+        cmd.arg(f);
+    }
+
+    let status = cmd
+        .status()
+        .with_context(|| format!("launching {}; install geoflow-desktop and make sure it is on PATH", desktop.display()))?;
+
+    Ok(if status.success() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(status.code().map(|c| c as u8).unwrap_or(1))
+    })
+}
+
+// ── upgrade ───────────────────────────────────────────────────────────────────
+
+/// Returns the Rust target triple for the running binary (compile-time constant).
+fn platform_target() -> &'static str {
+    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "x86_64-unknown-linux-gnu"
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        "aarch64-unknown-linux-gnu"
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+        "x86_64-apple-darwin"
+    } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "aarch64-apple-darwin"
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "x86_64-pc-windows-msvc"
+    } else {
+        "unknown"
+    }
+}
+
+fn cmd_upgrade(check: bool, force: bool) -> Result<ExitCode> {
+    use std::io::Read;
+
+    let current = env!("CARGO_PKG_VERSION");
+    let api_url = "https://api.github.com/repos/samotron/geoflow/releases/latest";
+
+    println!("current version: {current}");
+    println!("fetching latest release…");
+
+    let body: serde_json::Value = {
+        let resp = ureq::get(api_url)
+            .set("User-Agent", &format!("geoflow/{current}"))
+            .set("Accept", "application/vnd.github+json")
+            .call()
+            .context("fetching release info from GitHub")?;
+        serde_json::from_reader(resp.into_reader())
+            .context("parsing GitHub release JSON")?
+    };
+
+    let tag = body["tag_name"]
+        .as_str()
+        .unwrap_or("")
+        .trim_start_matches('v');
+    anyhow::ensure!(!tag.is_empty(), "no tag_name in GitHub response");
+
+    println!("latest version:  {tag}");
+
+    if !force && current == tag {
+        println!("already up to date.");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    if check {
+        println!("upgrade available: run `geoflow upgrade` to install.");
+        // Exit 1 so scripts can detect that an update is available.
+        return Ok(ExitCode::from(1));
+    }
+
+    let target = platform_target();
+    anyhow::ensure!(
+        target != "unknown",
+        "unsupported platform — download manually from https://github.com/samotron/geoflow/releases"
+    );
+
+    let assets = body["assets"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("release has no assets"))?;
+
+    let (download_url, asset_name) = assets
+        .iter()
+        .filter_map(|a| {
+            let url: &str = a["browser_download_url"].as_str()?;
+            let name: &str = a["name"].as_str()?;
+            Some((url, name))
+        })
+        .find(|(_, name)| name.contains(target))
+        .map(|(url, name)| (url.to_owned(), name.to_owned()))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no release asset for platform {target} in v{tag}; \
+                 download manually from https://github.com/samotron/geoflow/releases"
+            )
+        })?;
+
+    println!("downloading {asset_name}…");
+
+    let mut compressed = Vec::<u8>::new();
+    ureq::get(&download_url)
+        .set("User-Agent", &format!("geoflow/{current}"))
+        .call()
+        .context("downloading release asset")?
+        .into_reader()
+        .read_to_end(&mut compressed)
+        .context("reading download")?;
+
+    println!("extracting…");
+
+    let exe_name = if cfg!(windows) { "geoflow.exe" } else { "geoflow" };
+    let binary = extract_binary(&compressed, &asset_name, exe_name)
+        .context("extracting geoflow binary from archive")?;
+
+    let current_exe = std::env::current_exe().context("resolving current executable path")?;
+    let tmp_path = current_exe.with_extension("new");
+
+    std::fs::write(&tmp_path, &binary)
+        .with_context(|| format!("writing new binary to {}", tmp_path.display()))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp_path, std::fs::Permissions::from_mode(0o755))?;
+    }
+
+    std::fs::rename(&tmp_path, &current_exe)
+        .context("replacing current executable (try running with elevated permissions)")?;
+
+    println!("upgraded to v{tag} — restart geoflow to use the new version.");
+    Ok(ExitCode::SUCCESS)
+}
+
+/// Extract the named binary from a `.tar.gz` or bare `.gz` archive byte slice.
+fn extract_binary(data: &[u8], asset_name: &str, exe_name: &str) -> Result<Vec<u8>> {
+    use std::io::{Cursor, Read};
+
+    if asset_name.ends_with(".tar.gz") || asset_name.ends_with(".tgz") {
+        let gz = flate2::read::GzDecoder::new(Cursor::new(data));
+        let mut archive = tar::Archive::new(gz);
+        for entry in archive.entries().context("reading tar entries")? {
+            let mut entry = entry.context("reading tar entry")?;
+            let path = entry.path().context("tar entry path")?;
+            let file_name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("");
+            if file_name == exe_name {
+                let mut buf = Vec::new();
+                entry.read_to_end(&mut buf).context("reading binary from tar")?;
+                return Ok(buf);
+            }
+        }
+        anyhow::bail!("binary {exe_name} not found inside {asset_name}");
+    } else if asset_name.ends_with(".gz") {
+        // Bare gzip (single file compressed).
+        let mut gz = flate2::read::GzDecoder::new(Cursor::new(data));
+        let mut buf = Vec::new();
+        gz.read_to_end(&mut buf).context("decompressing .gz")?;
+        Ok(buf)
+    } else {
+        // Assume it is a raw binary.
+        Ok(data.to_vec())
+    }
 }
 
 fn render_unified_diff(path: &std::path::Path, before: &str, after: &str) -> String {

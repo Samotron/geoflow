@@ -14,7 +14,7 @@ name = "geoflow"
 path = "src/main.rs"
 
 [dependencies]
-geoflow-core = { path = "../geoflow-core", version = "0.1.0", features = ["db"] }
+geoflow-core = { path = "../geoflow-core", version = "2026.506.0", features = ["db"] }
 rusqlite = { workspace = true }
 clap.workspace = true
 anyhow.workspace = true
@@ -26,6 +26,9 @@ owo-colors.workspace = true
 axum.workspace = true
 tokio.workspace = true
 chrono.workspace = true
+ureq.workspace = true
+flate2.workspace = true
+tar.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
