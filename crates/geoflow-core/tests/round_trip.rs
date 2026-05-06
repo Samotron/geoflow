@@ -30,6 +30,14 @@ fn fixtures_round_trip() {
         }
         let bytes = std::fs::read(&path).unwrap();
         let parsed = parse_bytes(&bytes);
+        // AGS 3 fixtures are rejected with a dedicated diagnostic; skip them here.
+        if parsed
+            .diagnostics
+            .iter()
+            .any(|d| d.rule_id == "AGS-V3-UNSUPPORTED")
+        {
+            continue;
+        }
         assert!(
             parsed.diagnostics.is_empty(),
             "unexpected diagnostics in {path:?}: {:?}",

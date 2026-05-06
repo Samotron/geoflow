@@ -20,11 +20,29 @@ pub struct ParseOutcome {
 
 /// Parse AGS text.
 pub fn parse_str(text: &str) -> ParseOutcome {
+    if looks_like_ags3(text) {
+        return ParseOutcome {
+            file: AgsFile::default(),
+            diagnostics: vec![Diagnostic::new(
+                "AGS-V3-UNSUPPORTED",
+                Severity::Error,
+                "file appears to be AGS 3 format; this parser only supports AGS 4.x",
+            )],
+        };
+    }
     let mut state = ParserState::default();
     for (idx, line) in text.lines().enumerate() {
         state.consume_line(line, (idx as u32) + 1);
     }
     state.finish()
+}
+
+/// Returns true if the first non-empty line starts with `**`, indicating AGS 3 format.
+fn looks_like_ags3(text: &str) -> bool {
+    text.lines()
+        .find(|l| !l.trim().is_empty())
+        .map(|l| l.starts_with("**"))
+        .unwrap_or(false)
 }
 
 /// Parse AGS bytes, handling BOM and falling back to Windows-1252 if the
