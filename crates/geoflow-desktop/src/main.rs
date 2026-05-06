@@ -67,6 +67,11 @@ struct GeoflowApp {
 
     // Validate tab
     validation: Option<Vec<Diagnostic>>,
+    /// User-supplied pack specs: either an absolute file path or a built-in
+    /// reference such as `ice:mini@0.1`.
+    rule_packs: Vec<String>,
+    /// Built-in pack refs discovered at startup (may be empty in installed builds).
+    builtin_packs: Vec<String>,
 
     // Hash tab
     file_hash: Option<String>,
@@ -93,6 +98,8 @@ impl Default for GeoflowApp {
             hash_match: None,
             export_status: None,
             import_status: None,
+            rule_packs: Vec::new(),
+            builtin_packs: geoflow_core::dsl::installed_pack_refs(),
             task_rx: None,
         }
     }
@@ -160,12 +167,32 @@ impl GeoflowApp {
         let Some(f) = &self.loaded else { return };
         let ags = f.ags.clone();
         let parse_diags = f.parse_diags.clone();
+        let pack_specs = self.rule_packs.clone();
         let (tx, rx) = mpsc::sync_channel(1);
         self.task_rx = Some(rx);
         std::thread::spawn(move || {
             let registry = geoflow_core::Registry::standard();
             let mut diags = parse_diags;
             diags.extend(geoflow_core::validate(&ags, &registry));
+
+            for spec in &pack_specs {
+                match geoflow_core::dsl::RulePack::load_spec(spec) {
+                    Ok(pack) => match geoflow_core::dsl::evaluate(&ags, &pack) {
+                        Ok(pd) => diags.extend(pd),
+                        Err(e) => diags.push(Diagnostic::new(
+                            "RULE-PACK-ERR",
+                            Severity::Error,
+                            format!("pack {spec:?}: {e}"),
+                        )),
+                    },
+                    Err(e) => diags.push(Diagnostic::new(
+                        "RULE-PACK-ERR",
+                        Severity::Error,
+                        format!("could not load {spec:?}: {e}"),
+                    )),
+                }
+            }
+
             let _ = tx.send(TaskResult::Validated(diags));
             ctx.request_repaint();
         });
@@ -358,6 +385,70 @@ impl GeoflowApp {
                 ui.label("Validating…");
             }
         });
+
+        // ── Rule packs ────────────────────────────────────────────────────────
+        egui::CollapsingHeader::new("Rule packs")
+            .default_open(!self.rule_packs.is_empty())
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("Add YAML file…").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("YAML rule pack", &["yml", "yaml"])
+                            .pick_file()
+                        {
+                            let spec = path.display().to_string();
+                            if !self.rule_packs.contains(&spec) {
+                                self.rule_packs.push(spec);
+                                self.validation = None;
+                            }
+                        }
+                    }
+
+                    // Built-in packs combo (only shown when any exist)
+                    if !self.builtin_packs.is_empty() {
+                        egui::ComboBox::from_id_salt("builtin_packs")
+                            .selected_text("Add built-in pack…")
+                            .show_ui(ui, |ui| {
+                                let packs = self.builtin_packs.clone();
+                                for pack_ref in &packs {
+                                    let already = self.rule_packs.contains(pack_ref);
+                                    let mut selected = already;
+                                    ui.toggle_value(&mut selected, pack_ref);
+                                    if selected && !already {
+                                        self.rule_packs.push(pack_ref.clone());
+                                        self.validation = None;
+                                    } else if !selected && already {
+                                        self.rule_packs.retain(|r| r != pack_ref);
+                                        self.validation = None;
+                                    }
+                                }
+                            });
+                    }
+                });
+
+                if self.rule_packs.is_empty() {
+                    ui.label(
+                        RichText::new("No custom packs — only built-in rules will run.")
+                            .color(Color32::GRAY)
+                            .small(),
+                    );
+                } else {
+                    let mut to_remove: Option<usize> = None;
+                    for (i, spec) in self.rule_packs.iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            if ui.small_button("×").clicked() {
+                                to_remove = Some(i);
+                            }
+                            ui.label(RichText::new(spec).monospace().small());
+                        });
+                    }
+                    if let Some(i) = to_remove {
+                        self.rule_packs.remove(i);
+                        self.validation = None;
+                    }
+                }
+            });
+
         ui.separator();
 
         if !has_file {
