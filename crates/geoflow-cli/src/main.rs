@@ -584,9 +584,12 @@ fn cmd_gui(file: Option<&std::path::Path>) -> Result<ExitCode> {
         cmd.arg(f);
     }
 
-    let status = cmd
-        .status()
-        .with_context(|| format!("launching {}; install geoflow-desktop and make sure it is on PATH", desktop.display()))?;
+    let status = cmd.status().with_context(|| {
+        format!(
+            "launching {}; install geoflow-desktop and make sure it is on PATH",
+            desktop.display()
+        )
+    })?;
 
     Ok(if status.success() {
         ExitCode::SUCCESS
@@ -629,8 +632,7 @@ fn cmd_upgrade(check: bool, force: bool) -> Result<ExitCode> {
             .set("Accept", "application/vnd.github+json")
             .call()
             .context("fetching release info from GitHub")?;
-        serde_json::from_reader(resp.into_reader())
-            .context("parsing GitHub release JSON")?
+        serde_json::from_reader(resp.into_reader()).context("parsing GitHub release JSON")?
     };
 
     let tag = body["tag_name"]
@@ -681,23 +683,21 @@ fn cmd_upgrade(check: bool, force: bool) -> Result<ExitCode> {
 
     // Try to fetch the checksums file so we can verify the download.
     let checksums_name = format!("geoflow-{tag}-checksums.txt");
-    let expected_hash: Option<String> = asset_map
-        .get(checksums_name.as_str())
-        .and_then(|url| {
-            let mut buf = String::new();
-            ureq::get(url)
-                .set("User-Agent", &format!("geoflow/{current}"))
-                .call()
-                .ok()?
-                .into_reader()
-                .read_to_string(&mut buf)
-                .ok()?;
-            // Lines: "{hash}  {filename}"
-            buf.lines()
-                .find(|l| l.ends_with(&asset_name))
-                .and_then(|l| l.split_whitespace().next())
-                .map(str::to_owned)
-        });
+    let expected_hash: Option<String> = asset_map.get(checksums_name.as_str()).and_then(|url| {
+        let mut buf = String::new();
+        ureq::get(url)
+            .set("User-Agent", &format!("geoflow/{current}"))
+            .call()
+            .ok()?
+            .into_reader()
+            .read_to_string(&mut buf)
+            .ok()?;
+        // Lines: "{hash}  {filename}"
+        buf.lines()
+            .find(|l| l.ends_with(&asset_name))
+            .and_then(|l| l.split_whitespace().next())
+            .map(str::to_owned)
+    });
 
     if expected_hash.is_some() {
         println!("checksums file found — download will be verified.");
@@ -726,7 +726,11 @@ fn cmd_upgrade(check: bool, force: bool) -> Result<ExitCode> {
 
     println!("extracting…");
 
-    let exe_name = if cfg!(windows) { "geoflow.exe" } else { "geoflow" };
+    let exe_name = if cfg!(windows) {
+        "geoflow.exe"
+    } else {
+        "geoflow"
+    };
     let binary = extract_binary(&compressed, &asset_name, exe_name)
         .context("extracting geoflow binary from archive")?;
 
@@ -759,13 +763,12 @@ fn extract_binary(data: &[u8], asset_name: &str, exe_name: &str) -> Result<Vec<u
         for entry in archive.entries().context("reading tar entries")? {
             let mut entry = entry.context("reading tar entry")?;
             let path = entry.path().context("tar entry path")?;
-            let file_name = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if file_name == exe_name {
                 let mut buf = Vec::new();
-                entry.read_to_end(&mut buf).context("reading binary from tar")?;
+                entry
+                    .read_to_end(&mut buf)
+                    .context("reading binary from tar")?;
                 return Ok(buf);
             }
         }

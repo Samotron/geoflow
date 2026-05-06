@@ -31,6 +31,18 @@ cargo run -p geoflow-cli -- <subcommand> [args]
 
 CI runs format, clippy, and tests on Linux/macOS/Windows, plus an MSRV check at Rust 1.85.
 
+## Before Every Commit
+
+Run these two commands and fix any issues before committing:
+
+```bash
+cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+`cargo fmt` is checked by CI and will fail the build if the code is not formatted.
+Never skip this step.
+
 ## Workspace Layout
 
 ```
