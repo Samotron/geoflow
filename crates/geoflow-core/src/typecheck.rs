@@ -75,6 +75,16 @@ fn type_violation(group: &str, heading: &str, value: &AgsValue, ty: &AgsType) ->
         (AgsValue::Text(s), AgsType::DMS) if !s.is_empty() && !DMS_RE.is_match(s) => Some(format!(
             "{group}.{heading}: {s:?} does not match DMS format D:MM:SS (colon-separated)"
         )),
+        // U: unformatted numeric — must be parseable as a number
+        (AgsValue::Text(s) | AgsValue::Raw(s), AgsType::U) if !s.is_empty() => {
+            if s.parse::<f64>().is_err() {
+                Some(format!(
+                    "{group}.{heading}: {s:?} is not numeric (U type requires a number)"
+                ))
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }

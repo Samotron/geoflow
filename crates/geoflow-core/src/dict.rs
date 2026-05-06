@@ -4,8 +4,9 @@ use crate::diagnostics::{Diagnostic, Severity};
 use crate::model::AgsFile;
 use crate::validate::Rule;
 use serde::Deserialize;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 // ── Dictionary data ──────────────────────────────────────────────────────────
 
@@ -14,20 +15,66 @@ struct DictFile {
     groups: HashMap<String, GroupDef>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct GroupDef {
     pub required_headings: Vec<String>,
     pub depth_headings: Vec<String>,
+    /// Composite key columns for uniqueness checks (Rule 10a).
+    #[serde(default)]
+    pub key_headings: Vec<String>,
+    /// Immediate parent group name for referential integrity (Rule 10c).
+    #[serde(default)]
+    pub parent_group: Option<String>,
+    /// Reference order of required headings per the AGS standard (Rule 7.2).
+    #[serde(default)]
+    pub heading_order: Vec<String>,
 }
 
-static DICT: LazyLock<HashMap<String, GroupDef>> = LazyLock::new(|| {
+static DICT_ARC: LazyLock<Arc<HashMap<String, GroupDef>>> = LazyLock::new(|| {
     let raw = include_str!("../../../rules/specs/ags/dict/ags4.yml");
     let df: DictFile = serde_yaml::from_str(raw).expect("ags4 dict must be valid YAML");
-    df.groups
+    Arc::new(df.groups)
 });
 
+/// Return the standard AGS 4.x dictionary as a static reference.
 pub fn ags4_dict() -> &'static HashMap<String, GroupDef> {
-    &DICT
+    &DICT_ARC
+}
+
+// ── Thread-local dict override for custom dictionary support ─────────────────
+
+thread_local! {
+    static THREAD_DICT: RefCell<Option<Arc<HashMap<String, GroupDef>>>> = const { RefCell::new(None) };
+}
+
+/// Return the currently active dictionary. If a custom dict has been activated
+/// via [`activate_custom_dict`], that is returned; otherwise the standard dict.
+pub fn current_dict() -> Arc<HashMap<String, GroupDef>> {
+    THREAD_DICT.with(|d| {
+        d.borrow()
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| Arc::clone(&DICT_ARC))
+    })
+}
+
+/// Load a custom dict YAML, merge it with the standard dict (custom entries
+/// win), and install it as the active dict for this thread. Call
+/// [`deactivate_custom_dict`] when done to restore the standard dict.
+pub fn activate_custom_dict(path: &std::path::Path) -> anyhow::Result<()> {
+    let raw = std::fs::read_to_string(path)?;
+    let df: DictFile = serde_yaml::from_str(&raw)
+        .map_err(|e| anyhow::anyhow!("invalid dict YAML at {}: {e}", path.display()))?;
+    let mut merged = (*ags4_dict()).clone();
+    merged.extend(df.groups);
+    let arc = Arc::new(merged);
+    THREAD_DICT.with(|d| *d.borrow_mut() = Some(arc));
+    Ok(())
+}
+
+/// Clear any custom dict override and restore the standard dict.
+pub fn deactivate_custom_dict() {
+    THREAD_DICT.with(|d| *d.borrow_mut() = None);
 }
 
 // ── Rule: required headings ──────────────────────────────────────────────────
@@ -45,8 +92,8 @@ impl Rule for DictRequiredHeadingsRule {
         Severity::Error
     }
     fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
-        let dict = ags4_dict();
-        for (group_name, group_def) in dict {
+        let dict = current_dict();
+        for (group_name, group_def) in dict.iter() {
             if group_def.required_headings.is_empty() {
                 continue;
             }
@@ -85,8 +132,8 @@ impl Rule for DictDepthUnitsRule {
         Severity::Warning
     }
     fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
-        let dict = ags4_dict();
-        for (group_name, group_def) in dict {
+        let dict = current_dict();
+        for (group_name, group_def) in dict.iter() {
             if group_def.depth_headings.is_empty() {
                 continue;
             }

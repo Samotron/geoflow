@@ -1127,3 +1127,341 @@ fn nonstandard_heading_without_dict_group_fires_dict_005() {
         "nonstandard_heading.ags without DICT group should fire AGS-DICT-005: {d:?}"
     );
 }
+
+// ── Rule 7.2: heading order ───────────────────────────────────────────────────
+
+#[test]
+fn geol_headings_in_wrong_order_fires_head_007() {
+    let d = check(
+        r#""GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_DESC","GEOL_BASE","GEOL_TOP"
+"UNIT","","","m","m"
+"TYPE","ID","X","2DP","2DP"
+"DATA","BH01","Clay","2.00","0.00"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-HEAD-007"),
+        "wrong GEOL heading order should fire AGS-HEAD-007: {d:?}"
+    );
+}
+
+#[test]
+fn geol_headings_in_standard_order_pass_head_007() {
+    let d = check(
+        r#""GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_DESC"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","X"
+"DATA","BH01","0.00","2.00","Clay"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-HEAD-007"),
+        "standard GEOL heading order should not fire AGS-HEAD-007: {d:?}"
+    );
+}
+
+// ── Rule 10a: generic composite key (AGS-KEY-010) ────────────────────────────
+
+#[test]
+fn geol_duplicate_composite_key_fires_key_010() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_TYPE"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","BH01","CP"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_DESC"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","X"
+"DATA","BH01","0.00","1.50","Clay"
+"DATA","BH01","0.00","2.00","Sand"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-KEY-010"),
+        "duplicate GEOL key should fire AGS-KEY-010: {d:?}"
+    );
+}
+
+#[test]
+fn geol_unique_composite_keys_pass_key_010() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_TYPE"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","BH01","CP"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_DESC"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","X"
+"DATA","BH01","0.00","1.50","Clay"
+"DATA","BH01","1.50","3.00","Sand"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-KEY-010"),
+        "unique GEOL keys should not fire AGS-KEY-010: {d:?}"
+    );
+}
+
+// ── Rule 10c: parent group xref (AGS-XREF-PGRP) ──────────────────────────────
+
+#[test]
+fn ispt_missing_parent_samp_fires_xref_pgrp() {
+    let d = check(
+        r#""GROUP","SAMP"
+"HEADING","LOCA_ID","SAMP_TOP","SAMP_REF","SAMP_TYPE"
+"UNIT","","m","","X"
+"TYPE","ID","2DP","ID","X"
+"DATA","BH01","1.00","S1","U"
+
+"GROUP","ISPT"
+"HEADING","LOCA_ID","ISPT_TOP","ISPT_TESN","ISPT_NVAL"
+"UNIT","","m","","blows/300mm"
+"TYPE","ID","2DP","ID","0DP"
+"DATA","BH02","5.00","T1","15"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-XREF-PGRP"),
+        "ISPT with no matching SAMP parent should fire AGS-XREF-PGRP: {d:?}"
+    );
+}
+
+#[test]
+fn ispt_with_matching_samp_parent_passes() {
+    let d = check(
+        r#""GROUP","SAMP"
+"HEADING","LOCA_ID","SAMP_TOP","SAMP_REF","SAMP_TYPE"
+"UNIT","","m","","X"
+"TYPE","ID","2DP","ID","X"
+"DATA","BH01","5.00","T1","U"
+
+"GROUP","ISPT"
+"HEADING","LOCA_ID","ISPT_TOP","ISPT_TESN","ISPT_NVAL"
+"UNIT","","m","","blows/300mm"
+"TYPE","ID","2DP","ID","0DP"
+"DATA","BH01","5.00","T1","15"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-XREF-PGRP"),
+        "ISPT with matching SAMP parent should not fire AGS-XREF-PGRP: {d:?}"
+    );
+}
+
+// ── Rule 11: TRAN_DLIM required when RL fields exist (AGS-TRAN-001) ──────────
+
+#[test]
+fn rl_field_without_tran_dlim_fires_tran_001() {
+    let d = check(
+        r#""GROUP","TRAN"
+"HEADING","TRAN_AGS"
+"UNIT",""
+"TYPE","X"
+"DATA","4.1"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_LINK"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","RL"
+"DATA","BH01","0.00","1.00","SAMP:S1"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-TRAN-001"),
+        "RL field without TRAN_DLIM should fire AGS-TRAN-001: {d:?}"
+    );
+}
+
+// ── Rule 11c: RL value resolution (AGS-RL-001) ───────────────────────────────
+
+#[test]
+fn rl_value_pointing_to_nonexistent_group_fires_rl_001() {
+    let d = check(
+        r#""GROUP","TRAN"
+"HEADING","TRAN_AGS","TRAN_DLIM"
+"UNIT","",""
+"TYPE","X","X"
+"DATA","4.1",":"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_LINK"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","RL"
+"DATA","BH01","0.00","1.00","NOGRP:X1"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-RL-001"),
+        "RL pointing to non-existent group should fire AGS-RL-001: {d:?}"
+    );
+}
+
+// ── Rule 16: ABBR concat split (TRAN_RCON) ───────────────────────────────────
+
+#[test]
+fn concatenated_abbr_codes_pass_when_both_defined() {
+    let d = check(
+        r#""GROUP","ABBR"
+"HEADING","ABBR_HDNG","ABBR_CODE","ABBR_DESC"
+"UNIT","","",""
+"TYPE","X","X","X"
+"DATA","GEOL_LEG","CL","Clay"
+"DATA","GEOL_LEG","SA","Sand"
+
+"GROUP","TRAN"
+"HEADING","TRAN_AGS","TRAN_RCON"
+"UNIT","",""
+"TYPE","X","X"
+"DATA","4.1","+"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_LEG"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","PA"
+"DATA","BH01","0.00","1.00","CL+SA"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-ABBR-001"),
+        "concatenated codes both in ABBR should not fire AGS-ABBR-001: {d:?}"
+    );
+}
+
+#[test]
+fn concatenated_abbr_with_unknown_code_fires() {
+    let d = check(
+        r#""GROUP","ABBR"
+"HEADING","ABBR_HDNG","ABBR_CODE","ABBR_DESC"
+"UNIT","","",""
+"TYPE","X","X","X"
+"DATA","GEOL_LEG","CL","Clay"
+
+"GROUP","TRAN"
+"HEADING","TRAN_AGS","TRAN_RCON"
+"UNIT","",""
+"TYPE","X","X"
+"DATA","4.1","+"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_LEG"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","PA"
+"DATA","BH01","0.00","1.00","CL+UNKNOWN"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-ABBR-001"),
+        "concatenated code with unknown part should fire AGS-ABBR-001: {d:?}"
+    );
+}
+
+// ── Rule 17: TYPE group coverage (AGS-TYPE-003) ───────────────────────────────
+
+#[test]
+fn type_group_missing_used_code_fires_type_003() {
+    let d = check(
+        r#""GROUP","TYPE"
+"HEADING","TYPE_STAT"
+"UNIT",""
+"TYPE","X"
+"DATA","X"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_DESC"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","X"
+"DATA","BH01","0.00","1.00","Clay"
+"#,
+    );
+    // ID and 2DP are used but only X is in TYPE; should warn.
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-TYPE-003"),
+        "type codes not in TYPE group should fire AGS-TYPE-003: {d:?}"
+    );
+}
+
+#[test]
+fn type_group_with_all_codes_passes() {
+    let d = check(
+        r#""GROUP","TYPE"
+"HEADING","TYPE_STAT"
+"UNIT",""
+"TYPE","X"
+"DATA","X"
+"DATA","ID"
+"DATA","2DP"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_DESC"
+"UNIT","","m","m",""
+"TYPE","ID","2DP","2DP","X"
+"DATA","BH01","0.00","1.00","Clay"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-TYPE-003"),
+        "all types in TYPE group should not fire AGS-TYPE-003: {d:?}"
+    );
+}
+
+// ── U type validation ─────────────────────────────────────────────────────────
+
+#[test]
+fn u_type_non_numeric_value_fires_type_002() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_FREF"
+"UNIT","",""
+"TYPE","ID","U"
+"DATA","BH01","not_a_number"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-TYPE-002"),
+        "non-numeric U-type value should fire AGS-TYPE-002: {d:?}"
+    );
+}
+
+#[test]
+fn u_type_numeric_value_passes() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_FREF"
+"UNIT","",""
+"TYPE","ID","U"
+"DATA","BH01","123.45"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-TYPE-002"),
+        "numeric U-type value should not fire AGS-TYPE-002: {d:?}"
+    );
+}
+
+// ── JSON export ───────────────────────────────────────────────────────────────
+
+#[test]
+fn to_json_produces_group_keyed_object() {
+    use geoflow_core::export::to_json;
+    let file = geoflow_core::ags::parse_str(
+        r#""GROUP","PROJ"
+"HEADING","PROJ_ID","PROJ_NAME"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","P1","Test"
+"#,
+    )
+    .file;
+    let j = to_json(&file);
+    let rows = j.get("PROJ").expect("PROJ key").as_array().expect("array");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get("PROJ_ID").and_then(|v| v.as_str()), Some("P1"));
+}

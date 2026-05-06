@@ -21,6 +21,12 @@ pub fn standard_rules() -> Vec<Box<dyn Rule>> {
         Box::new(heading_fmt::HeadingNameFormatRule),
         Box::new(empty_group::EmptyGroupRule),
         Box::new(nonstandard_heading::NonstandardHeadingRule),
+        Box::new(heading_order::HeadingOrderRule),
+        Box::new(composite_key::CompositeKeyRule),
+        Box::new(parent_xref::ParentGroupXrefRule),
+        Box::new(tran_dlim::TranDlimRule),
+        Box::new(rl_xref::RlXrefRule),
+        Box::new(type_group_coverage::TypeGroupCoverageRule),
     ]
 }
 
@@ -82,6 +88,16 @@ mod abbr {
                 return;
             }
 
+            // Determine TRAN_RCON separator (default "+"). PA values may be
+            // concatenated with this separator, e.g. "CP+RC" = two codes.
+            let separator: String = file
+                .group("TRAN")
+                .and_then(|t| t.rows.first())
+                .and_then(|r| r.get("TRAN_RCON"))
+                .and_then(|v| v.as_text())
+                .unwrap_or("+")
+                .to_string();
+
             for (group_name, group) in &file.groups {
                 for heading in &group.headings {
                     if heading.data_type != AgsType::PA {
@@ -95,18 +111,25 @@ mod abbr {
                             continue;
                         };
                         if let Some(s) = val.as_text() {
-                            if !s.is_empty() && !codes.contains(s) {
-                                diagnostics.push(
-                                    Diagnostic::new(
-                                        "AGS-ABBR-001",
-                                        Severity::Error,
-                                        format!(
-                                            "{group_name}.{}: {s:?} is not defined in ABBR group",
-                                            heading.name
-                                        ),
-                                    )
-                                    .at_group(group_name),
-                                );
+                            if s.is_empty() {
+                                continue;
+                            }
+                            // Split on TRAN_RCON separator; each part must be in ABBR.
+                            for part in s.split(separator.as_str()) {
+                                let part = part.trim();
+                                if !part.is_empty() && !codes.contains(part) {
+                                    diagnostics.push(
+                                        Diagnostic::new(
+                                            "AGS-ABBR-001",
+                                            Severity::Error,
+                                            format!(
+                                                "{group_name}.{}: {part:?} is not defined in ABBR group",
+                                                heading.name
+                                            ),
+                                        )
+                                        .at_group(group_name),
+                                    );
+                                }
                             }
                         }
                     }
@@ -440,6 +463,9 @@ mod id_unique {
         }
 
         fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            // Only check the single-column primary key for the group ({GROUP}_ID).
+            // Cross-reference ID columns (e.g. LOCA_ID in GEOL) may repeat legitimately.
+            // Composite key uniqueness for multi-heading keys is handled by AGS-KEY-010.
             for (group_name, group) in &file.groups {
                 let primary_key = format!("{group_name}_ID");
                 for heading in &group.headings {
@@ -568,8 +594,8 @@ mod required_nonempty {
         }
 
         fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
-            let dict = crate::dict::ags4_dict();
-            for (group_name, group_def) in dict {
+            let dict = crate::dict::current_dict();
+            for (group_name, group_def) in dict.iter() {
                 if group_def.required_headings.is_empty() {
                     continue;
                 }
@@ -658,6 +684,555 @@ mod heading_fmt {
     }
 }
 
+// ── AGS-HEAD-007: heading order must match dictionary reference order ─────────
+
+mod heading_order {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::AgsFile;
+    use crate::validate::Rule;
+
+    pub struct HeadingOrderRule;
+
+    impl Rule for HeadingOrderRule {
+        fn id(&self) -> &str {
+            "AGS-HEAD-007"
+        }
+
+        fn description(&self) -> &str {
+            "Required headings should appear in the standard dictionary reference order"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Warning
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let dict = crate::dict::current_dict();
+            for (group_name, group_def) in dict.iter() {
+                if group_def.heading_order.len() < 2 {
+                    continue;
+                }
+                let Some(group) = file.group(group_name) else {
+                    continue;
+                };
+
+                // Build a map: heading_name -> position in actual file
+                let actual_pos: std::collections::HashMap<&str, usize> = group
+                    .headings
+                    .iter()
+                    .enumerate()
+                    .map(|(i, h)| (h.name.as_str(), i))
+                    .collect();
+
+                // Walk the heading_order list; collect positions of headings
+                // that actually appear in the file. They must be monotonically
+                // increasing (relative order preserved).
+                let positions: Vec<usize> = group_def
+                    .heading_order
+                    .iter()
+                    .filter_map(|h| actual_pos.get(h.as_str()).copied())
+                    .collect();
+
+                if positions.len() < 2 {
+                    continue;
+                }
+
+                let is_ordered = positions.windows(2).all(|w| w[0] < w[1]);
+                if !is_ordered {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            "AGS-HEAD-007",
+                            Severity::Warning,
+                            format!(
+                                "{group_name}: headings are not in the standard reference order \
+                                 (expected: {})",
+                                group_def.heading_order.join(", ")
+                            ),
+                        )
+                        .at_group(group_name),
+                    );
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-KEY-010: generic composite key uniqueness per dictionary ──────────────
+
+mod composite_key {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::{AgsFile, AgsValue};
+    use crate::validate::Rule;
+    use std::collections::HashSet;
+
+    pub struct CompositeKeyRule;
+
+    impl Rule for CompositeKeyRule {
+        fn id(&self) -> &str {
+            "AGS-KEY-010"
+        }
+
+        fn description(&self) -> &str {
+            "Composite key fields must be unique within their group"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Error
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let dict = crate::dict::current_dict();
+            for (group_name, group_def) in dict.iter() {
+                if group_def.key_headings.len() < 2 {
+                    // Single-heading keys are handled by AGS-ID-001.
+                    continue;
+                }
+                // SAMP is already covered by AGS-KEY-002; skip to avoid double.
+                if group_name == "SAMP" {
+                    continue;
+                }
+                let Some(group) = file.group(group_name) else {
+                    continue;
+                };
+
+                // Only run if all key headings exist in the file.
+                let all_present = group_def
+                    .key_headings
+                    .iter()
+                    .all(|k| group.headings.iter().any(|h| &h.name == k));
+                if !all_present {
+                    continue;
+                }
+
+                let mut seen: HashSet<String> = HashSet::new();
+                let mut reported: HashSet<String> = HashSet::new();
+
+                for row in &group.rows {
+                    let composite: String = group_def
+                        .key_headings
+                        .iter()
+                        .map(|k| match row.get(k.as_str()) {
+                            Some(AgsValue::Number(n)) => format!("{n}"),
+                            Some(AgsValue::Text(s) | AgsValue::Raw(s)) => s.clone(),
+                            Some(AgsValue::Bool(b)) => b.to_string(),
+                            _ => String::new(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\x00");
+
+                    if !seen.insert(composite.clone()) && reported.insert(composite) {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                "AGS-KEY-010",
+                                Severity::Error,
+                                format!(
+                                    "{group_name}: duplicate composite key ({}) — key fields: {}",
+                                    group_def
+                                        .key_headings
+                                        .iter()
+                                        .map(|k| {
+                                            let v = match row.get(k.as_str()) {
+                                                Some(AgsValue::Number(n)) => format!("{n}"),
+                                                Some(AgsValue::Text(s) | AgsValue::Raw(s)) => {
+                                                    s.clone()
+                                                }
+                                                _ => String::new(),
+                                            };
+                                            format!("{k}={v:?}")
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(", "),
+                                    group_def.key_headings.join(", ")
+                                ),
+                            )
+                            .at_group(group_name),
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-XREF-PGRP: generic parent group referential integrity (Rule 10c) ──────
+
+mod parent_xref {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::{AgsFile, AgsValue};
+    use crate::validate::Rule;
+    use std::collections::HashSet;
+
+    pub struct ParentGroupXrefRule;
+
+    impl Rule for ParentGroupXrefRule {
+        fn id(&self) -> &str {
+            "AGS-XREF-PGRP"
+        }
+
+        fn description(&self) -> &str {
+            "Child group rows must reference an existing parent group composite key"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Error
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let dict = crate::dict::current_dict();
+
+            for (group_name, group_def) in dict.iter() {
+                let Some(parent_name) = &group_def.parent_group else {
+                    continue;
+                };
+                // XrefLocaRule already handles LOCA-parent cases.
+                if parent_name == "LOCA" {
+                    continue;
+                }
+
+                let Some(child_group) = file.group(group_name) else {
+                    continue;
+                };
+                let Some(parent_group_def) = dict.get(parent_name.as_str()) else {
+                    continue;
+                };
+                let Some(parent_group) = file.group(parent_name) else {
+                    continue;
+                };
+
+                // Shared key headings between child and parent.
+                let shared_keys: Vec<&String> = group_def
+                    .key_headings
+                    .iter()
+                    .filter(|k| parent_group_def.key_headings.contains(k))
+                    .collect();
+
+                if shared_keys.is_empty() {
+                    continue;
+                }
+
+                // Build set of parent composite keys.
+                let parent_keys: HashSet<String> = parent_group
+                    .rows
+                    .iter()
+                    .map(|row| {
+                        shared_keys
+                            .iter()
+                            .map(|k| match row.get(k.as_str()) {
+                                Some(AgsValue::Number(n)) => format!("{n}"),
+                                Some(AgsValue::Text(s) | AgsValue::Raw(s)) => s.clone(),
+                                _ => String::new(),
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\x00")
+                    })
+                    .collect();
+
+                // Check each child row.
+                for row in &child_group.rows {
+                    let child_key: String = shared_keys
+                        .iter()
+                        .map(|k| match row.get(k.as_str()) {
+                            Some(AgsValue::Number(n)) => format!("{n}"),
+                            Some(AgsValue::Text(s) | AgsValue::Raw(s)) => s.clone(),
+                            _ => String::new(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\x00");
+
+                    // Skip rows where all shared key fields are empty.
+                    if child_key.replace('\x00', "").is_empty() {
+                        continue;
+                    }
+
+                    if !parent_keys.contains(&child_key) {
+                        let key_desc = shared_keys
+                            .iter()
+                            .map(|k| {
+                                let v = match row.get(k.as_str()) {
+                                    Some(AgsValue::Number(n)) => format!("{n}"),
+                                    Some(AgsValue::Text(s) | AgsValue::Raw(s)) => s.clone(),
+                                    _ => String::new(),
+                                };
+                                format!("{k}={v:?}")
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        diagnostics.push(
+                            Diagnostic::new(
+                                "AGS-XREF-PGRP",
+                                Severity::Error,
+                                format!(
+                                    "{group_name}: row ({key_desc}) has no matching parent in {parent_name}"
+                                ),
+                            )
+                            .at_group(group_name),
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-TRAN-001: TRAN_DLIM required when RL-type fields exist (Rule 11) ──────
+
+mod tran_dlim {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::{AgsFile, AgsType};
+    use crate::validate::Rule;
+
+    pub struct TranDlimRule;
+
+    impl Rule for TranDlimRule {
+        fn id(&self) -> &str {
+            "AGS-TRAN-001"
+        }
+
+        fn description(&self) -> &str {
+            "TRAN_DLIM must be declared in TRAN when any RL-type field is used"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Warning
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let has_rl = file
+                .groups
+                .values()
+                .any(|g| g.headings.iter().any(|h| h.data_type == AgsType::RL));
+            if !has_rl {
+                return;
+            }
+
+            let tran_has_dlim = file
+                .group("TRAN")
+                .map(|t| t.headings.iter().any(|h| h.name == "TRAN_DLIM"))
+                .unwrap_or(false);
+
+            if !tran_has_dlim {
+                diagnostics.push(Diagnostic::new(
+                    "AGS-TRAN-001",
+                    Severity::Warning,
+                    "file contains RL-type headings but TRAN does not declare TRAN_DLIM"
+                        .to_string(),
+                ));
+            }
+        }
+    }
+}
+
+// ── AGS-RL-001: RL field values must resolve to existing rows (Rule 11c) ──────
+
+mod rl_xref {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::{AgsFile, AgsType, AgsValue};
+    use crate::validate::Rule;
+    use std::collections::HashSet;
+
+    pub struct RlXrefRule;
+
+    impl Rule for RlXrefRule {
+        fn id(&self) -> &str {
+            "AGS-RL-001"
+        }
+
+        fn description(&self) -> &str {
+            "RL-type field values (GROUP:ID) must reference an existing group and ID"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Error
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            // Determine delimiter from TRAN_DLIM (default ":").
+            let delimiter: String = file
+                .group("TRAN")
+                .and_then(|t| t.rows.first())
+                .and_then(|r| r.get("TRAN_DLIM"))
+                .and_then(|v| v.as_text())
+                .filter(|s| !s.is_empty())
+                .unwrap_or(":")
+                .to_string();
+
+            // Build a cross-index: group_name → set of all ID-column values.
+            let mut id_index: std::collections::HashMap<&str, HashSet<String>> =
+                std::collections::HashMap::new();
+            for (group_name, group) in &file.groups {
+                for heading in &group.headings {
+                    if heading.data_type != AgsType::ID {
+                        continue;
+                    }
+                    let entry = id_index.entry(group_name.as_str()).or_default();
+                    for row in &group.rows {
+                        if let Some(v) = row.get(&heading.name).and_then(|v| v.as_text()) {
+                            if !v.is_empty() {
+                                entry.insert(v.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (group_name, group) in &file.groups {
+                for heading in &group.headings {
+                    if heading.data_type != AgsType::RL {
+                        continue;
+                    }
+                    for row in &group.rows {
+                        let Some(AgsValue::Text(s) | AgsValue::Raw(s)) = row.get(&heading.name)
+                        else {
+                            continue;
+                        };
+                        if s.is_empty() {
+                            continue;
+                        }
+                        // Parse "TARGET_GROUP:ID_VALUE" using the delimiter.
+                        let Some((target_group, target_id)) = s.split_once(delimiter.as_str())
+                        else {
+                            diagnostics.push(
+                                Diagnostic::new(
+                                    "AGS-RL-001",
+                                    Severity::Error,
+                                    format!(
+                                        "{group_name}.{}: RL value {s:?} does not contain delimiter {:?}",
+                                        heading.name, delimiter
+                                    ),
+                                )
+                                .at_group(group_name),
+                            );
+                            continue;
+                        };
+                        let target_group = target_group.trim();
+                        let target_id = target_id.trim();
+                        match id_index.get(target_group) {
+                            None => {
+                                diagnostics.push(
+                                    Diagnostic::new(
+                                        "AGS-RL-001",
+                                        Severity::Error,
+                                        format!(
+                                            "{group_name}.{}: RL references group {target_group:?} which does not exist",
+                                            heading.name
+                                        ),
+                                    )
+                                    .at_group(group_name),
+                                );
+                            }
+                            Some(ids) if !ids.contains(target_id) => {
+                                diagnostics.push(
+                                    Diagnostic::new(
+                                        "AGS-RL-001",
+                                        Severity::Error,
+                                        format!(
+                                            "{group_name}.{}: RL value {target_id:?} not found in {target_group}",
+                                            heading.name
+                                        ),
+                                    )
+                                    .at_group(group_name),
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-TYPE-003: TYPE group must cover all data types used (Rule 17) ─────────
+
+mod type_group_coverage {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::AgsFile;
+    use crate::validate::Rule;
+    use std::collections::HashSet;
+
+    pub struct TypeGroupCoverageRule;
+
+    impl Rule for TypeGroupCoverageRule {
+        fn id(&self) -> &str {
+            "AGS-TYPE-003"
+        }
+
+        fn description(&self) -> &str {
+            "All AGS type codes used in the file must be listed in the TYPE group"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Warning
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let Some(type_group) = file.group("TYPE") else {
+                return;
+            };
+
+            // Collect TYPE_STAT values from TYPE group.
+            let type_stats: HashSet<String> = type_group
+                .rows
+                .iter()
+                .filter_map(|r| r.get("TYPE_STAT").and_then(|v| v.as_text()))
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect();
+
+            if type_stats.is_empty() {
+                return;
+            }
+
+            // Collect all unique type codes used across all group headings.
+            for (group_name, group) in &file.groups {
+                if group_name == "TYPE" {
+                    continue;
+                }
+                for heading in &group.headings {
+                    let code = type_code_str(&heading.data_type);
+                    if !type_stats.contains(&code) {
+                        diagnostics.push(
+                            Diagnostic::new(
+                                "AGS-TYPE-003",
+                                Severity::Warning,
+                                format!(
+                                    "{group_name}.{}: type code {code:?} is not listed in TYPE group",
+                                    heading.name
+                                ),
+                            )
+                            .at_group(group_name),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn type_code_str(t: &crate::model::AgsType) -> String {
+        use crate::model::AgsType;
+        match t {
+            AgsType::X => "X".into(),
+            AgsType::XN => "XN".into(),
+            AgsType::MC => "MC".into(),
+            AgsType::ID => "ID".into(),
+            AgsType::PA => "PA".into(),
+            AgsType::PT => "PT".into(),
+            AgsType::PU => "PU".into(),
+            AgsType::T => "T".into(),
+            AgsType::DT => "DT".into(),
+            AgsType::YN => "YN".into(),
+            AgsType::RL => "RL".into(),
+            AgsType::U => "U".into(),
+            AgsType::RecordLink => "RECORD_LINK".into(),
+            AgsType::DMS => "DMS".into(),
+            AgsType::Dp(n) => format!("{n}DP"),
+            AgsType::Sf(n) => format!("{n}SF"),
+            AgsType::Sci(n) => format!("{n}SCI"),
+            AgsType::Other(s) => s.clone(),
+        }
+    }
+}
+
 // ── AGS-STRUCT-005: groups must contain at least one DATA row (Rule 2) ────────
 
 mod empty_group {
@@ -720,7 +1295,8 @@ mod nonstandard_heading {
         }
 
         fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
-            let dict = crate::dict::ags4_dict();
+            let dict_arc = crate::dict::current_dict();
+            let dict = &*dict_arc;
 
             // Collect headings defined in the file's DICT group (user-defined).
             let mut dict_defined: std::collections::HashSet<String> =

@@ -52,6 +52,9 @@ enum Command {
         /// Exit non-zero if any diagnostic at or above this severity fires.
         #[arg(long, default_value = "error")]
         fail_on: String,
+        /// Path to a custom dictionary YAML (merged with the standard AGS dict).
+        #[arg(long)]
+        dict: Option<PathBuf>,
     },
     /// Inspect the built-in rule registry.
     Rules {
@@ -95,7 +98,7 @@ enum Command {
         #[arg(long, default_value = "text")]
         format: String,
     },
-    /// Export AGS data to CSV (one file per group).
+    /// Export AGS data to CSV or JSON.
     Export {
         /// Path to the AGS file.
         file: PathBuf,
@@ -105,6 +108,12 @@ enum Command {
         /// Print a single group to stdout instead of writing files.
         #[arg(long)]
         group: Option<String>,
+        /// Output format: csv (default) or json.
+        #[arg(long, default_value = "csv")]
+        format: String,
+        /// Comma-separated list of groups to export (default: all groups).
+        #[arg(long)]
+        groups: Option<String>,
     },
     /// Interactively explore an AGS file in the browser.
     Explore {
@@ -236,7 +245,8 @@ fn main() -> ExitCode {
             rules,
             format,
             fail_on,
-        } => cmd_validate(&files, &rules, &format, &fail_on),
+            dict,
+        } => cmd_validate(&files, &rules, &format, &fail_on, dict.as_deref()),
         Command::Rules { action } => match action {
             RulesAction::List => cmd_rules_list(),
             RulesAction::Show { id } => cmd_rules_show(&id),
@@ -258,7 +268,19 @@ fn main() -> ExitCode {
             file_b,
             format,
         } => cmd_diff(&file_a, &file_b, &format),
-        Command::Export { file, out, group } => cmd_export(&file, out.as_deref(), group.as_deref()),
+        Command::Export {
+            file,
+            out,
+            group,
+            format,
+            groups,
+        } => cmd_export(
+            &file,
+            out.as_deref(),
+            group.as_deref(),
+            &format,
+            groups.as_deref(),
+        ),
         Command::Explore {
             files,
             out,
@@ -396,10 +418,16 @@ fn cmd_validate(
     rules: &[String],
     format: &str,
     fail_on: &str,
+    dict: Option<&std::path::Path>,
 ) -> Result<ExitCode> {
     let format = Format::parse(format)
         .ok_or_else(|| anyhow::anyhow!("unknown format {format:?} (text|json|junit)"))?;
     let threshold = parse_severity(fail_on)?;
+
+    if let Some(dict_path) = dict {
+        geoflow_core::dict::activate_custom_dict(dict_path)?;
+    }
+
     let registry = Registry::standard();
 
     let mut packs = Vec::new();
@@ -437,6 +465,10 @@ fn cmd_validate(
     }
 
     println!("{}", render::render(&all_diagnostics, format));
+
+    if dict.is_some() {
+        geoflow_core::dict::deactivate_custom_dict();
+    }
 
     let exceeded = all_diagnostics
         .iter()
@@ -845,21 +877,30 @@ fn cmd_convert(
         geoflow_core::ags::parse_bytes(&bytes).file
     };
 
-    let out_text = match to.to_lowercase().as_str() {
-        "ags" => geoflow_core::ags::serialize(&file),
-        "diggs" => {
-            let (xml, report) = geoflow_core::diggs::write(&file)?;
-            if let Some(r_path) = _report {
-                let json = serde_json::to_string_pretty(&report)?;
-                std::fs::write(r_path, json)?;
-            }
-            xml
+    match to.to_lowercase().as_str() {
+        "json" => {
+            let json = geoflow_core::export::to_json(&file);
+            let text = serde_json::to_string_pretty(&json)?;
+            std::fs::write(output, text.as_bytes())
+                .with_context(|| format!("writing {}", output.display()))?;
         }
-        other => anyhow::bail!("unknown target format {other:?} (ags|diggs)"),
-    };
-
-    std::fs::write(output, out_text.as_bytes())
-        .with_context(|| format!("writing {}", output.display()))?;
+        _ => {
+            let out_text = match to.to_lowercase().as_str() {
+                "ags" => geoflow_core::ags::serialize(&file),
+                "diggs" => {
+                    let (xml, report) = geoflow_core::diggs::write(&file)?;
+                    if let Some(r_path) = _report {
+                        let json = serde_json::to_string_pretty(&report)?;
+                        std::fs::write(r_path, json)?;
+                    }
+                    xml
+                }
+                other => anyhow::bail!("unknown target format {other:?} (ags|diggs|json)"),
+            };
+            std::fs::write(output, out_text.as_bytes())
+                .with_context(|| format!("writing {}", output.display()))?;
+        }
+    }
 
     println!("converted {} to {}", input.display(), output.display());
     Ok(ExitCode::SUCCESS)
@@ -891,32 +932,72 @@ fn cmd_export(
     path: &std::path::Path,
     out: Option<&std::path::Path>,
     group: Option<&str>,
+    format: &str,
+    groups: Option<&str>,
 ) -> Result<ExitCode> {
     let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     let file = ags::parse_bytes(&bytes).file;
-    let csvs = geoflow_core::export::to_csv(&file);
 
-    if let Some(g) = group {
-        match csvs.get(g) {
-            Some(csv) => print!("{csv}"),
-            None => {
-                eprintln!("group {g:?} not found in file");
-                return Ok(ExitCode::from(1));
+    // Build optional group filter.
+    let filter: Option<std::collections::HashSet<&str>> = groups.map(|g| {
+        g.split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect()
+    });
+
+    match format {
+        "json" => {
+            let mut json_val = geoflow_core::export::to_json(&file);
+            // Apply group filter to the JSON object.
+            if let (Some(filter), Some(obj)) = (&filter, json_val.as_object_mut()) {
+                obj.retain(|k, _| filter.contains(k.as_str()));
+            }
+            // Apply single-group selection.
+            if let Some(g) = group {
+                if let Some(val) = json_val.get(g) {
+                    println!("{}", serde_json::to_string_pretty(val)?);
+                } else {
+                    eprintln!("group {g:?} not found in file");
+                    return Ok(ExitCode::from(1));
+                }
+            } else {
+                let out_path = out
+                    .map(|d| d.join("export.json"))
+                    .unwrap_or_else(|| std::path::PathBuf::from("export.json"));
+                std::fs::write(&out_path, serde_json::to_string_pretty(&json_val)?)
+                    .with_context(|| format!("writing {}", out_path.display()))?;
+                println!("exported JSON to {}", out_path.display());
             }
         }
-        return Ok(ExitCode::SUCCESS);
+        _ => {
+            // CSV (default)
+            let mut csvs = geoflow_core::export::to_csv(&file);
+            if let Some(ref filter) = filter {
+                csvs.retain(|k, _| filter.contains(k.as_str()));
+            }
+            if let Some(g) = group {
+                match csvs.get(g) {
+                    Some(csv) => print!("{csv}"),
+                    None => {
+                        eprintln!("group {g:?} not found in file");
+                        return Ok(ExitCode::from(1));
+                    }
+                }
+                return Ok(ExitCode::SUCCESS);
+            }
+            let out_dir = out.unwrap_or(std::path::Path::new("."));
+            std::fs::create_dir_all(out_dir)?;
+            let mut count = 0;
+            for (name, csv) in &csvs {
+                let dest = out_dir.join(format!("{name}.csv"));
+                std::fs::write(&dest, csv.as_bytes())
+                    .with_context(|| format!("writing {}", dest.display()))?;
+                count += 1;
+            }
+            println!("exported {count} CSV file(s) to {}", out_dir.display());
+        }
     }
-
-    let out_dir = out.unwrap_or(std::path::Path::new("."));
-    std::fs::create_dir_all(out_dir)?;
-    let mut count = 0;
-    for (name, csv) in &csvs {
-        let dest = out_dir.join(format!("{name}.csv"));
-        std::fs::write(&dest, csv.as_bytes())
-            .with_context(|| format!("writing {}", dest.display()))?;
-        count += 1;
-    }
-    println!("exported {count} CSV file(s) to {}", out_dir.display());
     Ok(ExitCode::SUCCESS)
 }
 

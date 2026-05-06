@@ -1,4 +1,4 @@
-//! Export AGS data to CSV (one string per group).
+//! Export AGS data to CSV and JSON.
 
 use crate::model::{AgsFile, AgsValue};
 use indexmap::IndexMap;
@@ -52,6 +52,37 @@ fn csv_field(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+/// Serialise the file to a JSON value with structure:
+/// `{"GROUP_NAME": [{"HEADING": value, ...}, ...], ...}`
+pub fn to_json(file: &AgsFile) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    for (group_name, group) in &file.groups {
+        let rows: Vec<serde_json::Value> = group
+            .rows
+            .iter()
+            .map(|row| {
+                let mut map = serde_json::Map::new();
+                for heading in &group.headings {
+                    let val = match row.get(&heading.name) {
+                        None | Some(AgsValue::Null) => serde_json::Value::Null,
+                        Some(AgsValue::Number(f)) => serde_json::Value::Number(
+                            serde_json::Number::from_f64(*f).unwrap_or(serde_json::Number::from(0)),
+                        ),
+                        Some(AgsValue::Bool(b)) => serde_json::Value::Bool(*b),
+                        Some(AgsValue::Text(s) | AgsValue::Raw(s)) => {
+                            serde_json::Value::String(s.clone())
+                        }
+                    };
+                    map.insert(heading.name.clone(), val);
+                }
+                serde_json::Value::Object(map)
+            })
+            .collect();
+        obj.insert(group_name.clone(), serde_json::Value::Array(rows));
+    }
+    serde_json::Value::Object(obj)
 }
 
 fn format_number(n: f64) -> String {
