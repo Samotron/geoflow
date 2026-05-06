@@ -92,6 +92,50 @@ rules:
     expr: "row.GEOL_BASE == null || row.GEOL_TOP == null || row.GEOL_BASE > row.GEOL_TOP"
     message: "GEOL row has GEOL_BASE ({row.GEOL_BASE}) not greater than GEOL_TOP ({row.GEOL_TOP})"
 
+  # ── Cross-references (expanded) ──────────────────────────────────────────────
+
+  - id: AGS-XREF-003
+    description: "Every ISPT row must reference an existing LOCA_ID."
+    severity: error
+    when: "group == 'ISPT'"
+    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
+    message: "ISPT row references unknown LOCA_ID {row.LOCA_ID}"
+
+  - id: AGS-XREF-004
+    description: "Every WSTK row must reference an existing LOCA_ID."
+    severity: error
+    when: "group == 'WSTK'"
+    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
+    message: "WSTK row references unknown LOCA_ID {row.LOCA_ID}"
+
+  - id: AGS-XREF-005
+    description: "Every HOLE row must reference an existing LOCA_ID."
+    severity: error
+    when: "group == 'HOLE'"
+    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
+    message: "HOLE row references unknown LOCA_ID {row.LOCA_ID}"
+
+  # ── Key uniqueness ───────────────────────────────────────────────────────────
+
+  - id: AGS-KEY-001
+    description: "LOCA_ID values must be unique within the LOCA group."
+    severity: error
+    scope: "group:LOCA_ID"
+    when: "group == 'LOCA'"
+    expr: "rows.size() == 1"
+    message: "Duplicate LOCA_ID {key.LOCA_ID} in LOCA group"
+
+  # ── Version ──────────────────────────────────────────────────────────────────
+
+  - id: AGS-STRUCT-004
+    description: "TRAN_AGS must be a recognised AGS 4.x version (4.0.3, 4.0.4, or 4.1)."
+    severity: warning
+    when: "group == 'TRAN'"
+    expr: >-
+      row.TRAN_AGS == null || row.TRAN_AGS == '' ||
+      row.TRAN_AGS in ['4.0.3', '4.0.4', '4.1']
+    message: "TRAN_AGS value '{row.TRAN_AGS}' is not a recognised AGS 4 version"
+
   # ── Formatting ───────────────────────────────────────────────────────────────
 
   - id: AGS-FMT-001

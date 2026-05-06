@@ -239,6 +239,9 @@ impl ParserState {
             return;
         }
 
+        let payload_len = payload.len();
+        let heading_len = group.headings.len();
+
         let mut row: AgsRow = IndexMap::new();
         for (i, raw) in payload.into_iter().enumerate() {
             let Some(h) = group.headings.get(i) else {
@@ -255,6 +258,20 @@ impl ParserState {
             };
             let value = coerce(&raw, &h.data_type);
             row.insert(h.name.clone(), value);
+        }
+        // Warn when a DATA row has fewer values than the HEADING count.
+        if payload_len < heading_len {
+            self.diagnostics.push(
+                Diagnostic::new(
+                    "AGS-DATA-SHORT",
+                    Severity::Warning,
+                    format!(
+                        "{group_name}: DATA row has {payload_len} values but HEADING declares {heading_len}"
+                    ),
+                )
+                .at_group(&group_name)
+                .at_line(line_no),
+            );
         }
         // Pad short rows with explicit nulls so downstream code can rely
         // on every heading being present.
@@ -386,5 +403,45 @@ mod tests {
     fn empty_input_produces_warning() {
         let out = parse_str("");
         assert!(out.diagnostics.iter().any(|d| d.rule_id == "AGS-EMPTY"));
+    }
+
+    #[test]
+    fn short_data_row_produces_warning() {
+        let bad = r#""GROUP","X"
+"HEADING","X_A","X_B","X_C"
+"UNIT","","",""
+"TYPE","X","X","X"
+"DATA","one","two"
+"#;
+        let out = parse_str(bad);
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.rule_id == "AGS-DATA-SHORT"),
+            "expected AGS-DATA-SHORT, got: {:?}",
+            out.diagnostics
+        );
+        // Row is still added with the last column padded to null.
+        let group = out.file.group("X").unwrap();
+        assert_eq!(group.rows.len(), 1);
+        assert!(group.rows[0].get("X_C").unwrap().is_null());
+    }
+
+    #[test]
+    fn exact_column_count_no_warning() {
+        let ok = r#""GROUP","X"
+"HEADING","X_A","X_B"
+"UNIT","",""
+"TYPE","X","X"
+"DATA","one","two"
+"#;
+        let out = parse_str(ok);
+        assert!(
+            !out.diagnostics
+                .iter()
+                .any(|d| d.rule_id == "AGS-DATA-SHORT"),
+            "should not warn: {:?}",
+            out.diagnostics
+        );
     }
 }

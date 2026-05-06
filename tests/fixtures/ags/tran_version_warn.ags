@@ -1,0 +1,17 @@
+"GROUP","PROJ"
+"HEADING","PROJ_ID","PROJ_NAME"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","P1","Unknown AGS version"
+
+"GROUP","TRAN"
+"HEADING","TRAN_AGS","TRAN_DATE"
+"UNIT","","yyyy-mm-dd"
+"TYPE","X","DT"
+"DATA","4.99","2026-05-06"
+
+"GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_TYPE"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","BH01","CP"
