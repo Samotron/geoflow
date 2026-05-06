@@ -3,6 +3,9 @@
 //! Pure-Rust toolkit for AGS 4.x parsing, validation (built-in rules and
 //! a CEL-based DSL), and AGS↔DIGGS conversion.
 
+#[cfg(feature = "db")]
+pub mod db;
+
 pub mod ags;
 pub mod describe;
 pub mod diagnostics;
