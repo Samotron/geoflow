@@ -19,6 +19,8 @@ pub fn standard_rules() -> Vec<Box<dyn Rule>> {
         Box::new(samp_key::SampCompositeKeyRule),
         Box::new(required_nonempty::RequiredNonEmptyRule),
         Box::new(heading_fmt::HeadingNameFormatRule),
+        Box::new(empty_group::EmptyGroupRule),
+        Box::new(nonstandard_heading::NonstandardHeadingRule),
     ]
 }
 
@@ -653,6 +655,139 @@ mod heading_fmt {
             && name
                 .chars()
                 .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+    }
+}
+
+// ── AGS-STRUCT-005: groups must contain at least one DATA row (Rule 2) ────────
+
+mod empty_group {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::AgsFile;
+    use crate::validate::Rule;
+
+    pub struct EmptyGroupRule;
+
+    impl Rule for EmptyGroupRule {
+        fn id(&self) -> &str {
+            "AGS-STRUCT-005"
+        }
+
+        fn description(&self) -> &str {
+            "Every group must contain at least one DATA row"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Warning
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            for (group_name, group) in &file.groups {
+                if group.rows.is_empty() {
+                    diagnostics.push(
+                        Diagnostic::new(
+                            "AGS-STRUCT-005",
+                            Severity::Warning,
+                            format!("{group_name}: group has no DATA rows"),
+                        )
+                        .at_group(group_name),
+                    );
+                }
+            }
+        }
+    }
+}
+
+// ── AGS-DICT-004/005: non-standard heading detection ─────────────────────────
+
+mod nonstandard_heading {
+    use crate::diagnostics::{Diagnostic, Severity};
+    use crate::model::AgsFile;
+    use crate::validate::Rule;
+
+    pub struct NonstandardHeadingRule;
+
+    impl Rule for NonstandardHeadingRule {
+        fn id(&self) -> &str {
+            "AGS-DICT-004"
+        }
+
+        fn description(&self) -> &str {
+            "Non-standard headings should be declared in the DICT group"
+        }
+
+        fn default_severity(&self) -> Severity {
+            Severity::Warning
+        }
+
+        fn check(&self, file: &AgsFile, diagnostics: &mut Vec<Diagnostic>) {
+            let dict = crate::dict::ags4_dict();
+
+            // Collect headings defined in the file's DICT group (user-defined).
+            let mut dict_defined: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+            if let Some(dict_group) = file.group("DICT") {
+                for row in &dict_group.rows {
+                    if let Some(h) = row.get("DICT_HDNG").and_then(|v| v.as_text()) {
+                        if !h.is_empty() {
+                            dict_defined.insert(h.to_string());
+                        }
+                    }
+                }
+            }
+            let has_dict_group = file.group("DICT").is_some();
+
+            let mut any_nonstandard = false;
+
+            for (group_name, group) in &file.groups {
+                let known_headings: Option<&Vec<String>> =
+                    dict.get(group_name.as_str()).map(|d| &d.required_headings);
+
+                for heading in &group.headings {
+                    // Skip standard reserved groups entirely.
+                    if matches!(
+                        group_name.as_str(),
+                        "PROJ" | "TRAN" | "ABBR" | "TYPE" | "UNIT" | "DICT" | "DEFS"
+                    ) {
+                        continue;
+                    }
+
+                    let is_known_standard = match known_headings {
+                        Some(req) => req.contains(&heading.name),
+                        None => false,
+                    };
+
+                    // A heading is non-standard if it's not in the dict AND not
+                    // user-declared in DICT, and not a LOCA_ID cross-reference.
+                    if !is_known_standard
+                        && heading.name != "LOCA_ID"
+                        && !dict_defined.contains(&heading.name)
+                    {
+                        any_nonstandard = true;
+                        diagnostics.push(
+                            Diagnostic::new(
+                                "AGS-DICT-004",
+                                Severity::Warning,
+                                format!(
+                                    "{group_name}: heading {:?} is not in the standard AGS dictionary",
+                                    heading.name
+                                ),
+                            )
+                            .at_group(group_name),
+                        );
+                    }
+                }
+            }
+
+            // AGS-DICT-005: non-standard headings present but no DICT group.
+            if any_nonstandard && !has_dict_group {
+                diagnostics.push(Diagnostic::new(
+                    "AGS-DICT-005",
+                    Severity::Warning,
+                    "file contains non-standard headings but has no DICT group to define them"
+                        .to_string(),
+                ));
+            }
+        }
     }
 }
 

@@ -1,5 +1,5 @@
 # AGS 4.x standard heading dictionary (abridged).
-# Source: AGS4 Data Format, editions 4.0.3 / 4.0.4 / 4.1
+# Source: AGS4 Data Format, editions 4.0.3 / 4.0.4 / 4.1 / 4.1.1 / 4.2
 #
 # required_headings: headings that MUST be present when the group exists.
 # depth_headings:    headings that represent depth and must carry unit "m".
@@ -76,3 +76,45 @@ groups:
   LTRT:
     required_headings: [LOCA_ID, SAMP_TOP, SAMP_REF, SPEC_DPTH]
     depth_headings: [SPEC_DPTH, SAMP_TOP]
+
+  # ── AGS 4.2 new groups ──────────────────────────────────────────────────────
+
+  MONS:
+    required_headings: [LOCA_ID, MONS_TYPE]
+    depth_headings: [MONS_DPTH]
+
+  CPTU:
+    required_headings: [LOCA_ID, CPTU_DPTH]
+    depth_headings: [CPTU_DPTH]
+
+  CPTG:
+    required_headings: [LOCA_ID, CPTG_DPTH]
+    depth_headings: [CPTG_DPTH]
+
+  PMTG:
+    required_headings: [LOCA_ID, PMTG_DPTH]
+    depth_headings: [PMTG_DPTH]
+
+  PMTU:
+    required_headings: [LOCA_ID, PMTU_DPTH]
+    depth_headings: [PMTU_DPTH]
+
+  PMTP:
+    required_headings: [LOCA_ID, PMTP_DPTH]
+    depth_headings: [PMTP_DPTH]
+
+  PMTZ:
+    required_headings: [LOCA_ID, PMTZ_DPTH]
+    depth_headings: [PMTZ_DPTH]
+
+  DMTG:
+    required_headings: [LOCA_ID, DMTG_DPTH]
+    depth_headings: [DMTG_DPTH]
+
+  DMTU:
+    required_headings: [LOCA_ID, DMTU_DPTH]
+    depth_headings: [DMTU_DPTH]
+
+  ISTX:
+    required_headings: [LOCA_ID, ISTX_DPTH]
+    depth_headings: [ISTX_DPTH]

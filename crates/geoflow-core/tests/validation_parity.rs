@@ -1024,3 +1024,106 @@ fn abbr_valid_fixture_has_no_errors() {
         "abbr_codelist_valid.ags errors: {errors:?}"
     );
 }
+
+// ── TRAN_AGS version acceptance (AGS 4.1.1 and 4.2) ─────────────────────────
+
+#[test]
+fn tran_ags_4_1_1_accepted() {
+    let path = fixtures_dir().join("tran_ags_4_1_1.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-STRUCT-004"),
+        "4.1.1 should be a valid TRAN_AGS version: {d:?}"
+    );
+}
+
+#[test]
+fn tran_ags_4_2_accepted() {
+    let path = fixtures_dir().join("tran_ags_4_2.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-STRUCT-004"),
+        "4.2 should be a valid TRAN_AGS version: {d:?}"
+    );
+}
+
+#[test]
+fn tran_ags_unknown_version_flagged() {
+    let d = check(
+        r#""GROUP","TRAN"
+"HEADING","TRAN_AGS"
+"UNIT",""
+"TYPE","X"
+"DATA","5.0"
+"#,
+    );
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-STRUCT-004"),
+        "unknown version 5.0 should fire AGS-STRUCT-004: {d:?}"
+    );
+}
+
+// ── Empty group detection (Rule 2 / AGS-STRUCT-005) ──────────────────────────
+
+#[test]
+fn empty_group_fixture_fires_struct_005() {
+    let path = fixtures_dir().join("empty_group.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-STRUCT-005"),
+        "empty_group.ags should fire AGS-STRUCT-005: {d:?}"
+    );
+}
+
+#[test]
+fn group_with_data_rows_does_not_fire_struct_005() {
+    let d = check(
+        r#""GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_TYPE"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","BH01","CP"
+"#,
+    );
+    assert!(
+        !d.iter().any(|x| x.rule_id == "AGS-STRUCT-005"),
+        "group with data rows should not fire AGS-STRUCT-005: {d:?}"
+    );
+}
+
+// ── Non-standard heading detection (AGS-DICT-004/005) ────────────────────────
+
+#[test]
+fn nonstandard_heading_fixture_fires_dict_004() {
+    let path = fixtures_dir().join("nonstandard_heading.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-DICT-004"),
+        "nonstandard_heading.ags should fire AGS-DICT-004: {d:?}"
+    );
+}
+
+#[test]
+fn nonstandard_heading_without_dict_group_fires_dict_005() {
+    let path = fixtures_dir().join("nonstandard_heading.ags");
+    let bytes = std::fs::read(&path).unwrap();
+    let out = parse_bytes(&bytes);
+    let r = Registry::standard();
+    let d = validate(&out.file, &r);
+    assert!(
+        d.iter().any(|x| x.rule_id == "AGS-DICT-005"),
+        "nonstandard_heading.ags without DICT group should fire AGS-DICT-005: {d:?}"
+    );
+}

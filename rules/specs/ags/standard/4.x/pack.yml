@@ -87,12 +87,12 @@ rules:
   # ── Version ──────────────────────────────────────────────────────────────────
 
   - id: AGS-STRUCT-004
-    description: "TRAN_AGS must be a recognised AGS 4.x version (4.0.3, 4.0.4, or 4.1)."
+    description: "TRAN_AGS must be a recognised AGS 4.x version (4.0.3, 4.0.4, 4.1, 4.1.1, or 4.2)."
     severity: warning
     when: "group == 'TRAN'"
     expr: >-
       row.TRAN_AGS == null || row.TRAN_AGS == '' ||
-      row.TRAN_AGS in ['4.0.3', '4.0.4', '4.1']
+      row.TRAN_AGS in ['4.0.3', '4.0.4', '4.1', '4.1.1', '4.2']
     message: "TRAN_AGS value '{row.TRAN_AGS}' is not a recognised AGS 4 version"
 
   # ── Formatting ───────────────────────────────────────────────────────────────
