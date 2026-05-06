@@ -17,6 +17,7 @@
 
 <h1>Validation Report</h1>
 
+{% if is_serve %}
 <div class="pack-form">
   <h2>Rule Packs</h2>
   <form id="pack-form" method="POST" action="/validate">
@@ -63,6 +64,15 @@
     </div>
   </form>
 </div>
+{% else %}
+<div class="pack-form" style="color:#555;">
+  <p style="margin:0;">
+    <em>Built-in rules only.</em>
+    Run <code>geoflow explore &lt;file&gt; --serve</code> to enable interactive rule pack selection.
+  </p>
+  <p style="margin:0.5rem 0 0;"><a href="certificate.html">View Certificate</a></p>
+</div>
+{% endif %}
 
 <p>
   <span class="severity-error">{{ summary.error }} error</span>,

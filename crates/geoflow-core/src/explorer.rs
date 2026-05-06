@@ -175,6 +175,7 @@ impl Explorer {
         available_packs: &[String],
         active_pack_refs: &[String],
         custom_yaml: Option<&str>,
+        is_serve: bool,
     ) -> Result<String> {
         let diagnostics = run_validation(file, extra_packs);
         let summary = diagnostic_summary(&diagnostics);
@@ -196,6 +197,7 @@ impl Explorer {
             available_packs => available_packs,
             active_pack_refs => active_pack_refs,
             custom_yaml => custom_yaml.unwrap_or(""),
+            is_serve => is_serve,
         ))?;
         Ok(html)
     }
@@ -230,7 +232,11 @@ impl Explorer {
         pages.push(("index.html".to_string(), self.render_overview(file)?));
         pages.push((
             "validation.html".to_string(),
-            self.render_validation(file, &[], &[], &[], None)?,
+            self.render_validation(file, &[], &[], &[], None, false)?,
+        ));
+        pages.push((
+            "certificate.html".to_string(),
+            self.render_certificate(file, &[], &[], "static export")?,
         ));
 
         // Groups

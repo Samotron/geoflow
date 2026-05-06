@@ -100,7 +100,7 @@ fn validation_page_renders_summary_table() {
     let file = load_fixture();
     let exp = Explorer::new();
     let html = exp
-        .render_validation(&file, &[], &[], &[], None)
+        .render_validation(&file, &[], &[], &[], None, false)
         .expect("render validation");
 
     assert!(html.contains("<table"), "expected table element");

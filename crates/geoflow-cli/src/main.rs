@@ -872,6 +872,7 @@ async fn run_server(file: geoflow_core::model::AgsFile, port: u16) -> Result<()>
                             &s.available_packs,
                             &active_refs,
                             custom_yaml.as_deref(),
+                            true,
                         )
                         .unwrap_or_else(|e| format!("Error: {e}")),
                 )
