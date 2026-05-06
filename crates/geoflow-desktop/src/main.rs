@@ -19,6 +19,13 @@ use sha2::{Digest, Sha256};
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 fn main() -> eframe::Result<()> {
+    // Accept an optional file path as the first positional argument so that
+    // `geoflow gui <file>` (and direct invocation) open the file on launch.
+    let initial_file: Option<PathBuf> = std::env::args_os()
+        .nth(1)
+        .map(PathBuf::from)
+        .filter(|p| p.exists());
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("GeoFlow Desktop")
@@ -30,7 +37,13 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "GeoFlow Desktop",
         options,
-        Box::new(|_cc| Ok(Box::new(GeoflowApp::default()))),
+        Box::new(move |_cc| {
+            let mut app = GeoflowApp::default();
+            if let Some(path) = initial_file {
+                app.load_file(path);
+            }
+            Ok(Box::new(app))
+        }),
     )
 }
 
