@@ -427,8 +427,8 @@ fn extract_colours(text: &str) -> Vec<String> {
         "brown grey",
     ];
     let single: &[&str] = &[
-        "grey", "gray", "brown", "red", "orange", "yellow", "black", "white",
-        "green", "blue", "tan", "buff", "pink", "purple", "beige",
+        "grey", "gray", "brown", "red", "orange", "yellow", "black", "white", "green", "blue",
+        "tan", "buff", "pink", "purple", "beige",
     ];
 
     let mut found: Vec<String> = Vec::new();
@@ -508,13 +508,11 @@ fn extract_consistency(text: &str) -> Option<Consistency> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn extract_density(text: &str) -> Option<Density> {
-    if word_seq(text, &["medium", "dense", "to", "dense"])
-        || word_in(text, "medium dense to dense")
+    if word_seq(text, &["medium", "dense", "to", "dense"]) || word_in(text, "medium dense to dense")
     {
         return Some(Density::MediumDenseToDense);
     }
-    if word_seq(text, &["loose", "to", "medium", "dense"])
-        || word_in(text, "loose to medium dense")
+    if word_seq(text, &["loose", "to", "medium", "dense"]) || word_in(text, "loose to medium dense")
     {
         return Some(Density::LooseToMediumDense);
     }
@@ -631,9 +629,13 @@ fn extract_soil_types(text: &str) -> (Option<SoilType>, Option<SoilType>) {
             .iter()
             .min_by_key(|(pat, _)| text.rfind(pat).unwrap_or(0))
             .filter(|(pat, _)| {
-                primary
-                    .as_ref()
-                    .is_none_or(|p| p != noun_hits.iter().find(|(pp, _)| pp == pat).map(|(_, s)| *s).unwrap_or(p))
+                primary.as_ref().is_none_or(|p| {
+                    p != noun_hits
+                        .iter()
+                        .find(|(pp, _)| pp == pat)
+                        .map(|(_, s)| *s)
+                        .unwrap_or(p)
+                })
             })
             .map(|(_, st)| (*st).clone())
     } else {
@@ -823,12 +825,13 @@ fn score_and_warn(desc: &mut SoilDescription) {
     if desc.consistency.is_some() {
         let is_granular = matches!(
             desc.primary_soil_type,
-            Some(SoilType::Sand) | Some(SoilType::Gravel) | Some(SoilType::Cobbles)
+            Some(SoilType::Sand)
+                | Some(SoilType::Gravel)
+                | Some(SoilType::Cobbles)
                 | Some(SoilType::Boulders)
         );
         if is_granular {
-            desc.warnings
-                .push("consistency_on_granular_soil".into());
+            desc.warnings.push("consistency_on_granular_soil".into());
             conf -= 0.15;
         }
     }
@@ -925,7 +928,10 @@ mod tests {
         let d = parse_description("v soft gy cl");
         assert_eq!(d.consistency, Some(Consistency::VerySoft));
         assert_eq!(d.primary_soil_type, Some(SoilType::Clay));
-        assert!(d.colours.iter().any(|c| c.contains("grey") || c.contains("gray")));
+        assert!(d
+            .colours
+            .iter()
+            .any(|c| c.contains("grey") || c.contains("gray")));
     }
 
     #[test]
@@ -952,7 +958,10 @@ mod tests {
     fn test_sandy_clay() {
         let d = parse_description("Stiff sandy CLAY");
         assert_eq!(d.primary_soil_type, Some(SoilType::Clay));
-        assert!(d.secondary_constituents.iter().any(|c| c.soil_type == SoilType::Sand));
+        assert!(d
+            .secondary_constituents
+            .iter()
+            .any(|c| c.soil_type == SoilType::Sand));
     }
 
     #[test]

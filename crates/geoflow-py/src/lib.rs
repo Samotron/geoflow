@@ -309,11 +309,11 @@ fn read_diggs(path: PathBuf) -> PyResult<PyAgsFile> {
 
 /// Parse a free-text soil description and return a dict of structured fields.
 ///
-/// Example::
-///
-///     import geoflow
-///     d = geoflow.parse_description("Soft grey CLAY")
-///     print(d["consistency"])  # "soft"
+/// ```python
+/// import geoflow
+/// d = geoflow.parse_description("Soft grey CLAY")
+/// print(d["consistency"])  # "soft"
+/// ```
 #[pyfunction]
 fn parse_description<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyDict>> {
     let p = describe::parse_description(text);
