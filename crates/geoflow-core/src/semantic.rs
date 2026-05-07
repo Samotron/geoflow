@@ -357,21 +357,25 @@ pub fn build_semantic_graph(file: &AgsFile) -> SemanticGraph {
 
     build_field_tests(
         file,
-        "ISPT",
-        "ISPT",
-        "ISPT_TOP",
-        Some("ISPT_NVAL"),
-        "NVAL",
+        FieldTestSpec {
+            group_name: "ISPT",
+            test_type: "ISPT",
+            depth_col: "ISPT_TOP",
+            value_col: Some("ISPT_NVAL"),
+            measure_name: "NVAL",
+        },
         &point_ids,
         &mut graph,
     );
     build_field_tests(
         file,
-        "WSTK",
-        "WSTK",
-        "WSTK_DPTH",
-        None,
-        "DPTH",
+        FieldTestSpec {
+            group_name: "WSTK",
+            test_type: "WSTK",
+            depth_col: "WSTK_DPTH",
+            value_col: None,
+            measure_name: "DPTH",
+        },
         &point_ids,
         &mut graph,
     );
@@ -404,17 +408,21 @@ pub fn investigation_points_for_geol_code(file: &AgsFile, code: &str) -> Vec<Str
     ids.into_iter().collect()
 }
 
+struct FieldTestSpec<'a> {
+    group_name: &'a str,
+    test_type: &'a str,
+    depth_col: &'a str,
+    value_col: Option<&'a str>,
+    measure_name: &'a str,
+}
+
 fn build_field_tests(
     file: &AgsFile,
-    group_name: &str,
-    test_type: &str,
-    depth_col: &str,
-    value_col: Option<&str>,
-    measure_name: &str,
+    spec: FieldTestSpec<'_>,
     point_ids: &BTreeMap<String, String>,
     graph: &mut SemanticGraph,
 ) {
-    if let Some(group) = file.group(group_name) {
+    if let Some(group) = file.group(spec.group_name) {
         for (idx, row) in group.rows.iter().enumerate() {
             let Some(loca_id) = row_text(row, "LOCA_ID") else {
                 continue;
@@ -422,16 +430,16 @@ fn build_field_tests(
             let Some(point_id) = point_ids.get(&loca_id).cloned() else {
                 continue;
             };
-            let depth = row_number(row, depth_col);
+            let depth = row_number(row, spec.depth_col);
             let test_id = format!(
                 "fieldtest:{point_id}:{}:{}:{idx}",
-                test_type.to_lowercase(),
+                spec.test_type.to_lowercase(),
                 depth_fragment(depth)
             );
             graph.field_tests.push(FieldTest {
                 id: test_id.clone(),
                 point_id: point_id.clone(),
-                test_type: test_type.to_string(),
+                test_type: spec.test_type.to_string(),
                 depth_ref: depth,
                 top_depth: depth,
                 base_depth: depth,
@@ -441,12 +449,12 @@ fn build_field_tests(
                 to: test_id.clone(),
                 predicate: "hasFieldTest".to_string(),
             });
-            if let Some(col) = value_col {
-                let measure_id = format!("measure:{test_id}:{}", measure_name.to_lowercase());
+            if let Some(col) = spec.value_col {
+                let measure_id = format!("measure:{test_id}:{}", spec.measure_name.to_lowercase());
                 graph.measurements.push(Measurement {
                     id: measure_id.clone(),
                     owner_id: test_id.clone(),
-                    measure_name: measure_name.to_string(),
+                    measure_name: spec.measure_name.to_string(),
                     value: row_number(row, col),
                     unit: None,
                     qualifier: None,
