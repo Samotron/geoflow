@@ -10,7 +10,6 @@ use geoflow_core::{
     render::{self, Format},
     validate, Registry, Severity,
 };
-use serde::Deserialize;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -1330,7 +1329,12 @@ fn cmd_explore(
     }
 
     if serve {
-        run_server(parsed.file, port)?;
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file.ags")
+            .to_string();
+        run_server(parsed.file, file_name, port)?;
     } else if out.is_none() {
         anyhow::bail!("provide --out DIR or --serve (or both)");
     }
@@ -1338,177 +1342,296 @@ fn cmd_explore(
     Ok(ExitCode::SUCCESS)
 }
 
-#[derive(Default)]
-struct PackState {
-    /// Predefined pack references, e.g. "ags:standard@4.x".
-    selected_refs: Vec<String>,
-    /// Raw YAML for an uploaded custom rule pack.
-    custom_yaml: Option<String>,
-}
-
-impl PackState {
-    fn load_packs(&self) -> Vec<geoflow_core::dsl::LoadedPack> {
-        let mut packs = Vec::new();
-        for r in &self.selected_refs {
-            match geoflow_core::dsl::RulePack::load_spec(r) {
-                Ok(p) => packs.push(p),
-                Err(e) => tracing::warn!("failed to load pack {r}: {e}"),
-            }
-        }
-        if let Some(yaml) = &self.custom_yaml {
-            match geoflow_core::dsl::RulePack::parse(yaml).and_then(|p| p.into_loaded()) {
-                Ok(p) => packs.push(p),
-                Err(e) => tracing::warn!("failed to load custom pack: {e}"),
-            }
-        }
-        packs
-    }
-
-    fn all_active_refs(&self) -> Vec<String> {
-        let mut refs = self.selected_refs.clone();
-        if self.custom_yaml.is_some() {
-            refs.push("custom".to_string());
-        }
-        refs
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct ValidateForm {
-    /// Comma-separated pack references encoded by JS before submit.
-    #[serde(default)]
-    packs: String,
-    /// Custom YAML rule pack content.
-    #[serde(default)]
-    custom_yaml: String,
-}
-
 #[tokio::main]
-async fn run_server(file: geoflow_core::model::AgsFile, port: u16) -> Result<()> {
+async fn run_server(
+    file: geoflow_core::model::AgsFile,
+    file_name: String,
+    port: u16,
+) -> Result<()> {
     use axum::{
-        extract::{Path, State},
-        response::{Html, Redirect},
+        body::Bytes,
+        extract::{Path, Query, State},
+        http::header,
         routing::{get, post},
-        Form, Router,
+        Router,
     };
     use std::sync::Arc;
-    use tokio::sync::Mutex;
+
+    // Served as /pkg/geoflow_wasm.js — same interface as the real WASM module
+    // but proxies all calls to the local JSON API via synchronous XHR.
+    const WASM_SHIM: &str = r#"
+function apiGet(url) {
+  const r = new XMLHttpRequest(); r.open('GET', url, false); r.send(null); return r.responseText;
+}
+function apiPost(url, body) {
+  const r = new XMLHttpRequest(); r.open('POST', url, false);
+  r.setRequestHeader('Content-Type', 'text/plain'); r.send(body); return r.responseText;
+}
+export async function init() {}
+export function validate_ags(_b)               { return apiGet('/api/validate'); }
+export function validate_ags_with_rules(_b, y) { return apiPost('/api/validate-with-rules', y); }
+export function fix_ags(_b)                    { return new TextEncoder().encode(apiGet('/api/fix')); }
+export function convert_to_diggs(_b)           { return apiGet('/api/diggs'); }
+export function list_locations(_b)             { return apiGet('/api/locations'); }
+export function render_borehole_svg(_b, id)    { return apiGet('/api/borehole-svg/' + encodeURIComponent(id)); }
+export function ags_info(_b)                   { return apiGet('/api/info'); }
+export function diff_ags(_a, _b)               { return '[]'; }
+export function get_all_groups_data(_b)        { return apiGet('/api/groups'); }
+export function get_all_groups_meta(_b)        { return apiGet('/api/groups-meta'); }
+export function get_group_rows(_b, g)          { return apiGet('/api/group/' + encodeURIComponent(g)); }
+export function parse_description(t)           { return apiGet('/api/parse-description?text=' + encodeURIComponent(t)); }
+export function enhance_ags(_b)                { return apiGet('/api/enhance'); }
+"#;
+
+    const INDEX_HTML: &str = include_str!("../../../web/index.html");
 
     struct AppState {
         file: geoflow_core::model::AgsFile,
         explorer: geoflow_core::explorer::Explorer,
-        pack_state: Mutex<PackState>,
-        available_packs: Vec<String>,
     }
 
-    let available_packs = geoflow_core::dsl::installed_pack_refs();
+    // Inject the CLI mode flag before the module script tag
+    let cli_script = format!(
+        "<script>window.__GEOFLOW_CLI__ = {{ file: {} }};</script>\n<script type=\"module\">",
+        serde_json::to_string(&file_name).unwrap_or_else(|_| "\"file.ags\"".into())
+    );
+    let index_html = Arc::new(INDEX_HTML.replacen(r#"<script type="module">"#, &cli_script, 1));
+
     let state = Arc::new(AppState {
         file,
         explorer: geoflow_core::explorer::Explorer::new(),
-        pack_state: Mutex::new(PackState::default()),
-        available_packs,
     });
 
+    #[derive(serde::Deserialize)]
+    struct DescribeQuery {
+        text: Option<String>,
+    }
+
     let app = Router::new()
+        // ── SPA shell ────────────────────────────────────────────────────
+        .route("/", {
+            let html = index_html.clone();
+            get(move || {
+                let html = html.clone();
+                async move {
+                    (
+                        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+                        (*html).clone(),
+                    )
+                }
+            })
+        })
         .route(
-            "/",
-            get(|State(s): State<Arc<AppState>>| async move {
-                Html(s.explorer.render_overview(&s.file).unwrap())
-            }),
-        )
-        .route(
-            "/index.html",
-            get(|State(s): State<Arc<AppState>>| async move {
-                Html(s.explorer.render_overview(&s.file).unwrap())
-            }),
-        )
-        .route(
-            "/validation.html",
-            get(|State(s): State<Arc<AppState>>| async move {
-                let ps = s.pack_state.lock().await;
-                let packs = ps.load_packs();
-                let active_refs = ps.all_active_refs();
-                let custom_yaml = ps.custom_yaml.clone();
-                drop(ps);
-                Html(
-                    s.explorer
-                        .render_validation(
-                            &s.file,
-                            &packs,
-                            &s.available_packs,
-                            &active_refs,
-                            custom_yaml.as_deref(),
-                            true,
-                        )
-                        .unwrap_or_else(|e| format!("Error: {e}")),
+            "/pkg/geoflow_wasm.js",
+            get(|| async {
+                (
+                    [(header::CONTENT_TYPE, "application/javascript")],
+                    WASM_SHIM,
                 )
             }),
         )
+        // ── JSON API ─────────────────────────────────────────────────────
         .route(
-            "/validate",
-            post(
-                |State(s): State<Arc<AppState>>, Form(form): Form<ValidateForm>| async move {
-                    let selected_refs: Vec<String> = form
-                        .packs
-                        .split(',')
-                        .map(|r| r.trim().to_string())
-                        .filter(|r| !r.is_empty())
-                        .collect();
-                    let custom_yaml = if form.custom_yaml.trim().is_empty() {
-                        None
-                    } else {
-                        Some(form.custom_yaml.trim().to_string())
-                    };
-                    let mut ps = s.pack_state.lock().await;
-                    ps.selected_refs = selected_refs;
-                    ps.custom_yaml = custom_yaml;
-                    drop(ps);
-                    Redirect::to("/validation.html")
-                },
-            ),
-        )
-        .route(
-            "/certificate.html",
+            "/api/info",
             get(|State(s): State<Arc<AppState>>| async move {
-                let ps = s.pack_state.lock().await;
-                let packs = ps.load_packs();
-                let active_refs = ps.all_active_refs();
-                drop(ps);
-                let now = chrono::Local::now()
-                    .format("%Y-%m-%d %H:%M:%S %Z")
+                let f = &s.file;
+                let total_rows: usize = f.groups.values().map(|g| g.rows.len()).sum();
+                let groups: Vec<&str> = f.groups.keys().map(|k| k.as_str()).collect();
+                let locations = f.group("LOCA").map(|g| g.rows.len()).unwrap_or(0);
+                let project = f
+                    .group("PROJ")
+                    .and_then(|g| g.rows.first())
+                    .and_then(|r| r.get("PROJ_NAME"))
+                    .and_then(|v| v.as_text())
+                    .unwrap_or("")
                     .to_string();
-                Html(
-                    s.explorer
-                        .render_certificate(&s.file, &packs, &active_refs, &now)
-                        .unwrap_or_else(|e| format!("Error: {e}")),
+                let body = serde_json::json!({
+                    "ags_version": f.ags_version,
+                    "groups": groups,
+                    "group_count": groups.len(),
+                    "total_rows": total_rows,
+                    "locations": locations,
+                    "project": project,
+                })
+                .to_string();
+                ([(header::CONTENT_TYPE, "application/json")], body)
+            }),
+        )
+        .route(
+            "/api/locations",
+            get(|State(s): State<Arc<AppState>>| async move {
+                let locs: Vec<_> = s
+                    .file
+                    .group("LOCA")
+                    .map(|g| {
+                        g.rows
+                            .iter()
+                            .filter_map(|r| {
+                                let id = r.get("LOCA_ID")?.as_text()?.to_string();
+                                Some(serde_json::json!({
+                                    "id": id,
+                                    "depth":    r.get("LOCA_FDEP").and_then(|v| v.as_number()),
+                                    "easting":  r.get("LOCA_NATE").and_then(|v| v.as_number()),
+                                    "northing": r.get("LOCA_NATN").and_then(|v| v.as_number()),
+                                }))
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&locs).unwrap_or_default(),
                 )
             }),
         )
         .route(
-            "/group/:name",
+            "/api/groups",
+            get(|State(s): State<Arc<AppState>>| async move {
+                let mut obj = serde_json::Map::new();
+                for (name, group) in &s.file.groups {
+                    obj.insert(
+                        name.clone(),
+                        serde_json::to_value(&group.rows)
+                            .unwrap_or(serde_json::Value::Array(vec![])),
+                    );
+                }
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&obj).unwrap_or_default(),
+                )
+            }),
+        )
+        .route(
+            "/api/groups-meta",
+            get(|State(s): State<Arc<AppState>>| async move {
+                use geoflow_core::model::AgsType;
+                let mut obj = serde_json::Map::new();
+                for (name, group) in &s.file.groups {
+                    let headings: Vec<_> = group
+                        .headings
+                        .iter()
+                        .map(|h| {
+                            serde_json::json!({
+                                "name":  h.name,
+                                "unit":  h.unit,
+                                "is_id": matches!(h.data_type, AgsType::ID),
+                            })
+                        })
+                        .collect();
+                    obj.insert(name.clone(), serde_json::Value::Array(headings));
+                }
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&obj).unwrap_or_default(),
+                )
+            }),
+        )
+        .route(
+            "/api/group/:name",
             get(
                 |State(s): State<Arc<AppState>>, Path(name): Path<String>| async move {
-                    let name = name.strip_suffix(".html").unwrap_or(&name);
-                    Html(
-                        s.explorer
-                            .render_group(&s.file, name)
-                            .unwrap_or_else(|e| format!("Error: {e}")),
-                    )
+                    let body = match s.file.group(&name) {
+                        Some(g) => serde_json::to_string(&g.rows).unwrap_or_default(),
+                        None => "[]".to_string(),
+                    };
+                    ([(header::CONTENT_TYPE, "application/json")], body)
                 },
             ),
         )
         .route(
-            "/borehole/:id",
+            "/api/validate",
+            get(|State(s): State<Arc<AppState>>| async move {
+                let registry = geoflow_core::validate::Registry::standard();
+                let diags = geoflow_core::validate::validate(&s.file, &registry);
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&diags).unwrap_or_default(),
+                )
+            }),
+        )
+        .route(
+            "/api/validate-with-rules",
+            post(|State(s): State<Arc<AppState>>, body: Bytes| async move {
+                let yaml = String::from_utf8_lossy(&body).into_owned();
+                let pack =
+                    match geoflow_core::dsl::RulePack::parse(&yaml).and_then(|p| p.into_loaded()) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            return (
+                                [(header::CONTENT_TYPE, "application/json")],
+                                serde_json::json!({"error": e.to_string()}).to_string(),
+                            )
+                        }
+                    };
+                let registry = geoflow_core::validate::Registry::standard();
+                let mut diags = geoflow_core::validate::validate(&s.file, &registry);
+                match geoflow_core::dsl::evaluate(&s.file, &pack) {
+                    Ok(extra) => diags.extend(extra),
+                    Err(e) => {
+                        return (
+                            [(header::CONTENT_TYPE, "application/json")],
+                            serde_json::json!({"error": format!("Evaluation error: {e}")})
+                                .to_string(),
+                        )
+                    }
+                }
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&diags).unwrap_or_default(),
+                )
+            }),
+        )
+        .route(
+            "/api/borehole-svg/:id",
             get(
                 |State(s): State<Arc<AppState>>, Path(id): Path<String>| async move {
-                    let id = id.strip_suffix(".html").unwrap_or(&id);
-                    Html(
-                        s.explorer
-                            .render_borehole(&s.file, id)
-                            .unwrap_or_else(|e| format!("Error: {e}")),
-                    )
+                    let svg = s
+                        .explorer
+                        .render_borehole_svg(&s.file, &id)
+                        .unwrap_or_default();
+                    ([(header::CONTENT_TYPE, "image/svg+xml")], svg)
                 },
             ),
+        )
+        .route(
+            "/api/fix",
+            get(|State(s): State<Arc<AppState>>| async move {
+                let mut file = s.file.clone();
+                let fixer = geoflow_core::fix::Fixer::standard();
+                fixer.apply_all(&mut file);
+                let text = geoflow_core::ags::serialize(&file);
+                ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text)
+            }),
+        )
+        .route(
+            "/api/diggs",
+            get(|State(s): State<Arc<AppState>>| async move {
+                let xml = geoflow_core::diggs::write(&s.file)
+                    .map(|(x, _)| x)
+                    .unwrap_or_default();
+                ([(header::CONTENT_TYPE, "application/xml")], xml)
+            }),
+        )
+        .route(
+            "/api/parse-description",
+            get(|Query(q): Query<DescribeQuery>| async move {
+                let text = q.text.unwrap_or_default();
+                let d = geoflow_core::describe::parse_description(&text);
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&d).unwrap_or_default(),
+                )
+            }),
+        )
+        .route(
+            "/api/enhance",
+            get(|State(s): State<Arc<AppState>>| async move {
+                let rows = geoflow_core::describe::enhance_geol(&s.file);
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&rows).unwrap_or_default(),
+                )
+            }),
         )
         .with_state(state);
 

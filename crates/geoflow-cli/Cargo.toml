@@ -25,7 +25,6 @@ serde.workspace = true
 owo-colors.workspace = true
 axum.workspace = true
 tokio.workspace = true
-chrono.workspace = true
 ureq.workspace = true
 flate2.workspace = true
 tar.workspace = true

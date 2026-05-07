@@ -1,76 +1,122 @@
-<svg width="310" height="820" viewBox="0 0 310 820" font-family="sans-serif" xmlns="http://www.w3.org/2000/svg">
-    <!-- Column headers -->
-    <text x="100" y="14" font-size="10" text-anchor="middle" font-weight="bold">Lithology</text>
-    <text x="148" y="14" font-size="10" text-anchor="middle" font-weight="bold">Samp</text>
-    <text x="210" y="14" font-size="10" text-anchor="middle" font-weight="bold">SPT N</text>
-    <text x="275" y="14" font-size="10" text-anchor="middle" font-weight="bold">Water</text>
+<svg width="520" height="830" viewBox="0 0 520 830" font-family="system-ui, sans-serif" xmlns="http://www.w3.org/2000/svg">
 
-    <!-- SPT N scale -->
-    {% for tick in [0, 25, 50, 75, 100] %}
-        <line x1="{{ 160 + tick }}" y1="16" x2="{{ 160 + tick }}" y2="800" stroke="#e5e7eb" stroke-width="0.5"/>
-        <text x="{{ 160 + tick }}" y="26" font-size="8" text-anchor="middle" fill="#9ca3af">{{ tick }}</text>
-    {% endfor %}
+    <!-- Column header background -->
+    <rect x="0" y="0" width="520" height="30" fill="#1e3a5f"/>
 
-    <!-- Depth axis -->
-    <line x1="50" y1="30" x2="50" y2="800" stroke="#374151" stroke-width="1"/>
-    {% for i in range(0, 51, 5) %}
-        <text x="44" y="{{ 30 + i * 15 }}" font-size="9" text-anchor="end" fill="#374151">{{ i }}</text>
-        <line x1="46" y1="{{ 30 + i * 15 }}" x2="54" y2="{{ 30 + i * 15 }}" stroke="#374151" stroke-width="0.8"/>
-    {% endfor %}
-    {% for i in range(0, 51) %}
-        <line x1="48" y1="{{ 30 + i * 15 }}" x2="52" y2="{{ 30 + i * 15 }}" stroke="#9ca3af" stroke-width="0.4"/>
-    {% endfor %}
+    <!-- Column header labels -->
+    <text x="36" y="19" font-size="8.5" font-weight="700" text-anchor="middle" fill="#cbd5e1">Depth (m)</text>
+    <text x="95" y="19" font-size="8.5" font-weight="700" text-anchor="middle" fill="#fff">Lithology</text>
+    <text x="265" y="19" font-size="8.5" font-weight="700" text-anchor="middle" fill="#fff">Description</text>
+    <text x="365" y="13" font-size="8.5" font-weight="700" text-anchor="middle" fill="#fff">SPT N-Value</text>
+    <text x="345" y="25" font-size="7" fill="#94a3b8">0</text>
+    <text x="383" y="25" font-size="7" text-anchor="middle" fill="#94a3b8">30</text>
+    <text x="425" y="25" font-size="7" text-anchor="end" fill="#94a3b8">60</text>
+    <text x="460" y="19" font-size="8.5" font-weight="700" text-anchor="middle" fill="#fff">Smpl</text>
+    <text x="497" y="19" font-size="8.5" font-weight="700" text-anchor="middle" fill="#fff">WL</text>
 
-    <!-- Lithology strip outline -->
-    <rect x="60" y="30" width="80" height="770" fill="#f9fafb" stroke="#374151" stroke-width="0.8"/>
+    <!-- Column separator lines in header -->
+    <line x1="50" y1="0" x2="50" y2="30" stroke="#334155" stroke-width="0.5"/>
+    <line x1="140" y1="0" x2="140" y2="30" stroke="#334155" stroke-width="0.5"/>
+    <line x1="340" y1="0" x2="340" y2="30" stroke="#334155" stroke-width="0.5"/>
+    <line x1="430" y1="0" x2="430" y2="30" stroke="#334155" stroke-width="0.5"/>
+    <line x1="480" y1="0" x2="480" y2="30" stroke="#334155" stroke-width="0.5"/>
 
-    <!-- GEOL layers -->
-    {% for layer in geol %}
-        {% set top = layer.GEOL_TOP | float %}
-        {% set base = layer.GEOL_BASE | float %}
-        {% set y_top = 30 + top * 15 %}
-        {% set h = (base - top) * 15 %}
-        <rect x="61" y="{{ y_top }}" width="78" height="{{ h }}"
-              fill="#d1d5db" stroke="#9ca3af" stroke-width="0.5" opacity="0.85">
-            <title>{{ layer.GEOL_DESC }} ({{ top }}–{{ base }} m)</title>
-        </rect>
-        {% if h > 14 %}
-            <text x="100" y="{{ y_top + 10 }}" font-size="9" text-anchor="middle"
-                  fill="#1f2937" style="pointer-events:none">{{ layer.GEOL_DESC | truncate(16) }}</text>
-        {% endif %}
-        <line x1="60" y1="{{ 30 + base * 15 }}" x2="140" y2="{{ 30 + base * 15 }}"
-              stroke="#6b7280" stroke-width="0.6" stroke-dasharray="2,2"/>
-    {% endfor %}
+    <!-- Log body offset by 30px for header -->
+    <g transform="translate(0,30)">
 
-    <!-- SAMP markers -->
-    {% for s in samp %}
-        {% set depth = s.SAMP_TOP | default(value="0") | float %}
-        <rect x="142" y="{{ 30 + depth * 15 - 4 }}" width="11" height="8"
-              fill="#3b82f6" stroke="#1d4ed8" stroke-width="0.5" rx="1">
-            <title>Sample {{ s.SAMP_REF }} ({{ s.SAMP_TYPE }}) at {{ depth }} m</title>
-        </rect>
-    {% endfor %}
+        <!-- Column backgrounds -->
+        <rect x="0"   y="0" width="50"  height="790" fill="#f8fafc"/>
+        <rect x="50"  y="0" width="90"  height="790" fill="#fafafa" stroke="#e2e8f0" stroke-width="0.5"/>
+        <rect x="140" y="0" width="200" height="790" fill="#fff"    stroke="#e2e8f0" stroke-width="0.5"/>
+        <rect x="340" y="0" width="90"  height="790" fill="#fafafa" stroke="#e2e8f0" stroke-width="0.5"/>
+        <rect x="430" y="0" width="50"  height="790" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.5"/>
+        <rect x="480" y="0" width="40"  height="790" fill="#f0f9ff" stroke="#e2e8f0" stroke-width="0.5"/>
 
-    <!-- ISPT SPT N bars -->
-    {% for test in ispt %}
-        {% set depth = test.ISPT_TOP | float %}
-        {% set nval = test.ISPT_NVAL | default(value="0") | float %}
-        {% set bar_w = [nval, 100] | min %}
-        {% set y_bar = 30 + depth * 15 - 4 %}
-        <rect x="160" y="{{ y_bar }}" width="{{ bar_w }}" height="7"
-              fill="#f97316" stroke="#c2410c" stroke-width="0.5" rx="1">
-            <title>SPT N={{ nval | int }} at {{ depth }} m</title>
-        </rect>
-        <text x="{{ 163 + bar_w }}" y="{{ y_bar + 6 }}" font-size="8" fill="#374151">{{ nval | int }}</text>
-    {% endfor %}
+        <!-- SPT grid lines at 15, 30, 45 -->
+        <line x1="363" y1="0" x2="363" y2="790" stroke="#e5e7eb" stroke-width="0.5"/>
+        <line x1="383" y1="0" x2="383" y2="790" stroke="#dde1e7" stroke-width="0.8"/>
+        <line x1="403" y1="0" x2="403" y2="790" stroke="#e5e7eb" stroke-width="0.5"/>
 
-    <!-- WSTK water strike markers -->
-    {% for ws in wstk %}
-        {% set depth = ws.WSTK_DPTH | float %}
-        {% set cy = 30 + depth * 15 %}
-        <polygon points="{{ 275 }},{{ cy - 6 }} {{ 281 }},{{ cy }} {{ 275 }},{{ cy + 6 }} {{ 269 }},{{ cy }}"
-                 fill="#06b6d4" stroke="#0891b2" stroke-width="0.5">
-            <title>Water strike at {{ depth }} m</title>
-        </polygon>
-    {% endfor %}
+        <!-- Depth axis line -->
+        <line x1="44" y1="0" x2="44" y2="790" stroke="#374151" stroke-width="1"/>
+
+        <!-- Depth ticks every 1m, labels every 5m, grid lines every 5m -->
+        {% for i in range(0, 54) %}
+            {% set y = i * 15 %}
+            {% if i % 5 == 0 %}
+                <text x="40" y="{{ y + 3 }}" font-size="9" text-anchor="end" fill="#374151" font-weight="600">{{ i }}</text>
+                <line x1="36" y1="{{ y }}" x2="44" y2="{{ y }}" stroke="#374151" stroke-width="1"/>
+                <line x1="50" y1="{{ y }}" x2="520" y2="{{ y }}" stroke="#dde1e7" stroke-width="0.5"/>
+            {% else %}
+                <line x1="40" y1="{{ y }}" x2="44" y2="{{ y }}" stroke="#9ca3af" stroke-width="0.5"/>
+            {% endif %}
+        {% endfor %}
+
+        <!-- GEOL layers with color and description -->
+        {% for layer in geol %}
+            {% set top  = layer.GEOL_TOP  | float %}
+            {% set base = layer.GEOL_BASE | float %}
+            {% set y_top = top  * 15 %}
+            {% set y_bot = base * 15 %}
+            {% set h = y_bot - y_top %}
+            {% set desc = layer.GEOL_DESC | default(value="") %}
+            {% set col = desc | geol_color %}
+
+            <!-- Lithology block -->
+            <rect x="51" y="{{ y_top }}" width="88" height="{{ h }}"
+                  fill="{{ col }}" stroke="#6b7280" stroke-width="0.5" opacity="0.9">
+                <title>{{ desc }} ({{ top }}–{{ base }} m)</title>
+            </rect>
+
+            <!-- Layer boundary dashed line -->
+            <line x1="50" y1="{{ y_bot }}" x2="430" y2="{{ y_bot }}"
+                  stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="3,2"/>
+
+            <!-- Description text -->
+            {% if h > 12 %}
+                <text x="144" y="{{ y_top + 11 }}" font-size="8.5" font-weight="700" fill="#1f2937">{{ desc | truncate(34) }}</text>
+            {% endif %}
+            {% if h > 24 %}
+                <text x="144" y="{{ y_top + 21 }}" font-size="8" fill="#374151">{{ layer.GEOL_GEOL | default(value="") | truncate(40) }}</text>
+            {% endif %}
+        {% endfor %}
+
+        <!-- ISPT SPT bars (0–60 scale mapped to 80px) -->
+        {% for test in ispt %}
+            {% set depth = test.ISPT_TOP | float %}
+            {% set nval  = test.ISPT_NVAL | default(value="0") | float %}
+            {% set bar_w = [nval, 60] | min %}
+            {% set bar_px = bar_w * 1.333 %}
+            {% set y_bar = depth * 15 - 4 %}
+            <rect x="340" y="{{ y_bar }}" width="{{ bar_px }}" height="8"
+                  fill="#f97316" stroke="#c2410c" stroke-width="0.5" rx="1" opacity="0.85">
+                <title>SPT N={{ nval | int }} at {{ depth }} m</title>
+            </rect>
+            {% if nval > 0 %}
+            <text x="{{ 342 + bar_px }}" y="{{ y_bar + 6 }}" font-size="7.5" fill="#374151">{{ nval | int }}</text>
+            {% endif %}
+        {% endfor %}
+
+        <!-- SAMP markers -->
+        {% for s in samp %}
+            {% set depth = s.SAMP_TOP | default(value="0") | float %}
+            {% set y_s   = depth * 15 - 4 %}
+            <rect x="433" y="{{ y_s }}" width="42" height="8"
+                  fill="#3b82f6" stroke="#1d4ed8" stroke-width="0.5" rx="1">
+                <title>Sample {{ s.SAMP_REF | default(value="") }} ({{ s.SAMP_TYPE | default(value="B") }}) at {{ depth }} m</title>
+            </rect>
+            <text x="454" y="{{ y_s + 6 }}" font-size="7" text-anchor="middle" fill="white" font-weight="700">{{ s.SAMP_TYPE | default(value="B") | truncate(2) }}</text>
+        {% endfor %}
+
+        <!-- WSTK water strike markers -->
+        {% for ws in wstk %}
+            {% set depth = ws.WSTK_DPTH | float %}
+            {% set cy = depth * 15 %}
+            <polygon points="500,{{ cy - 6 }} 506,{{ cy }} 500,{{ cy + 6 }} 494,{{ cy }}"
+                     fill="#0ea5e9" stroke="#0369a1" stroke-width="0.5">
+                <title>Water strike at {{ depth }} m</title>
+            </polygon>
+        {% endfor %}
+
+    </g>
 </svg>
