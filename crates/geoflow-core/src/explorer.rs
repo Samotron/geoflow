@@ -327,82 +327,16 @@ impl Explorer {
 
     /// Render the map & cross-section page.
     pub fn render_map(&self, file: &AgsFile) -> Result<String> {
-        let boreholes: Vec<serde_json::Value> = file
-            .group("LOCA")
-            .map(|g| {
-                g.rows
-                    .iter()
-                    .map(|r| {
-                        serde_json::json!({
-                            "id":          row_str(r, "LOCA_ID"),
-                            "easting":     row_num(r, "LOCA_NATE"),
-                            "northing":    row_num(r, "LOCA_NATN"),
-                            "ground_level":row_num(r, "LOCA_GL"),
-                            "final_depth": row_num(r, "LOCA_FDEP"),
-                            "loca_type":   row_str(r, "LOCA_TYPE"),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let geol: Vec<serde_json::Value> = file
-            .group("GEOL")
-            .map(|g| {
-                g.rows
-                    .iter()
-                    .map(|r| {
-                        serde_json::json!({
-                            "loca_id": row_str(r, "LOCA_ID"),
-                            "top":     row_num(r, "GEOL_TOP"),
-                            "base":    row_num(r, "GEOL_BASE"),
-                            "desc":    row_str(r, "GEOL_DESC"),
-                            "geol":    row_str(r, "GEOL_GEOL"),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let wstk: Vec<serde_json::Value> = file
-            .group("WSTK")
-            .map(|g| {
-                g.rows
-                    .iter()
-                    .map(|r| {
-                        serde_json::json!({
-                            "loca_id": row_str(r, "LOCA_ID"),
-                            "depth":   row_num(r, "WSTK_DPTH"),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let ispt: Vec<serde_json::Value> = file
-            .group("ISPT")
-            .map(|g| {
-                g.rows
-                    .iter()
-                    .map(|r| {
-                        serde_json::json!({
-                            "loca_id": row_str(r, "LOCA_ID"),
-                            "top":     row_num(r, "ISPT_TOP"),
-                            "nval":    row_num(r, "ISPT_NVAL"),
-                        })
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let map_data = crate::explorer_data::build_map_data(file);
 
         let tmpl = self.env.get_template("map")?;
         Ok(tmpl.render(context!(
             file          => file,
             page          => "map",
-            boreholes_json => serde_json::to_string(&boreholes)?,
-            geol_json      => serde_json::to_string(&geol)?,
-            wstk_json      => serde_json::to_string(&wstk)?,
-            ispt_json      => serde_json::to_string(&ispt)?,
+            boreholes_json => serde_json::to_string(&map_data.boreholes)?,
+            geol_json      => serde_json::to_string(&map_data.geol)?,
+            wstk_json      => serde_json::to_string(&map_data.wstk)?,
+            ispt_json      => serde_json::to_string(&map_data.ispt)?,
         ))?)
     }
 
@@ -442,27 +376,6 @@ impl Explorer {
         }
 
         Ok(pages)
-    }
-}
-
-fn row_str(row: &crate::model::AgsRow, key: &str) -> serde_json::Value {
-    match row.get(key) {
-        Some(crate::model::AgsValue::Text(s) | crate::model::AgsValue::Raw(s)) => {
-            serde_json::json!(s)
-        }
-        Some(crate::model::AgsValue::Number(n)) => serde_json::json!(n.to_string()),
-        _ => serde_json::Value::Null,
-    }
-}
-
-fn row_num(row: &crate::model::AgsRow, key: &str) -> serde_json::Value {
-    match row.get(key) {
-        Some(crate::model::AgsValue::Number(n)) => serde_json::json!(n),
-        Some(crate::model::AgsValue::Text(s) | crate::model::AgsValue::Raw(s)) => s
-            .parse::<f64>()
-            .map(|n| serde_json::json!(n))
-            .unwrap_or(serde_json::Value::Null),
-        _ => serde_json::Value::Null,
     }
 }
 

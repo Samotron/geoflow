@@ -1814,16 +1814,8 @@ fn cmd_explore(
     let parsed = geoflow_core::ags::parse_bytes(&bytes);
 
     if let Some(out_dir) = out {
-        let explorer = geoflow_core::explorer::Explorer::new();
-        let pages = explorer.render_all(&parsed.file)?;
-        for (rel_path, html) in pages {
-            let full_path = out_dir.join(rel_path);
-            if let Some(parent) = full_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(&full_path, html)?;
-        }
-        println!("exported static site to {}", out_dir.display());
+        export_web_explorer(path, &bytes, out_dir)?;
+        println!("exported web explorer to {}", out_dir.display());
     }
 
     if serve {
@@ -1838,6 +1830,56 @@ fn cmd_explore(
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+fn export_web_explorer(
+    source_path: &std::path::Path,
+    source_bytes: &[u8],
+    out_dir: &std::path::Path,
+) -> Result<()> {
+    copy_dir_recursive(std::path::Path::new("web"), out_dir)?;
+
+    let source_name = source_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file.ags");
+    let source_rel = std::path::Path::new("data").join(source_name);
+    let source_out = out_dir.join(&source_rel);
+    if let Some(parent) = source_out.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&source_out, source_bytes)
+        .with_context(|| format!("writing {}", source_out.display()))?;
+
+    let index_path = out_dir.join("index.html");
+    let index_html = std::fs::read_to_string(&index_path)
+        .with_context(|| format!("reading {}", index_path.display()))?;
+    let boot_script = format!(
+        "<script>window.__GEOFLOW_BOOT__ = {{ file: {}, sourceUrl: {} }};</script>\n<script type=\"module\">",
+        serde_json::to_string(source_name).unwrap_or_else(|_| "\"file.ags\"".into()),
+        serde_json::to_string(&source_rel.to_string_lossy())
+            .unwrap_or_else(|_| "\"data/file.ags\"".into()),
+    );
+    let index_html = index_html.replacen(r#"<script type="module">"#, &boot_script, 1);
+    std::fs::write(&index_path, index_html)
+        .with_context(|| format!("writing {}", index_path.display()))?;
+    Ok(())
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<()> {
+    std::fs::create_dir_all(dst).with_context(|| format!("creating {}", dst.display()))?;
+    for entry in std::fs::read_dir(src).with_context(|| format!("reading {}", src.display()))? {
+        let entry = entry?;
+        let path = entry.path();
+        let target = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&path, &target)?;
+        } else {
+            std::fs::copy(&path, &target)
+                .with_context(|| format!("copying {} to {}", path.display(), target.display()))?;
+        }
+    }
+    Ok(())
 }
 
 #[tokio::main]
@@ -1871,6 +1913,7 @@ export function validate_ags_with_rules(_b, y) { return apiPost('/api/validate-w
 export function fix_ags(_b)                    { return new TextEncoder().encode(apiGet('/api/fix')); }
 export function convert_to_diggs(_b)           { return apiGet('/api/diggs'); }
 export function list_locations(_b)             { return apiGet('/api/locations'); }
+export function get_map_data(_b)               { return apiGet('/api/map-data'); }
 export function render_borehole_svg(_b, id)    { return apiGet('/api/borehole-svg/' + encodeURIComponent(id)); }
 export function ags_info(_b)                   { return apiGet('/api/info'); }
 export function diff_ags(_a, _b)               { return '[]'; }
@@ -1958,27 +2001,31 @@ export function enhance_ags(_b)                { return apiGet('/api/enhance'); 
         .route(
             "/api/locations",
             get(|State(s): State<Arc<AppState>>| async move {
-                let locs: Vec<_> = s
-                    .file
-                    .group("LOCA")
-                    .map(|g| {
-                        g.rows
-                            .iter()
-                            .filter_map(|r| {
-                                let id = r.get("LOCA_ID")?.as_text()?.to_string();
-                                Some(serde_json::json!({
-                                    "id": id,
-                                    "depth":    r.get("LOCA_FDEP").and_then(|v| v.as_number()),
-                                    "easting":  r.get("LOCA_NATE").and_then(|v| v.as_number()),
-                                    "northing": r.get("LOCA_NATN").and_then(|v| v.as_number()),
-                                }))
-                            })
-                            .collect()
+                let locs: Vec<_> = geoflow_core::explorer_data::build_map_data(&s.file)
+                    .boreholes
+                    .into_iter()
+                    .filter_map(|b| {
+                        Some(serde_json::json!({
+                            "id": b.id?,
+                            "depth": b.final_depth,
+                            "easting": b.easting,
+                            "northing": b.northing,
+                        }))
                     })
-                    .unwrap_or_default();
+                    .collect();
                 (
                     [(header::CONTENT_TYPE, "application/json")],
                     serde_json::to_string(&locs).unwrap_or_default(),
+                )
+            }),
+        )
+        .route(
+            "/api/map-data",
+            get(|State(s): State<Arc<AppState>>| async move {
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&geoflow_core::explorer_data::build_map_data(&s.file))
+                        .unwrap_or_default(),
                 )
             }),
         )

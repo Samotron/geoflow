@@ -416,6 +416,59 @@
     .diff-modified  { background: #fef9c3; color: #a16207; }
     .diff-unchanged { background: #f1f5f9; color: var(--muted); }
     .diff-only { font-family: monospace; color: var(--muted); padding: 4px 0; display: block; }
+    .diff-toolbar { display: flex; justify-content: flex-end; margin: 0 0 12px; }
+    .diff-expander {
+      border: 0;
+      background: transparent;
+      color: var(--blue);
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .diff-section { padding: 12px 16px; border-top: 1px solid var(--border); }
+    .diff-section-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .diff-group-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+    .diff-group-body { padding: 0; }
+    .diff-row-list { display: grid; gap: 8px; }
+    .diff-row-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: #fcfdff; }
+    .diff-row-key { font-family: monospace; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+    .diff-field-list { display: grid; gap: 6px; }
+    .diff-field-change { font-size: 12px; line-height: 1.45; }
+    .diff-field-change code { font-size: 12px; }
+    .diff-field-before { color: #b91c1c; }
+    .diff-field-after { color: #15803d; }
+    .diff-preview { display: grid; gap: 4px; margin: 0; }
+    .diff-preview-line { font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; color: var(--muted); }
+    .diff-unified {
+      margin: 0;
+      padding: 12px 14px;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      overflow-x: auto;
+    }
+    .diff-line-file { color: #93c5fd; }
+    .diff-line-hunk { color: #fcd34d; }
+    .diff-line-add { color: #86efac; background: rgba(34, 197, 94, 0.12); display: block; margin: 0 -14px; padding: 0 14px; }
+    .diff-line-remove { color: #fca5a5; background: rgba(239, 68, 68, 0.14); display: block; margin: 0 -14px; padding: 0 14px; }
+    .diff-line-context { color: #cbd5e1; display: block; }
+    .diff-full-toggle { margin-bottom: 12px; }
+    .diff-details { border-top: 1px solid var(--border); }
+    .diff-details > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 16px;
+      font-family: monospace;
+      font-size: 13px;
+      font-weight: 700;
+      background: #f8fafc;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .diff-details > summary::-webkit-details-marker { display: none; }
 
     /* ── Empty state ── */
     .empty {
@@ -1070,7 +1123,7 @@ import { createRoot } from 'https://esm.sh/react-dom@18/client';
 import htm from 'https://esm.sh/htm@3';
 import init, {
   validate_ags, validate_ags_with_rules, fix_ags, convert_to_diggs, ags_info,
-  list_locations, render_borehole_svg, diff_ags, get_group_rows,
+  render_borehole_svg, diff_ags, get_group_rows, get_map_data,
   get_all_groups_data, get_all_groups_meta,
   parse_description, enhance_ags,
 } from './pkg/geoflow_wasm.js';
@@ -2038,6 +2091,14 @@ function DiffResult({ d }) {
   if (d.identical) return html`<div className="diff-identical" style=${s('margin-top:20px')}>✓ Files are identical</div>`;
   return html`
     <div className="diff-result">
+      ${d.full_unified_lines?.length ? html`
+        <details className="diff-group-row diff-full-toggle">
+          <summary className="diff-group-hdr">Full file unified diff</summary>
+          <div className="diff-section">
+            <${UnifiedDiffBlock} lines=${d.full_unified_lines} />
+          </div>
+        </details>
+      ` : null}
       ${d.only_in_a?.length ? html`
         <div className="diff-group-row">
           <div className="diff-group-hdr">Groups only in A</div>
@@ -2055,17 +2116,97 @@ function DiffResult({ d }) {
         </div>
       ` : null}
       ${(d.groups||[]).map(g => html`
-        <div key=${g.group} className="diff-group-row">
-          <div className="diff-group-hdr">
+        <details key=${g.group} className="diff-group-row diff-details">
+          <summary className="diff-group-hdr">
             <span>${g.group}</span>
-            ${g.rows_unchanged ? html`<span className="diff-badge diff-unchanged">${g.rows_unchanged} unchanged</span>` : null}
-            ${g.rows_added     ? html`<span className="diff-badge diff-added">+${g.rows_added} added</span>`           : null}
-            ${g.rows_removed   ? html`<span className="diff-badge diff-removed">−${g.rows_removed} removed</span>`      : null}
-            ${g.rows_modified  ? html`<span className="diff-badge diff-modified">~${g.rows_modified} modified</span>`   : null}
+            <span className="diff-group-summary">
+              ${g.rows_unchanged ? html`<span className="diff-badge diff-unchanged">${g.rows_unchanged} unchanged</span>` : null}
+              ${g.rows_added     ? html`<span className="diff-badge diff-added">+${g.rows_added} added</span>`           : null}
+              ${g.rows_removed   ? html`<span className="diff-badge diff-removed">−${g.rows_removed} removed</span>`      : null}
+              ${g.rows_modified  ? html`<span className="diff-badge diff-modified">~${g.rows_modified} modified</span>`   : null}
+            </span>
+          </summary>
+          <div className="diff-group-body">
+            ${g.changed_rows?.length ? html`
+              <div className="diff-section">
+                <div className="diff-section-title">Modified rows</div>
+                <div className="diff-row-list">
+                  ${g.changed_rows.map(row => html`
+                    <div key=${row.key} className="diff-row-card">
+                      <div className="diff-row-key">${row.key}</div>
+                      <div className="diff-field-list">
+                        ${row.changes.map(change => html`
+                          <div key=${change.heading} className="diff-field-change">
+                            <strong>${change.heading}</strong>
+                            <span className="diff-field-before"> − ${change.before}</span>
+                            <span className="diff-field-after"> + ${change.after}</span>
+                          </div>
+                        `)}
+                      </div>
+                    </div>
+                  `)}
+                </div>
+              </div>
+            ` : null}
+            ${g.added_rows?.length ? html`
+              <div className="diff-section">
+                <div className="diff-section-title">Added rows</div>
+                <div className="diff-row-list">
+                  ${g.added_rows.map(row => html`<${RowPreviewCard} row=${row} tone="added" />`)}
+                </div>
+              </div>
+            ` : null}
+            ${g.removed_rows?.length ? html`
+              <div className="diff-section">
+                <div className="diff-section-title">Removed rows</div>
+                <div className="diff-row-list">
+                  ${g.removed_rows.map(row => html`<${RowPreviewCard} row=${row} tone="removed" />`)}
+                </div>
+              </div>
+            ` : null}
+            ${g.unified_lines?.length ? html`
+              <div className="diff-section">
+                <div className="diff-section-title">Line diff</div>
+                <${UnifiedDiffBlock} lines=${g.unified_lines} />
+              </div>
+            ` : null}
           </div>
-        </div>
+        </details>
       `)}
     </div>
+  `;
+}
+
+function RowPreviewCard({ row, tone }) {
+  return html`
+    <div className="diff-row-card">
+      <div className="diff-row-key">
+        <span className=${`diff-badge ${tone === 'added' ? 'diff-added' : 'diff-removed'}`}>
+          ${tone === 'added' ? '+' : '−'}
+        </span>
+        ${' '}
+        ${row.key}
+      </div>
+      <pre className="diff-preview">
+        ${row.fields.map((line, idx) => html`<span key=${idx} className="diff-preview-line">${line}</span>`)}
+      </pre>
+    </div>
+  `;
+}
+
+function UnifiedDiffBlock({ lines }) {
+  return html`
+    <pre className="diff-unified">
+      ${lines.map((line, idx) => {
+        const cls =
+          line.kind === 'file' ? 'diff-line-file' :
+          line.kind === 'hunk' ? 'diff-line-hunk' :
+          line.kind === 'add' ? 'diff-line-add' :
+          line.kind === 'remove' ? 'diff-line-remove' :
+          'diff-line-context';
+        return html`<span key=${idx} className=${cls}>${line.text}${'\n'}</span>`;
+      })}
+    </pre>
   `;
 }
 
@@ -2464,12 +2605,12 @@ function buildSectionBoreholes(sectionA, sectionB, locations, geolByBH, locaById
     const { dist, perp } = projectOntoLine(loc.easting, loc.northing, x1, y1, x2, y2);
     if (perp > tolerance) continue;
     const loca = locaById[loc.id] ?? {};
-    const gl = typeof loca.LOCA_GL === 'number' ? loca.LOCA_GL : null;
+    const gl = typeof loca.ground_level === 'number' ? loca.ground_level : null;
     const layers = (geolByBH[loc.id] ?? [])
       .map(r => ({
-        top:  +(r.GEOL_TOP  ?? 0),
-        base: +(r.GEOL_BASE ?? 0),
-        desc: String(r.GEOL_DESC ?? r.GEOL_GEOL ?? ''),
+        top:  +(r.top  ?? 0),
+        base: +(r.base ?? 0),
+        desc: String(r.desc ?? r.geol ?? ''),
       }))
       .filter(r => Number.isFinite(r.top) && Number.isFinite(r.base) && r.base > r.top)
       .sort((a, b) => a.top - b.top);
@@ -2931,36 +3072,28 @@ function EnhanceTab({ fileBytes, wasmReady }) {
 }
 
 // ── MapTab ────────────────────────────────────────────────────────────────────
-function MapTab({ locations, fileBytes, wasmReady, fileInfo }) {
-  const [geolRows, setGeolRows] = useState([]);
-  const [locaRows, setLocaRows] = useState([]);
+function MapTab({ locations, mapData, fileBytes, wasmReady, fileInfo }) {
   const [sectionA, setSectionA] = useState(null);
   const [sectionB, setSectionB] = useState(null);
   const [drawStep, setDrawStep] = useState(0); // 0=idle, 1=place-A, 2=place-B
   const [tolerance, setTolerance] = useState(200);
 
-  useEffect(() => {
-    if (!fileBytes || !wasmReady) return;
-    try { setGeolRows(JSON.parse(get_group_rows(fileBytes, 'GEOL'))); } catch(_) { setGeolRows([]); }
-    try { setLocaRows(JSON.parse(get_group_rows(fileBytes, 'LOCA'))); } catch(_) { setLocaRows([]); }
-  }, [fileBytes, wasmReady]);
-
   const geolByBH = useMemo(() => {
     const m = {};
-    for (const r of geolRows) {
-      const id = r.LOCA_ID;
+    for (const r of (mapData?.geol ?? [])) {
+      const id = r.loca_id;
       if (!id) continue;
       if (!m[id]) m[id] = [];
       m[id].push(r);
     }
     return m;
-  }, [geolRows]);
+  }, [mapData]);
 
   const locaById = useMemo(() => {
     const m = {};
-    for (const r of locaRows) { if (r.LOCA_ID) m[r.LOCA_ID] = r; }
+    for (const r of (mapData?.boreholes ?? [])) { if (r.id) m[r.id] = r; }
     return m;
-  }, [locaRows]);
+  }, [mapData]);
 
   const sectionBoreholes = useMemo(() => {
     if (!sectionA || !sectionB) return [];
@@ -3042,7 +3175,7 @@ function MapTab({ locations, fileBytes, wasmReady, fileInfo }) {
             Cross Section A–B
             <span className="xsec-meta">
               ${sectionLength.toFixed(0)} m · ${sectionBoreholes.length} boreholes
-              ${geolRows.length === 0 ? ' · No GEOL data in file' : ''}
+              ${(mapData?.geol?.length ?? 0) === 0 ? ' · No GEOL data in file' : ''}
             </span>
           </div>
           ${sectionBoreholes.length === 0 ? html`
@@ -3079,10 +3212,35 @@ function App() {
   const [fileInfo, setFileInfo]           = useState(null);
   const [diagnostics, setDiagnostics]     = useState(null);
   const [locations, setLocations]         = useState([]);
+  const [mapData, setMapData]             = useState(null);
   const [allGroupData, setAllGroupData]   = useState(null);
   const [allGroupsMeta, setAllGroupsMeta] = useState(null);
   const [status, setStatus]               = useState({ msg: 'Loading WebAssembly engine…', type: 'loading' });
   const [tab, setTab]                     = useState('upload');
+
+  const applyLoadedBytes = useCallback((bytes, meta = {}) => {
+    setFileBytes(bytes);
+    setFileName(meta.fileName ?? '');
+    setFileSize(meta.fileSize ?? bytes.length ?? 0);
+    setDiagnostics(null);
+    try {
+      const info = JSON.parse(ags_info(bytes));
+      setFileInfo(info);
+    } catch(_) {}
+    try {
+      const data = JSON.parse(get_map_data(bytes));
+      setMapData(data);
+      setLocations((data?.boreholes ?? [])
+        .filter(b => b.id)
+        .map(b => ({ id: b.id, depth: b.final_depth, easting: b.easting, northing: b.northing })));
+    } catch(_) {}
+    try {
+      setAllGroupData(JSON.parse(get_all_groups_data(bytes)));
+    } catch(_) {}
+    try {
+      setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes)));
+    } catch(_) {}
+  }, []);
 
   useEffect(() => {
     init()
@@ -3096,46 +3254,48 @@ function App() {
     if (!wasmReady || !window.__GEOFLOW_CLI__) return;
     const cli = window.__GEOFLOW_CLI__;
     const bytes = new Uint8Array(0);
-    try { setFileInfo(JSON.parse(ags_info(bytes))); } catch(_) {}
-    try { setLocations(JSON.parse(list_locations(bytes)) || []); } catch(_) {}
-    try { setAllGroupData(JSON.parse(get_all_groups_data(bytes))); } catch(_) {}
-    try { setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes))); } catch(_) {}
-    setFileName(cli.file);
-    setFileSize(0);
-    setFileBytes(bytes);
+    applyLoadedBytes(bytes, { fileName: cli.file, fileSize: 0 });
     setStatus({ msg: `Loaded from CLI: ${cli.file}`, type: '' });
     setTab('data');
-  }, [wasmReady]);
+  }, [wasmReady, applyLoadedBytes]);
+
+  useEffect(() => {
+    if (!wasmReady || window.__GEOFLOW_CLI__ || !window.__GEOFLOW_BOOT__?.sourceUrl) return;
+    const boot = window.__GEOFLOW_BOOT__;
+    fetch(boot.sourceUrl)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then(buf => {
+        const bytes = new Uint8Array(buf);
+        applyLoadedBytes(bytes, {
+          fileName: boot.file ?? boot.sourceUrl.split('/').pop() ?? 'file.ags',
+          fileSize: bytes.length,
+        });
+        setStatus({ msg: `Loaded exported file: ${boot.file ?? 'file.ags'}`, type: '' });
+        setTab('data');
+      })
+      .catch(e => {
+        setStatus({ msg: 'Failed to load exported file: ' + e.message, type: 'error' });
+      });
+  }, [wasmReady, applyLoadedBytes]);
 
   const handleFile = useCallback(file => {
-    setFileName(file.name);
-    setFileSize(file.size);
     setDiagnostics(null);
     setLocations([]);
+    setMapData(null);
     setFileInfo(null);
     const r = new FileReader();
     r.onload = e => {
       const bytes = new Uint8Array(e.target.result);
-      setFileBytes(bytes);
       if (wasmReady) {
-        try {
-          const info = JSON.parse(ags_info(bytes));
-          setFileInfo(info);
-        } catch(_) {}
-        try {
-          setLocations(JSON.parse(list_locations(bytes)) || []);
-        } catch(_) {}
-        try {
-          setAllGroupData(JSON.parse(get_all_groups_data(bytes)));
-        } catch(_) {}
-        try {
-          setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes)));
-        } catch(_) {}
+        applyLoadedBytes(bytes, { fileName: file.name, fileSize: file.size });
       }
       setStatus({ msg: 'File loaded. Click Validate to check for issues.', type: '' });
     };
     r.readAsArrayBuffer(file);
-  }, [wasmReady]);
+  }, [wasmReady, applyLoadedBytes]);
 
   const handleValidate = useCallback(() => {
     if (!fileBytes || !wasmReady) return;
@@ -3191,7 +3351,11 @@ function App() {
           <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
         </svg>
         <h1>GeoFlow</h1>
-        <span className="hdr-sub">${window.__GEOFLOW_CLI__ ? `CLI Explorer — ${window.__GEOFLOW_CLI__.file}` : 'AGS 4.x Validator & Converter — runs entirely in your browser'}</span>
+        <span className="hdr-sub">${window.__GEOFLOW_CLI__
+          ? `CLI Explorer — ${window.__GEOFLOW_CLI__.file}`
+          : window.__GEOFLOW_BOOT__?.file
+          ? `Explorer — ${window.__GEOFLOW_BOOT__.file}`
+          : 'AGS 4.x Validator & Converter — runs entirely in your browser'}</span>
       </header>
 
       <main>
@@ -3229,7 +3393,7 @@ function App() {
         ${tab === 'map' && html`
           <${MapTab}
             locations=${locations} fileBytes=${fileBytes}
-            wasmReady=${wasmReady} fileInfo=${fileInfo}
+            wasmReady=${wasmReady} fileInfo=${fileInfo} mapData=${mapData}
           />
         `}
         ${tab === 'logs' && html`

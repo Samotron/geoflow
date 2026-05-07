@@ -1,5 +1,6 @@
 //! AGS file diff: compare two [`AgsFile`]s and report group/row differences.
 
+use crate::ags;
 use crate::model::{AgsFile, AgsRow, AgsValue};
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -66,6 +67,12 @@ pub struct FieldChange {
     pub after: String,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LineDiffLine {
+    pub kind: String,
+    pub text: String,
+}
+
 #[derive(Debug)]
 pub struct RowChange {
     /// Human-readable key identifying the row (e.g. `"BH-01 / 2.50"`).
@@ -76,6 +83,7 @@ pub struct RowChange {
 #[derive(Debug)]
 pub struct GroupDiff {
     pub group: String,
+    pub key_headings: Vec<String>,
     pub rows_added: Vec<AgsRow>,
     pub rows_removed: Vec<AgsRow>,
     pub rows_changed: Vec<RowChange>,
@@ -172,6 +180,7 @@ fn diff_group(group_name: &str, rows_a: &[AgsRow], rows_b: &[AgsRow]) -> GroupDi
 
     GroupDiff {
         group: group_name.to_string(),
+        key_headings: key_headings.iter().map(|s| (*s).to_string()).collect(),
         rows_added,
         rows_removed,
         rows_changed,
@@ -207,6 +216,7 @@ fn diff_positional(group_name: &str, rows_a: &[AgsRow], rows_b: &[AgsRow]) -> Gr
 
     GroupDiff {
         group: group_name.to_string(),
+        key_headings: Vec::new(),
         rows_added,
         rows_removed,
         rows_changed,
@@ -329,6 +339,50 @@ pub struct GroupSummary {
     pub rows_unchanged: usize,
 }
 
+#[derive(serde::Serialize)]
+pub struct FieldChangeDetail {
+    pub heading: String,
+    pub before: String,
+    pub after: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct RowPreview {
+    pub key: String,
+    pub fields: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct RowChangeDetail {
+    pub key: String,
+    pub changes: Vec<FieldChangeDetail>,
+}
+
+#[derive(serde::Serialize)]
+pub struct GroupDetail {
+    pub group: String,
+    pub key_headings: Vec<String>,
+    pub rows_added: usize,
+    pub rows_removed: usize,
+    pub rows_modified: usize,
+    pub rows_unchanged: usize,
+    pub added_rows: Vec<RowPreview>,
+    pub removed_rows: Vec<RowPreview>,
+    pub changed_rows: Vec<RowChangeDetail>,
+    pub unified_diff: String,
+    pub unified_lines: Vec<LineDiffLine>,
+}
+
+#[derive(serde::Serialize)]
+pub struct DetailedDiffSummary {
+    pub identical: bool,
+    pub only_in_a: Vec<String>,
+    pub only_in_b: Vec<String>,
+    pub groups: Vec<GroupDetail>,
+    pub full_unified_diff: String,
+    pub full_unified_lines: Vec<LineDiffLine>,
+}
+
 impl DiffResult {
     pub fn to_summary(&self) -> DiffSummary {
         DiffSummary {
@@ -348,5 +402,254 @@ impl DiffResult {
                 })
                 .collect(),
         }
+    }
+
+    pub fn to_detailed_summary(&self, file_a: &AgsFile, file_b: &AgsFile) -> DetailedDiffSummary {
+        DetailedDiffSummary {
+            identical: self.is_identical(),
+            only_in_a: self.only_in_a.clone(),
+            only_in_b: self.only_in_b.clone(),
+            groups: self
+                .group_diffs
+                .iter()
+                .filter(|g| !g.is_identical())
+                .map(|g| {
+                    let before = render_group(file_a, &g.group);
+                    let after = render_group(file_b, &g.group);
+                    let unified_diff = render_unified_diff(
+                        &format!("{}.ags", g.group.to_lowercase()),
+                        &before,
+                        &after,
+                    );
+                    GroupDetail {
+                        group: g.group.clone(),
+                        key_headings: g.key_headings.clone(),
+                        rows_added: g.rows_added.len(),
+                        rows_removed: g.rows_removed.len(),
+                        rows_modified: g.rows_changed.len(),
+                        rows_unchanged: g.rows_unchanged,
+                        added_rows: g
+                            .rows_added
+                            .iter()
+                            .map(|row| RowPreview {
+                                key: row_identity(row, &g.key_headings),
+                                fields: row_preview_fields(row, 6),
+                            })
+                            .collect(),
+                        removed_rows: g
+                            .rows_removed
+                            .iter()
+                            .map(|row| RowPreview {
+                                key: row_identity(row, &g.key_headings),
+                                fields: row_preview_fields(row, 6),
+                            })
+                            .collect(),
+                        changed_rows: g
+                            .rows_changed
+                            .iter()
+                            .map(|change| RowChangeDetail {
+                                key: change.key.clone(),
+                                changes: change
+                                    .changes
+                                    .iter()
+                                    .map(|fc| FieldChangeDetail {
+                                        heading: fc.heading.clone(),
+                                        before: fc.before.clone(),
+                                        after: fc.after.clone(),
+                                    })
+                                    .collect(),
+                            })
+                            .collect(),
+                        unified_lines: parse_unified_lines(&unified_diff),
+                        unified_diff,
+                    }
+                })
+                .collect(),
+            full_unified_diff: {
+                let before = ags::serialize(file_a);
+                let after = ags::serialize(file_b);
+                render_unified_diff("full-file.ags", &before, &after)
+            },
+            full_unified_lines: {
+                let before = ags::serialize(file_a);
+                let after = ags::serialize(file_b);
+                parse_unified_lines(&render_unified_diff("full-file.ags", &before, &after))
+            },
+        }
+    }
+}
+
+fn row_identity(row: &AgsRow, key_headings: &[String]) -> String {
+    if !key_headings.is_empty() {
+        let parts: Vec<String> = key_headings
+            .iter()
+            .filter_map(|heading| row.get(heading).map(value_display))
+            .collect();
+        if parts.len() == key_headings.len() && !parts.is_empty() {
+            return parts.join(" / ");
+        }
+    }
+    row_preview(row, 80)
+}
+
+fn row_preview_fields(row: &AgsRow, max_fields: usize) -> Vec<String> {
+    row.iter()
+        .take(max_fields)
+        .map(|(k, v)| format!("{k}={}", value_display(v)))
+        .collect()
+}
+
+fn render_group(file: &AgsFile, group_name: &str) -> String {
+    let mut out = String::new();
+    if let Some(group) = file.group(group_name) {
+        let mut subfile = AgsFile::default();
+        subfile.ags_version = file.ags_version.clone();
+        subfile.groups.insert(group_name.to_string(), group.clone());
+        out = ags::serialize(&subfile);
+    }
+    out
+}
+
+fn parse_unified_lines(diff: &str) -> Vec<LineDiffLine> {
+    diff.lines()
+        .map(|line| {
+            let kind = if line.starts_with("---") || line.starts_with("+++") {
+                "file"
+            } else if line.starts_with("@@") {
+                "hunk"
+            } else if line.starts_with('+') {
+                "add"
+            } else if line.starts_with('-') {
+                "remove"
+            } else {
+                "context"
+            };
+            LineDiffLine {
+                kind: kind.to_string(),
+                text: line.to_string(),
+            }
+        })
+        .collect()
+}
+
+fn render_unified_diff(path: &str, before: &str, after: &str) -> String {
+    let before_lines: Vec<&str> = before.lines().collect();
+    let after_lines: Vec<&str> = after.lines().collect();
+    let ops = diff_ops(&before_lines, &after_lines);
+
+    let mut out = String::new();
+    out.push_str(&format!("--- a/{path}\n"));
+    out.push_str(&format!("+++ b/{path}\n"));
+
+    if ops.is_empty() {
+        out.push_str("@@ -0,0 +0,0 @@\n");
+        return out;
+    }
+
+    let mut idx = 0usize;
+    let mut old_line = 1usize;
+    let mut new_line = 1usize;
+
+    while idx < ops.len() {
+        let chunk_start = idx;
+        let mut old_count = 0usize;
+        let mut new_count = 0usize;
+        while idx < ops.len() {
+            match ops[idx].0 {
+                ' ' => {
+                    old_count += 1;
+                    new_count += 1;
+                }
+                '-' => old_count += 1,
+                '+' => new_count += 1,
+                _ => {}
+            }
+            idx += 1;
+        }
+        out.push_str(&format!(
+            "@@ -{},{} +{},{} @@\n",
+            old_line, old_count, new_line, new_count
+        ));
+        for (kind, line) in &ops[chunk_start..idx] {
+            out.push(*kind);
+            out.push_str(line);
+            out.push('\n');
+        }
+        old_line += old_count;
+        new_line += new_count;
+    }
+
+    out
+}
+
+fn diff_ops<'a>(before: &[&'a str], after: &[&'a str]) -> Vec<(char, &'a str)> {
+    let n = before.len();
+    let m = after.len();
+    let mut lcs = vec![vec![0usize; m + 1]; n + 1];
+
+    for i in (0..n).rev() {
+        for j in (0..m).rev() {
+            lcs[i][j] = if before[i] == after[j] {
+                lcs[i + 1][j + 1] + 1
+            } else {
+                lcs[i + 1][j].max(lcs[i][j + 1])
+            };
+        }
+    }
+
+    let mut i = 0usize;
+    let mut j = 0usize;
+    let mut ops = Vec::new();
+    while i < n && j < m {
+        if before[i] == after[j] {
+            ops.push((' ', before[i]));
+            i += 1;
+            j += 1;
+        } else if lcs[i + 1][j] >= lcs[i][j + 1] {
+            ops.push(('-', before[i]));
+            i += 1;
+        } else {
+            ops.push(('+', after[j]));
+            j += 1;
+        }
+    }
+    while i < n {
+        ops.push(('-', before[i]));
+        i += 1;
+    }
+    while j < m {
+        ops.push(('+', after[j]));
+        j += 1;
+    }
+    ops
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ags::parse_str;
+
+    #[test]
+    fn detailed_summary_includes_group_and_full_unified_diffs() {
+        let a = parse_str(
+            "\"GROUP\",\"LOCA\"\n\"HEADING\",\"LOCA_ID\",\"LOCA_TYPE\"\n\"UNIT\",\"\",\"\"\n\"TYPE\",\"ID\",\"X\"\n\"DATA\",\"BH1\",\"BH\"\n",
+        )
+        .file;
+        let b = parse_str(
+            "\"GROUP\",\"LOCA\"\n\"HEADING\",\"LOCA_ID\",\"LOCA_TYPE\"\n\"UNIT\",\"\",\"\"\n\"TYPE\",\"ID\",\"X\"\n\"DATA\",\"BH1\",\"TP\"\n",
+        )
+        .file;
+
+        let summary = diff(&a, &b).to_detailed_summary(&a, &b);
+        assert!(!summary.identical);
+        assert_eq!(summary.groups.len(), 1);
+        assert!(summary.groups[0].unified_diff.contains("@@"));
+        assert!(summary.groups[0]
+            .unified_diff
+            .contains("-\"DATA\",\"BH1\",\"BH\""));
+        assert!(summary.groups[0]
+            .unified_diff
+            .contains("+\"DATA\",\"BH1\",\"TP\""));
+        assert!(summary.full_unified_diff.contains("--- a/full-file.ags"));
     }
 }
