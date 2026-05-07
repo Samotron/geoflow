@@ -234,6 +234,19 @@ enum RulesAction {
 }
 
 fn main() -> ExitCode {
+    // No arguments + not running in a terminal = launched by double-click / file
+    // manager. Open the embedded GUI instead of printing help and exiting.
+    #[cfg(feature = "gui")]
+    if std::env::args_os().len() == 1 && !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        return match geoflow_desktop::run(None) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("GUI error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
     let cli = Cli::parse();
     init_tracing(cli.quiet, cli.verbose);
 
