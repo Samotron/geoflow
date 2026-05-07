@@ -234,6 +234,19 @@ enum RulesAction {
 }
 
 fn main() -> ExitCode {
+    // No arguments + not running in a terminal = launched by double-click / file
+    // manager. Open the embedded GUI instead of printing help and exiting.
+    #[cfg(feature = "gui")]
+    if std::env::args_os().len() == 1 && !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        return match geoflow_desktop::run(None) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("GUI error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
     let cli = Cli::parse();
     init_tracing(cli.quiet, cli.verbose);
 
@@ -596,37 +609,46 @@ fn cmd_fix(
 // ── gui ───────────────────────────────────────────────────────────────────────
 
 fn cmd_gui(file: Option<&std::path::Path>) -> Result<ExitCode> {
-    let exe_name = if cfg!(windows) {
-        "geoflow-desktop.exe"
-    } else {
-        "geoflow-desktop"
-    };
-
-    // Search next to the current executable first, then fall back to PATH.
-    let candidate = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.join(exe_name)))
-        .filter(|p| p.exists());
-
-    let desktop = candidate.unwrap_or_else(|| std::path::PathBuf::from(exe_name));
-
-    let mut cmd = std::process::Command::new(&desktop);
-    if let Some(f) = file {
-        cmd.arg(f);
+    #[cfg(feature = "gui")]
+    {
+        geoflow_desktop::run(file.map(|p| p.to_path_buf()))
+            .map_err(|e| anyhow::anyhow!("GUI error: {e}"))?;
+        Ok(ExitCode::SUCCESS)
     }
 
-    let status = cmd.status().with_context(|| {
-        format!(
-            "launching {}; install geoflow-desktop and make sure it is on PATH",
-            desktop.display()
-        )
-    })?;
+    #[cfg(not(feature = "gui"))]
+    {
+        let exe_name = if cfg!(windows) {
+            "geoflow-desktop.exe"
+        } else {
+            "geoflow-desktop"
+        };
 
-    Ok(if status.success() {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::from(status.code().map(|c| c as u8).unwrap_or(1))
-    })
+        let candidate = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join(exe_name)))
+            .filter(|p| p.exists());
+
+        let desktop = candidate.unwrap_or_else(|| std::path::PathBuf::from(exe_name));
+
+        let mut cmd = std::process::Command::new(&desktop);
+        if let Some(f) = file {
+            cmd.arg(f);
+        }
+
+        let status = cmd.status().with_context(|| {
+            format!(
+                "launching {}; install geoflow-desktop and make sure it is on PATH",
+                desktop.display()
+            )
+        })?;
+
+        Ok(if status.success() {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::from(status.code().map(|c| c as u8).unwrap_or(1))
+        })
+    }
 }
 
 // ── upgrade ───────────────────────────────────────────────────────────────────

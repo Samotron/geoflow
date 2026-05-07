@@ -13,6 +13,10 @@ description = "Desktop GUI for the GeoFlow geotechnical data toolkit."
 name = "geoflow-desktop"
 path = "src/main.rs"
 
+[lib]
+name = "geoflow_desktop"
+path = "src/lib.rs"
+
 [dependencies]
 geoflow-core = { path = "../geoflow-core", version = "2026.506.0" }
 anyhow.workspace = true
