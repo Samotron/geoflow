@@ -3090,6 +3090,23 @@ function App() {
       .catch(e  => { setStatus({ msg: 'Failed to load WebAssembly engine: ' + e.message, type: 'error' }); });
   }, []);
 
+  // When running under `geoflow explore --serve`, auto-load the server's file.
+  // The WASM shim ignores bytes and proxies calls to the local JSON API.
+  useEffect(() => {
+    if (!wasmReady || !window.__GEOFLOW_CLI__) return;
+    const cli = window.__GEOFLOW_CLI__;
+    const bytes = new Uint8Array(0);
+    try { setFileInfo(JSON.parse(ags_info(bytes))); } catch(_) {}
+    try { setLocations(JSON.parse(list_locations(bytes)) || []); } catch(_) {}
+    try { setAllGroupData(JSON.parse(get_all_groups_data(bytes))); } catch(_) {}
+    try { setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes))); } catch(_) {}
+    setFileName(cli.file);
+    setFileSize(0);
+    setFileBytes(bytes);
+    setStatus({ msg: `Loaded from CLI: ${cli.file}`, type: '' });
+    setTab('data');
+  }, [wasmReady]);
+
   const handleFile = useCallback(file => {
     setFileName(file.name);
     setFileSize(file.size);
@@ -3174,7 +3191,7 @@ function App() {
           <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
         </svg>
         <h1>GeoFlow</h1>
-        <span className="hdr-sub">AGS 4.x Validator &amp; Converter — runs entirely in your browser</span>
+        <span className="hdr-sub">${window.__GEOFLOW_CLI__ ? `CLI Explorer — ${window.__GEOFLOW_CLI__.file}` : 'AGS 4.x Validator & Converter — runs entirely in your browser'}</span>
       </header>
 
       <main>
