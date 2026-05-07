@@ -18,16 +18,18 @@ impl Default for Explorer {
 impl Explorer {
     pub fn new() -> Self {
         let mut env = Environment::new();
-        env.add_filter("truncate", |s: &str, max: usize| -> String {
+        env.add_filter("truncate", |val: minijinja::Value, max: usize| -> String {
+            let s = val.to_string();
             if s.chars().count() <= max {
-                s.to_string()
+                s
             } else {
                 let truncated: String = s.chars().take(max.saturating_sub(1)).collect();
                 format!("{truncated}…")
             }
         });
-        env.add_filter("geol_color", |desc: &str| -> &'static str {
-            let u = desc.to_uppercase();
+        env.add_filter("geol_color", |val: minijinja::Value| -> &'static str {
+            let s = val.to_string();
+            let u = s.to_uppercase();
             if u.contains("MADE GROUND") || u.contains("FILL") || u.contains("HARDCORE") {
                 "#A0785A"
             } else if u.contains("TOPSOIL") || u.contains("TOP SOIL") {
