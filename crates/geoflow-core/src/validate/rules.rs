@@ -658,17 +658,29 @@ mod heading_fmt {
             for (group_name, group) in &file.groups {
                 for heading in &group.headings {
                     if !is_valid_heading_name(&heading.name) {
-                        diagnostics.push(
-                            Diagnostic::new(
-                                "AGS-HEAD-004",
-                                Severity::Warning,
-                                format!(
-                                    "{group_name}: heading {:?} does not follow AGS naming convention (≤9 uppercase alphanumeric/underscore chars)",
-                                    heading.name
-                                ),
-                            )
-                            .at_group(group_name),
-                        );
+                        let fix =
+                            if heading.name.to_ascii_uppercase().len() <= 9
+                                && heading.name.to_ascii_uppercase().chars().all(|c| {
+                                    c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'
+                                })
+                            {
+                                Some("uppercase-heading-names")
+                            } else {
+                                None
+                            };
+                        let mut d = Diagnostic::new(
+                            "AGS-HEAD-004",
+                            Severity::Warning,
+                            format!(
+                                "{group_name}: heading {:?} does not follow AGS naming convention (≤9 uppercase alphanumeric/underscore chars)",
+                                heading.name
+                            ),
+                        )
+                        .at_group(group_name);
+                        if let Some(f) = fix {
+                            d = d.with_fix(f);
+                        }
+                        diagnostics.push(d);
                     }
                 }
             }

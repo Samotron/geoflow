@@ -76,6 +76,9 @@ enum Command {
         /// Custom rule packs (YAML) or built-in references like ice:mini@0.1.
         #[arg(short, long)]
         rules: Vec<String>,
+        /// Write a structured JSON change log to this path.
+        #[arg(long)]
+        diff_file: Option<PathBuf>,
     },
     /// Convert geotechnical data between formats (AGS/DIGGS/GeoJSON/KML).
     Convert {
@@ -335,7 +338,8 @@ fn main() -> ExitCode {
             write,
             dry_run,
             rules,
-        } => cmd_fix(&file, write, dry_run, &rules),
+            diff_file,
+        } => cmd_fix(&file, write, dry_run, &rules, diff_file.as_deref()),
         Command::Convert {
             input,
             output,
@@ -661,6 +665,7 @@ fn cmd_fix(
     write: bool,
     _dry_run: bool,
     rule_specs: &[String],
+    diff_file: Option<&std::path::Path>,
 ) -> Result<ExitCode> {
     let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     let original_text = ags::decode_bytes(&bytes);
@@ -673,7 +678,8 @@ fn cmd_fix(
     applied.extend(inspection.findings.iter().map(|s| s.to_string()));
 
     let fixer = geoflow_core::fix::Fixer::standard();
-    for name in fixer.apply_all(&mut file) {
+    let (fix_names, mut fix_log) = fixer.apply_all_logged(&mut file);
+    for name in fix_names {
         applied.push(name.to_string());
     }
 
@@ -688,6 +694,26 @@ fn cmd_fix(
     let out_text = ags::serialize(&file);
     if out_text != original_text && applied.is_empty() {
         applied.push("canonicalize-ags-format".to_string());
+    }
+
+    // Write structured JSON log if requested.
+    if let Some(log_path) = diff_file {
+        // Add text-level findings as synthetic log entries.
+        for finding in &inspection.findings {
+            fix_log.changes.push(geoflow_core::fix::FixChange {
+                fix: finding.to_string(),
+                group: String::new(),
+                row_index: None,
+                heading: None,
+                before: String::new(),
+                after: "(text-level normalisation)".into(),
+                kind: geoflow_core::fix::FixChangeKind::CellValue,
+            });
+        }
+        let json = serde_json::to_string_pretty(&fix_log).context("serializing fix log")?;
+        std::fs::write(log_path, json)
+            .with_context(|| format!("writing diff file {}", log_path.display()))?;
+        println!("fix log written to {}", log_path.display());
     }
 
     if applied.is_empty() {

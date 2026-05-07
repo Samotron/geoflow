@@ -80,6 +80,8 @@ impl Explorer {
             .unwrap();
         env.add_template("certificate", include_str!("explorer/certificate.html"))
             .unwrap();
+        env.add_template("fix_log", include_str!("explorer/fix_log.html"))
+            .unwrap();
         Self { env }
     }
 
@@ -238,6 +240,27 @@ impl Explorer {
             active_pack_refs => active_pack_refs,
             custom_yaml => custom_yaml.unwrap_or(""),
             is_serve => is_serve,
+        ))?;
+        Ok(html)
+    }
+
+    /// Render the fix-log page showing every change made by [`crate::fix::Fixer`].
+    pub fn render_fix_log(&self, log: &crate::fix::FixLog) -> Result<String> {
+        let applied_fixes = log.applied_fixes();
+        let groups_affected: Vec<String> = log
+            .changes
+            .iter()
+            .map(|c| c.group.clone())
+            .filter(|g| !g.is_empty())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+
+        let tmpl = self.env.get_template("fix_log")?;
+        let html = tmpl.render(context!(
+            log => log.changes,
+            applied_fixes => applied_fixes,
+            groups_affected => groups_affected,
         ))?;
         Ok(html)
     }
