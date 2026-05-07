@@ -774,6 +774,99 @@
       display: block;
     }
     .proj-map-svg.drawing { cursor: crosshair; }
+    .leaflet-map-host {
+      width: 100%;
+      height: 520px;
+      border-top: 1px solid var(--border);
+    }
+    .leaflet-map-host.drawing {
+      cursor: crosshair;
+    }
+    .map-meta-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .map-meta-row strong { color: var(--text); }
+    .map-legend-inline {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-left: auto;
+    }
+    .map-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .map-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid rgba(0,0,0,.2);
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .map-swatch.circle { border-radius: 50%; }
+    .three-wrap {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .three-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #334155;
+      background: #111827;
+      color: #e2e8f0;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .three-head .meta {
+      margin-left: auto;
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+    .three-body {
+      height: 420px;
+      position: relative;
+      background: #020617;
+    }
+    .three-canvas {
+      position: absolute;
+      inset: 0;
+    }
+    .three-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      color: #94a3b8;
+      font-size: 13px;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .three-note {
+      padding: 10px 16px;
+      border-top: 1px solid #334155;
+      background: #111827;
+      color: #94a3b8;
+      font-size: 12px;
+    }
 
     /* ── Cross Section ── */
     .xsec-wrap {
@@ -1117,6 +1210,17 @@
   };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js" crossorigin=""></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
 <script type="module">
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'https://esm.sh/react@18';
 import { createRoot } from 'https://esm.sh/react-dom@18/client';
@@ -2582,6 +2686,41 @@ function geolLabel(desc) {
   return d || 'Unknown';
 }
 
+if (window.proj4) {
+  window.proj4.defs('EPSG:27700',
+    '+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 ' +
+    '+x_0=400000 +y_0=-100000 +ellps=airy ' +
+    '+towgs84=446.448,-125.157,542.06,0.15,0.247,0.842,-20.489 ' +
+    '+units=m +no_defs');
+}
+
+function detectMapCrs(boreholes) {
+  const pts = boreholes.filter(b => b.easting != null && b.northing != null);
+  if (!pts.length) return 'unknown';
+  const maxE = Math.max(...pts.map(b => Math.abs(b.easting)));
+  const maxN = Math.max(...pts.map(b => Math.abs(b.northing)));
+  if (maxE > 1000 && maxN > 1000) return 'bng';
+  if (maxE <= 180 && maxN <= 90) return 'wgs84';
+  return 'local';
+}
+
+function toLatLngForCrs(crs, easting, northing) {
+  if (crs === 'bng' && window.proj4) {
+    const [lng, lat] = window.proj4('EPSG:27700', 'EPSG:4326', [easting, northing]);
+    return [lat, lng];
+  }
+  if (crs === 'wgs84') return [northing, easting];
+  return [51 + northing / 111000, -1 + easting / 75000];
+}
+
+function fromLatLngForCrs(crs, lat, lng) {
+  if (crs === 'bng' && window.proj4) {
+    return window.proj4('EPSG:4326', 'EPSG:27700', [lng, lat]);
+  }
+  if (crs === 'wgs84') return [lng, lat];
+  return [(lng + 1) * 75000, (lat - 51) * 111000];
+}
+
 // ── Project Map helpers ───────────────────────────────────────────────────────
 function projectOntoLine(e, n, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1;
@@ -2782,111 +2921,205 @@ function CrossSectionSvg({ boreholes, sectionLength }) {
   `;
 }
 
-// ── ProjectMap ────────────────────────────────────────────────────────────────
-function ProjectMap({ locations, sectionA, sectionB, onMapClick, drawing }) {
-  const mapped = locations.filter(l => l.easting != null && l.northing != null);
-  const W = 900, H = 340, PAD = 40;
+// ── LeafletMapPane ───────────────────────────────────────────────────────────
+function LeafletMapPane({ mapData, sectionA, sectionB, onMapClick, drawing }) {
+  const hostRef = useRef(null);
+  const stateRef = useRef(null);
+  const drawingRef = useRef(drawing);
+  drawingRef.current = drawing;
 
-  if (mapped.length === 0) return html`
-    <div className="proj-map-body">
-      <p style=${s('font-size:13px;color:var(--muted)')}>No coordinate data (LOCA_NATE / LOCA_NATN) in this file.</p>
-    </div>
-  `;
+  const crs = useMemo(() => detectMapCrs(mapData?.boreholes ?? []), [mapData]);
 
-  const es = mapped.map(l => l.easting), ns = mapped.map(l => l.northing);
-  let [minE, maxE] = [Math.min(...es), Math.max(...es)];
-  let [minN, maxN] = [Math.min(...ns), Math.max(...ns)];
-  // Add 10% padding
-  const rE = Math.max(maxE - minE, 1), rN = Math.max(maxN - minN, 1);
-  const padE = rE * 0.12, padN = rN * 0.12;
-  minE -= padE; maxE += padE;
-  minN -= padN; maxN += padN;
-  const rangeE = maxE - minE, rangeN = maxN - minN;
+  useEffect(() => {
+    if (!hostRef.current || !window.L) return;
+    if (stateRef.current?.map) return;
 
-  const sx = e => PAD + ((e - minE) / rangeE) * (W - PAD * 2);
-  const sy = n => H - PAD - ((n - minN) / rangeN) * (H - PAD * 2);
+    const boreholes = (mapData?.boreholes ?? []).filter(b => b.easting != null && b.northing != null);
+    const centre = boreholes.length
+      ? toLatLngForCrs(
+          crs,
+          boreholes.reduce((sum, b) => sum + b.easting, 0) / boreholes.length,
+          boreholes.reduce((sum, b) => sum + b.northing, 0) / boreholes.length
+        )
+      : [51.5, -1.5];
 
-  // Inverse transform for click → E/N
-  function svgCoordsToEN(svgEl, clientX, clientY) {
-    const rect = svgEl.getBoundingClientRect();
-    const scaleX = W / rect.width;
-    const svgX = (clientX - rect.left) * scaleX;
-    const svgY = (clientY - rect.top)  * scaleX;
-    const e = minE + ((svgX - PAD) / (W - PAD * 2)) * rangeE;
-    const n = minN + (1 - (svgY - PAD) / (H - PAD * 2)) * rangeN;
-    return { e, n };
-  }
+    const map = window.L.map(hostRef.current, { zoomControl: true, preferCanvas: true }).setView(centre, 14);
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
 
-  function handleClick(evt) {
-    if (!drawing) return;
-    onMapClick(svgCoordsToEN(evt.currentTarget, evt.clientX, evt.clientY));
-  }
+    const markerLayer = window.L.layerGroup().addTo(map);
+    const sectionLayer = window.L.layerGroup().addTo(map);
 
-  // Grid / axis labels (4 ticks each)
-  const eTicks = [0, .25, .5, .75, 1].map(t => ({ v: minE + t * rangeE, x: PAD + t * (W - PAD * 2) }));
-  const nTicks = [0, .25, .5, .75, 1].map(t => ({ v: minN + t * rangeN, y: H - PAD - t * (H - PAD * 2) }));
+    for (const bh of boreholes) {
+      const [lat, lng] = toLatLngForCrs(crs, bh.easting, bh.northing);
+      const depth = bh.final_depth ?? 0;
+      const color = depth > 30 ? '#991b1b' : depth > 20 ? '#b45309' : depth > 10 ? '#15803d' : '#1e6fb5';
+      const type = String(bh.loca_type || 'BH').toUpperCase();
+      const shape = type.startsWith('TP')
+        ? `<rect x="3" y="3" width="14" height="14" rx="2" fill="${color}" stroke="white" stroke-width="1.5"/>`
+        : type.startsWith('CP')
+        ? `<polygon points="10,2 19,18 1,18" fill="${color}" stroke="white" stroke-width="1.5"/>`
+        : `<circle cx="10" cy="10" r="8" fill="${color}" stroke="white" stroke-width="2"/>`;
+      const icon = window.L.divIcon({
+        html: `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">${shape}</svg>`,
+        className: '',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+      const geolRows = (mapData?.geol ?? []).filter(g => g.loca_id === bh.id).slice(0, 4);
+      const popup = `
+        <div class="bh-popup">
+          <div class="bh-popup-id">${bh.id || 'Unknown'}</div>
+          <div class="bh-popup-row"><span class="bh-popup-lbl">Type</span><span class="bh-popup-val">${bh.loca_type || 'BH'}</span></div>
+          <div class="bh-popup-row"><span class="bh-popup-lbl">Ground Level</span><span class="bh-popup-val">${bh.ground_level != null ? bh.ground_level.toFixed(2) + ' mOD' : '—'}</span></div>
+          <div class="bh-popup-row"><span class="bh-popup-lbl">Final Depth</span><span class="bh-popup-val">${bh.final_depth != null ? bh.final_depth.toFixed(2) + ' m' : '—'}</span></div>
+          ${geolRows.map(g => `<div class="legend-row" style="margin:2px 0"><div class="legend-swatch" style="background:${geolColor(g.desc)}"></div><span style="font-size:10px">${String(g.desc || '').slice(0, 32)}</span></div>`).join('')}
+        </div>`;
+      window.L.marker([lat, lng], { icon }).bindPopup(popup).addTo(markerLayer);
+    }
+
+    if (boreholes.length > 1) {
+      map.fitBounds(window.L.latLngBounds(boreholes.map(b => toLatLngForCrs(crs, b.easting, b.northing))), { padding: [30, 30] });
+    }
+
+    map.on('click', e => {
+      if (!drawingRef.current) return;
+      const [east, north] = fromLatLngForCrs(crs, e.latlng.lat, e.latlng.lng);
+      onMapClick({ e: east, n: north });
+    });
+
+    stateRef.current = { map, markerLayer, sectionLayer };
+    return () => map.remove();
+  }, [mapData, crs, onMapClick]);
+
+  useEffect(() => {
+    const state = stateRef.current;
+    if (!state) return;
+    const { sectionLayer } = state;
+    sectionLayer.clearLayers();
+
+    if (sectionA) {
+      const aLatLng = toLatLngForCrs(crs, sectionA.e, sectionA.n);
+      window.L.circleMarker(aLatLng, { radius: 6, color: '#1a4080', fillColor: '#1a4080', fillOpacity: 1 }).addTo(sectionLayer);
+      window.L.marker(aLatLng, {
+        icon: window.L.divIcon({ className: '', html: '<div style="font-weight:700;color:#1a4080">A</div>' }),
+      }).addTo(sectionLayer);
+    }
+
+    if (sectionB) {
+      const aLatLng = toLatLngForCrs(crs, sectionA.e, sectionA.n);
+      const bLatLng = toLatLngForCrs(crs, sectionB.e, sectionB.n);
+      window.L.polyline([aLatLng, bLatLng], { color: '#0f2644', weight: 3, dashArray: '6 4' }).addTo(sectionLayer);
+      window.L.circleMarker(bLatLng, { radius: 6, color: '#0f2644', fillColor: '#0f2644', fillOpacity: 1 }).addTo(sectionLayer);
+      window.L.marker(bLatLng, {
+        icon: window.L.divIcon({ className: '', html: '<div style="font-weight:700;color:#0f2644">B</div>' }),
+      }).addTo(sectionLayer);
+    }
+  }, [sectionA, sectionB, crs]);
+
+  return html`<div ref=${hostRef} className=${`leaflet-map-host${drawing ? ' drawing' : ''}`}></div>`;
+}
+
+// ── ThatOpenViewer ───────────────────────────────────────────────────────────
+function ThatOpenViewer({ open, mapData }) {
+  const containerRef = useRef(null);
+  const worldRef = useRef(null);
+  const [viewerState, setViewerState] = useState('Closed');
+
+  useEffect(() => {
+    if (!open || !containerRef.current || worldRef.current) return;
+
+    let cancelled = false;
+
+    async function initViewer() {
+      try {
+        setViewerState('Loading That Open viewer…');
+        const [THREE, OBC] = await Promise.all([
+          import('three'),
+          import('https://cdn.jsdelivr.net/npm/@thatopen/components@2.4.0/dist/index.esm.js'),
+        ]);
+        if (cancelled) return;
+
+        const components = new OBC.Components();
+        const worlds = components.get(OBC.Worlds);
+        const world = worlds.create();
+        world.scene = new OBC.SimpleScene(components);
+        world.camera = new OBC.SimpleCamera(components);
+        world.renderer = new OBC.SimpleRenderer(components, containerRef.current);
+        components.init();
+        world.scene.setup();
+        components.get(OBC.Grids).create(world);
+
+        const boreholes = (mapData?.boreholes ?? []).filter(b => b.easting != null && b.northing != null && b.ground_level != null);
+        if (boreholes.length) {
+          const cx = boreholes.reduce((sum, b) => sum + b.easting, 0) / boreholes.length;
+          const cy = boreholes.reduce((sum, b) => sum + b.northing, 0) / boreholes.length;
+          const cz = boreholes.reduce((sum, b) => sum + b.ground_level, 0) / boreholes.length;
+          for (const bh of boreholes) {
+            const layers = (mapData?.geol ?? [])
+              .filter(g => g.loca_id === bh.id)
+              .sort((a, b) => (a.top ?? 0) - (b.top ?? 0));
+            for (const layer of layers) {
+              const top = bh.ground_level - (layer.top ?? 0);
+              const base = bh.ground_level - (layer.base ?? layer.top ?? 0);
+              const height = top - base;
+              if (!(height > 0)) continue;
+              const color = geolColor(layer.desc);
+              const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(6, height, 6),
+                new THREE.MeshStandardMaterial({
+                  color: color.startsWith('#') ? parseInt(color.slice(1), 16) : 0x94a3b8,
+                  roughness: 0.7,
+                  metalness: 0.05,
+                })
+              );
+              mesh.position.set(bh.easting - cx, (top + base) / 2 - cz, -(bh.northing - cy));
+              world.scene.three.add(mesh);
+            }
+          }
+          const spread = Math.max(
+            ...boreholes.map(b => Math.max(Math.abs(b.easting - cx), Math.abs(b.northing - cy))),
+            40
+          );
+          const plane = new THREE.Mesh(
+            new THREE.PlaneGeometry(spread * 3, spread * 3),
+            new THREE.MeshStandardMaterial({ color: 0x334155, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+          );
+          plane.rotation.x = -Math.PI / 2;
+          world.scene.three.add(plane);
+          world.camera.controls.setLookAt(spread * 0.8, spread * 0.7, spread * 0.8, 0, 0, 0);
+        } else {
+          world.camera.controls.setLookAt(50, 40, 50, 0, 0, 0);
+        }
+
+        worldRef.current = { world, components };
+        setViewerState(`That Open viewer ready${boreholes.length ? ` — ${boreholes.length} boreholes in scene` : ''}`);
+      } catch (err) {
+        setViewerState(`Viewer failed: ${err.message}`);
+      }
+    }
+
+    initViewer();
+    return () => { cancelled = true; };
+  }, [open, mapData]);
+
+  if (!open) return null;
 
   return html`
-    <div className="proj-map-body">
-      <svg className=${`proj-map-svg${drawing ? ' drawing' : ''}`}
-        viewBox="0 0 ${W} ${H}" width="100%"
-        xmlns="http://www.w3.org/2000/svg"
-        onClick=${handleClick}>
-
-        <!-- Grid -->
-        ${eTicks.map((t, i) => html`
-          <line key=${i} x1=${t.x} y1=${PAD} x2=${t.x} y2=${H - PAD} stroke="#e5e7eb" strokeWidth="0.5"/>
-          <text key=${'el'+i} x=${t.x} y=${H - PAD + 14} fontSize="8" textAnchor="middle" fill="#9ca3af">
-            ${t.v.toFixed(0)}
-          </text>
-        `)}
-        ${nTicks.map((t, i) => html`
-          <line key=${i} x1=${PAD} y1=${t.y} x2=${W - PAD} y2=${t.y} stroke="#e5e7eb" strokeWidth="0.5"/>
-          <text key=${'nl'+i} x=${PAD - 4} y=${t.y + 3} fontSize="8" textAnchor="end" fill="#9ca3af">
-            ${t.v.toFixed(0)}
-          </text>
-        `)}
-        <text x=${W / 2} y=${H - 2} fontSize="9" textAnchor="middle" fill="#9ca3af">Easting (m E)</text>
-        <text x="10" y=${H / 2} fontSize="9" textAnchor="middle" fill="#9ca3af"
-          transform=${`rotate(-90,10,${H / 2})`}>Northing (m N)</text>
-
-        <!-- Section line -->
-        ${sectionA && sectionB && html`
-          <line
-            x1=${sx(sectionA.e)} y1=${sy(sectionA.n)}
-            x2=${sx(sectionB.e)} y2=${sy(sectionB.n)}
-            stroke="var(--navy)" strokeWidth="2" strokeDasharray="6,3"/>
-          <circle cx=${sx(sectionA.e)} cy=${sy(sectionA.n)} r="7"
-            fill="var(--navy)" stroke="#fff" strokeWidth="1.5"/>
-          <text x=${sx(sectionA.e)} y=${sy(sectionA.n) - 11} fontSize="11" fontWeight="700"
-            textAnchor="middle" fill="var(--navy)">A</text>
-          <circle cx=${sx(sectionB.e)} cy=${sy(sectionB.n)} r="7"
-            fill="var(--navy)" stroke="#fff" strokeWidth="1.5"/>
-          <text x=${sx(sectionB.e)} y=${sy(sectionB.n) - 11} fontSize="11" fontWeight="700"
-            textAnchor="middle" fill="var(--navy)">B</text>
-        `}
-        ${sectionA && !sectionB && html`
-          <circle cx=${sx(sectionA.e)} cy=${sy(sectionA.n)} r="7"
-            fill="var(--blue)" stroke="#fff" strokeWidth="1.5"/>
-          <text x=${sx(sectionA.e)} y=${sy(sectionA.n) - 11} fontSize="11" fontWeight="700"
-            textAnchor="middle" fill="var(--blue)">A</text>
-        `}
-
-        <!-- Borehole dots -->
-        ${mapped.map(loc => {
-          const onSec = sectionA && sectionB;
-          return html`
-            <g key=${loc.id}>
-              <circle cx=${sx(loc.easting)} cy=${sy(loc.northing)} r="7"
-                fill=${onSec ? '#3b82f6' : '#3b82f6'}
-                stroke="#1d4ed8" strokeWidth="1.5"/>
-              <text x=${sx(loc.easting)} y=${sy(loc.northing) - 10}
-                fontSize="9" textAnchor="middle" fill="#1e3a5f" fontWeight="600"
-              >${loc.id}</text>
-            </g>
-          `;
-        })}
-      </svg>
+    <div className="three-wrap">
+      <div className="three-head">
+        <span>That Open 3D Viewer</span>
+        <span className="meta">Leaflet map companion</span>
+      </div>
+      <div className="three-body">
+        <div ref=${containerRef} className="three-canvas"></div>
+        ${viewerState.includes('ready') ? null : html`<div className="three-empty">${viewerState}</div>`}
+      </div>
+      <div className="three-note">
+        Borehole columns are rendered from LOCA, GEOL, and WSTK data using @thatopen/components.
+      </div>
     </div>
   `;
 }
@@ -3077,6 +3310,7 @@ function MapTab({ locations, mapData, fileBytes, wasmReady, fileInfo }) {
   const [sectionB, setSectionB] = useState(null);
   const [drawStep, setDrawStep] = useState(0); // 0=idle, 1=place-A, 2=place-B
   const [tolerance, setTolerance] = useState(200);
+  const [show3d, setShow3d] = useState(false);
 
   const geolByBH = useMemo(() => {
     const m = {};
@@ -3142,6 +3376,9 @@ function MapTab({ locations, mapData, fileBytes, wasmReady, fileInfo }) {
           <button className="btn-secondary" onClick=${handleClear}>Clear Section</button>
         `}
         ${hintText && html`<span className="draw-mode-hint">${hintText}</span>`}
+        <button className="btn-secondary" onClick=${() => setShow3d(v => !v)}>
+          ${show3d ? 'Hide 3D View' : 'Show 3D View'}
+        </button>
         <label style=${s('margin-left:auto')}>
           Tolerance
           <input type="range" min="10" max="2000" step="10" value=${tolerance}
@@ -3159,14 +3396,25 @@ function MapTab({ locations, mapData, fileBytes, wasmReady, fileInfo }) {
             &nbsp;·&nbsp; ${sectionBoreholes.length} borehole${sectionBoreholes.length !== 1 ? 's' : ''} on section
           ` : null}
         </div>
-        <${ProjectMap}
-          locations=${locations}
+        <${LeafletMapPane}
+          mapData=${mapData}
           sectionA=${sectionA}
           sectionB=${sectionB}
           onMapClick=${handleMapClick}
           drawing=${drawStep > 0}
         />
+        <div className="map-meta-row">
+          <span><strong>Map stack:</strong> Leaflet + OpenStreetMap</span>
+          <span><strong>Data:</strong> ${mapData?.boreholes?.length ?? 0} boreholes, ${mapData?.geol?.length ?? 0} geology rows</span>
+          <div className="map-legend-inline">
+            <span className="map-legend-item"><span className="map-swatch circle" style=${{ background: '#1e6fb5' }}></span>Borehole</span>
+            <span className="map-legend-item"><span className="map-swatch" style=${{ background: '#0f766e' }}></span>Trial pit</span>
+            <span className="map-legend-item"><span className="map-swatch" style=${{ background: '#6d28d9' }}></span>CPT / other</span>
+          </div>
+        </div>
       </div>
+
+      <${ThatOpenViewer} open=${show3d} mapData=${mapData} />
 
       <!-- Cross Section -->
       ${sectionA && sectionB && html`
