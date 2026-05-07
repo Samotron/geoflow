@@ -1922,13 +1922,16 @@ function apiPost(url, body) {
   const r = new XMLHttpRequest(); r.open('POST', url, false);
   r.setRequestHeader('Content-Type', 'text/plain'); r.send(body); return r.responseText;
 }
-export async function init() {}
+async function init() {}
+export default init;
 export function validate_ags(_b)               { return apiGet('/api/validate'); }
 export function validate_ags_with_rules(_b, y) { return apiPost('/api/validate-with-rules', y); }
 export function fix_ags(_b)                    { return new TextEncoder().encode(apiGet('/api/fix')); }
 export function convert_to_diggs(_b)           { return apiGet('/api/diggs'); }
 export function list_locations(_b)             { return apiGet('/api/locations'); }
 export function get_map_data(_b)               { return apiGet('/api/map-data'); }
+export function get_semantic_graph(_b)         { return apiGet('/api/semantic-graph'); }
+export function get_points_for_geol_code(_b,c) { return apiGet('/api/geol-code/' + encodeURIComponent(c)); }
 export function render_borehole_svg(_b, id)    { return apiGet('/api/borehole-svg/' + encodeURIComponent(id)); }
 export function ags_info(_b)                   { return apiGet('/api/info'); }
 export function diff_ags(_a, _b)               { return '[]'; }
@@ -2043,6 +2046,32 @@ export function enhance_ags(_b)                { return apiGet('/api/enhance'); 
                         .unwrap_or_default(),
                 )
             }),
+        )
+        .route(
+            "/api/semantic-graph",
+            get(|State(s): State<Arc<AppState>>| async move {
+                (
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::to_string(&geoflow_core::semantic::build_semantic_graph(&s.file))
+                        .unwrap_or_default(),
+                )
+            }),
+        )
+        .route(
+            "/api/geol-code/:code",
+            get(
+                |State(s): State<Arc<AppState>>, Path(code): Path<String>| async move {
+                    (
+                        [(header::CONTENT_TYPE, "application/json")],
+                        serde_json::to_string(
+                            &geoflow_core::semantic::investigation_points_for_geol_code(
+                                &s.file, &code,
+                            ),
+                        )
+                        .unwrap_or_default(),
+                    )
+                },
+            ),
         )
         .route(
             "/api/groups",

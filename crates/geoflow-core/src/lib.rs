@@ -24,6 +24,7 @@ pub mod fix;
 pub mod model;
 pub mod render;
 pub mod score;
+pub mod semantic;
 pub mod spatial;
 pub mod typecheck;
 pub mod validate;
