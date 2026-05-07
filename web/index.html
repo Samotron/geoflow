@@ -911,6 +911,139 @@
       font-family: 'Menlo','Consolas','Monaco',monospace;
       word-break: break-all;
     }
+
+    /* ── Professional borehole log ── */
+    .log-pro-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .log-pro-title {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      border-bottom: 3px solid var(--navy);
+    }
+    .log-pro-brand {
+      background: var(--navy);
+      color: #fff;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .log-pro-brand .company { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+    .log-pro-brand .doctype { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; margin-top: 3px; }
+    .log-pro-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-left: 1px solid var(--border);
+    }
+    .log-pro-meta-cell {
+      padding: 6px 12px;
+      border-right: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 12px;
+    }
+    .log-pro-meta-cell:nth-child(3n) { border-right: none; }
+    .log-pro-meta-cell .lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 2px; }
+    .log-pro-meta-cell .val { font-weight: 600; font-family: monospace; font-size: 13px; }
+    .log-pro-body { overflow-x: auto; background: #fff; }
+    .log-pro-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 8px 16px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .log-pro-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+    }
+
+    /* ── Validation toolbar ── */
+    .val-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 0 16px;
+      margin-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .val-toolbar-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+    .val-pack-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      background: #eff6ff;
+      color: var(--blue);
+      border: 1px solid #bfdbfe;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .val-summary-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0 14px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Enhanced data table ── */
+    .data-tbl th.sortable { cursor: pointer; user-select: none; }
+    .data-tbl th.sortable:hover { background: #eef2f7; }
+    .sort-ind { margin-left: 4px; font-size: 9px; color: #94a3b8; }
+    .sort-ind.asc { color: var(--navy); }
+    .sort-ind.desc { color: var(--navy); }
+    .data-panel-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .tbl-export-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      transition: background .12s;
+      white-space: nowrap;
+    }
+    .tbl-export-btn:hover { background: #e2e8f0; }
+    .col-filter-row th {
+      background: #f8fafc;
+      padding: 3px 8px 5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .col-filter-input {
+      width: 100%;
+      border: 1px solid #e2e8f0;
+      border-radius: 3px;
+      padding: 3px 5px;
+      font-size: 11px;
+      font-family: monospace;
+      background: #fff;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color .12s;
+    }
+    .col-filter-input:focus { border-color: var(--blue); }
   </style>
 </head>
 <body>
@@ -1355,13 +1488,21 @@ function BoreholeSvgPanel({ loc, fileBytes, wasmReady, className }) {
 
 // ── LogSheet ──────────────────────────────────────────────────────────────────
 function LogSheet({ loc, fileBytes, wasmReady, fileInfo }) {
-  const [svg, setSvg] = useState('');
+  const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
+
   useEffect(() => {
-    if (!loc || !fileBytes || !wasmReady) return;
-    setBusy(true); setSvg('');
+    if (!loc || !fileBytes || !wasmReady) { setData(null); return; }
+    setBusy(true);
     setTimeout(() => {
-      try { setSvg(render_borehole_svg(fileBytes, loc.id) || ''); } catch(_) {}
+      try {
+        const geol = JSON.parse(get_group_rows(fileBytes, 'GEOL')).filter(r => r.LOCA_ID === loc.id);
+        const samp = JSON.parse(get_group_rows(fileBytes, 'SAMP')).filter(r => r.LOCA_ID === loc.id);
+        const ispt = JSON.parse(get_group_rows(fileBytes, 'ISPT')).filter(r => r.LOCA_ID === loc.id);
+        const wstk = JSON.parse(get_group_rows(fileBytes, 'WSTK')).filter(r => r.LOCA_ID === loc.id);
+        const locaRow = JSON.parse(get_group_rows(fileBytes, 'LOCA')).find(r => r.LOCA_ID === loc.id) ?? {};
+        setData({ geol, samp, ispt, wstk, locaRow });
+      } catch(_) { setData(null); }
       setBusy(false);
     }, 0);
   }, [loc?.id, fileBytes, wasmReady]);
@@ -1376,77 +1517,265 @@ function LogSheet({ loc, fileBytes, wasmReady, fileInfo }) {
     </div>
   `;
 
+  if (busy || !data) return html`
+    <div className="log-pro-wrap">
+      <div style=${s('padding:40px;text-align:center;color:var(--muted);font-size:13px')}>
+        ${busy ? 'Loading log data…' : 'No log data available for this borehole.'}
+      </div>
+    </div>
+  `;
+
+  const { geol, samp, ispt, wstk, locaRow } = data;
+
+  // Depth range
+  const maxDepth = Math.max(
+    loc.depth ?? 0,
+    ...geol.map(r => +(r.GEOL_BASE ?? 0)),
+    ...ispt.map(r => +(r.ISPT_TOP ?? 0)),
+    ...samp.map(r => +(r.SAMP_TOP ?? 0)),
+    5
+  );
+  const depthCeil = Math.ceil(maxDepth);
+  const SCALE = 15; // px per metre
+  const dy = d => d * SCALE;
+  const LOG_H = dy(depthCeil) + 4;
+
+  // Column x positions
+  const C = {
+    axisX:  44,
+    litho0: 48,  litho1: 128,   // 80px lithology
+    desc0:  132, desc1:  348,   // 216px description
+    spt0:   352, spt1:   468,   // 116px SPT (0–60)
+    samp0:  472, samp1:  510,   // 38px samples
+    wat0:   514, wat1:   532,   // 18px water
+    W:      536,
+  };
+  const N_MAX = 60;
+  const N_SCALE = C.spt1 - C.spt0;
+  const sptPx = n => (Math.min(n, N_MAX) / N_MAX) * N_SCALE;
+
+  // Build geology legend
+  const legendEntries = [];
+  const seenGeol = new Set();
+  for (const r of geol) {
+    const desc = r.GEOL_DESC ?? '';
+    const lbl = geolLabel(desc);
+    if (!seenGeol.has(lbl)) { seenGeol.add(lbl); legendEntries.push({ color: geolColor(desc), label: lbl }); }
+  }
+
   return html`
-    <div className="log-sheet">
-      <div className="log-sheet-hdr">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>
+    <div className="log-pro-wrap">
+      <!-- Title block -->
+      <div className="log-pro-title">
+        <div className="log-pro-brand">
+          <div className="company">GeoFlow</div>
+          <div className="doctype">Borehole Log</div>
+        </div>
+        <div className="log-pro-meta-grid">
+          <div className="log-pro-meta-cell">
+            <div className="lbl">Project</div>
+            <div className="val">${fileInfo?.project || '—'}</div>
+          </div>
+          <div className="log-pro-meta-cell">
+            <div className="lbl">Borehole ID</div>
+            <div className="val">${loc.id}</div>
+          </div>
+          <div className="log-pro-meta-cell">
+            <div className="lbl">Final Depth</div>
+            <div className="val">${loc.depth != null ? loc.depth + ' m' : '—'}</div>
+          </div>
+          <div className="log-pro-meta-cell">
+            <div className="lbl">Easting (m E)</div>
+            <div className="val">${loc.easting != null ? loc.easting.toFixed(1) : '—'}</div>
+          </div>
+          <div className="log-pro-meta-cell">
+            <div className="lbl">Northing (m N)</div>
+            <div className="val">${loc.northing != null ? loc.northing.toFixed(1) : '—'}</div>
+          </div>
+          <div className="log-pro-meta-cell">
+            <div className="lbl">Ground Level (mOD)</div>
+            <div className="val">${locaRow.LOCA_GL ?? '—'}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SVG log body -->
+      <div className="log-pro-body">
+        <svg width=${C.W} height=${32 + LOG_H} viewBox="0 0 ${C.W} ${32 + LOG_H}"
+          xmlns="http://www.w3.org/2000/svg" fontFamily="system-ui, sans-serif">
+
+          <!-- Header row -->
+          <rect x="0" y="0" width=${C.W} height="30" fill="#1e3a5f"/>
+          <text x=${C.axisX / 2} y="19" fontSize="8" fontWeight="700" textAnchor="middle" fill="#cbd5e1">Depth (m)</text>
+          <text x=${(C.litho0 + C.litho1) / 2} y="19" fontSize="8.5" fontWeight="700" textAnchor="middle" fill="#fff">Lithology</text>
+          <text x=${(C.desc0 + C.desc1) / 2} y="19" fontSize="8.5" fontWeight="700" textAnchor="middle" fill="#fff">Description</text>
+          <text x=${(C.spt0 + C.spt1) / 2} y="13" fontSize="8.5" fontWeight="700" textAnchor="middle" fill="#fff">SPT N-Value</text>
+          <text x=${C.spt0 + 1} y="25" fontSize="7" fill="#94a3b8">0</text>
+          <text x=${C.spt0 + N_SCALE / 2} y="25" fontSize="7" textAnchor="middle" fill="#94a3b8">30</text>
+          <text x=${C.spt1 - 1} y="25" fontSize="7" textAnchor="end" fill="#94a3b8">60</text>
+          <text x=${(C.samp0 + C.samp1) / 2} y="19" fontSize="8.5" fontWeight="700" textAnchor="middle" fill="#fff">Smpl</text>
+          <text x=${(C.wat0 + C.wat1) / 2} y="19" fontSize="8.5" fontWeight="700" textAnchor="middle" fill="#fff">WL</text>
+          ${[C.litho0, C.desc0, C.spt0, C.samp0, C.wat0].map((x, i) => html`
+            <line key=${i} x1=${x} y1="0" x2=${x} y2="30" stroke="#334155" strokeWidth="0.5"/>
+          `)}
+
+          <!-- Log body -->
+          <g transform="translate(0,30)">
+            <!-- Column backgrounds -->
+            <rect x="0"      y="0" width=${C.axisX}            height=${LOG_H} fill="#f8fafc"/>
+            <rect x=${C.litho0} y="0" width=${C.litho1-C.litho0} height=${LOG_H} fill="#fafafa" stroke="#e2e8f0" strokeWidth="0.5"/>
+            <rect x=${C.desc0}  y="0" width=${C.desc1-C.desc0}   height=${LOG_H} fill="#fff"    stroke="#e2e8f0" strokeWidth="0.5"/>
+            <rect x=${C.spt0}   y="0" width=${C.spt1-C.spt0}     height=${LOG_H} fill="#fafafa" stroke="#e2e8f0" strokeWidth="0.5"/>
+            <rect x=${C.samp0}  y="0" width=${C.samp1-C.samp0}   height=${LOG_H} fill="#f8fafc" stroke="#e2e8f0" strokeWidth="0.5"/>
+            <rect x=${C.wat0}   y="0" width=${C.wat1-C.wat0}     height=${LOG_H} fill="#f0f9ff" stroke="#e2e8f0" strokeWidth="0.5"/>
+
+            <!-- Depth axis -->
+            <line x1=${C.axisX} y1="0" x2=${C.axisX} y2=${LOG_H} stroke="#374151" strokeWidth="1"/>
+
+            <!-- SPT sub-grid lines -->
+            ${[15, 30, 45].map(n => html`
+              <line key=${'sg'+n}
+                x1=${C.spt0 + sptPx(n)} y1="0"
+                x2=${C.spt0 + sptPx(n)} y2=${LOG_H}
+                stroke=${n===30 ? '#dde1e7' : '#e5e7eb'} strokeWidth=${n===30 ? 0.8 : 0.5}/>
+            `)}
+
+            <!-- Depth ticks + grid every 5m -->
+            ${[...Array(depthCeil + 1)].map((_, i) => {
+              const y = dy(i);
+              const major = i % 5 === 0;
+              return html`
+                <g key=${'d'+i}>
+                  <line x1=${major ? C.axisX-8 : C.axisX-4} y1=${y} x2=${C.axisX} y2=${y}
+                    stroke="#374151" strokeWidth=${major ? 1 : 0.5}/>
+                  ${major && html`
+                    <text x=${C.axisX-10} y=${y+3} fontSize="9" textAnchor="end" fill="#374151" fontWeight="600">${i}</text>
+                    <line x1=${C.litho0} y1=${y} x2=${C.W} y2=${y} stroke="#dde1e7" strokeWidth="0.5"/>
+                  `}
+                </g>
+              `;
+            })}
+
+            <!-- GEOL layers -->
+            ${geol.map((r, i) => {
+              const top  = +(r.GEOL_TOP  ?? 0);
+              const base = +(r.GEOL_BASE ?? top + 1);
+              const yTop = dy(top), yBot = dy(base), h = yBot - yTop;
+              const col  = geolColor(r.GEOL_DESC ?? '');
+              const lbl  = geolLabel(r.GEOL_DESC ?? '');
+              const desc = String(r.GEOL_DESC ?? '');
+              return html`
+                <g key=${'g'+i}>
+                  <rect x=${C.litho0+1} y=${yTop} width=${C.litho1-C.litho0-2} height=${h}
+                    fill=${col} stroke="#6b7280" strokeWidth="0.5" opacity="0.9">
+                    <title>${desc} (${top}–${base} m)</title>
+                  </rect>
+                  <line x1=${C.litho0} y1=${yBot} x2=${C.spt1} y2=${yBot}
+                    stroke="#9ca3af" strokeWidth="0.6" strokeDasharray="3,2"/>
+                  ${h > 12 && html`
+                    <text x=${C.desc0+4} y=${yTop+11} fontSize="8.5" fontWeight="700" fill="#1f2937">${lbl}</text>
+                  `}
+                  ${h > 23 && html`
+                    <text x=${C.desc0+4} y=${yTop+21} fontSize="8" fill="#374151">
+                      ${desc.length > 50 ? desc.slice(0,48)+'…' : desc}
+                    </text>
+                  `}
+                  ${h > 36 && desc.length > 48 && html`
+                    <text x=${C.desc0+4} y=${yTop+31} fontSize="8" fill="#374151">
+                      ${desc.slice(48, 96).length > 48 ? desc.slice(48,94)+'…' : desc.slice(48)}
+                    </text>
+                  `}
+                </g>
+              `;
+            })}
+
+            <!-- ISPT SPT bars -->
+            ${ispt.map((r, i) => {
+              const depth = +(r.ISPT_TOP ?? 0);
+              const n = +(r.ISPT_NVAL ?? 0);
+              const y = dy(depth);
+              const bw = sptPx(n);
+              const refusal = n >= N_MAX;
+              return html`
+                <g key=${'i'+i}>
+                  <rect x=${C.spt0} y=${y-4} width=${bw} height="8"
+                    fill=${refusal ? '#dc2626' : '#f97316'}
+                    stroke=${refusal ? '#991b1b' : '#c2410c'}
+                    strokeWidth="0.5" rx="1" opacity="0.85">
+                    <title>SPT N=${n} at ${depth} m${refusal?' (refusal)':''}</title>
+                  </rect>
+                  ${n > 0 && html`
+                    <text x=${C.spt0+bw+2} y=${y+3.5} fontSize="7.5" fill="#374151">
+                      ${refusal ? '60+' : n}
+                    </text>
+                  `}
+                </g>
+              `;
+            })}
+
+            <!-- SAMP markers -->
+            ${samp.map((r, i) => {
+              const depth = +(r.SAMP_TOP ?? 0);
+              const y = dy(depth);
+              const typ = String(r.SAMP_TYPE ?? 'B').slice(0,2);
+              return html`
+                <g key=${'s'+i}>
+                  <rect x=${C.samp0+2} y=${y-4} width=${C.samp1-C.samp0-4} height="8"
+                    fill="#3b82f6" stroke="#1d4ed8" strokeWidth="0.5" rx="1">
+                    <title>Sample ${r.SAMP_REF ?? r.SAMP_ID ?? i} (${r.SAMP_TYPE}) at ${depth} m</title>
+                  </rect>
+                  <text x=${(C.samp0+C.samp1)/2} y=${y+3.5} fontSize="6.5" textAnchor="middle" fill="white" fontWeight="700">${typ}</text>
+                </g>
+              `;
+            })}
+
+            <!-- WSTK water strikes -->
+            ${wstk.map((r, i) => {
+              const depth = +(r.WSTK_DPTH ?? 0);
+              const cy = dy(depth);
+              const cx = (C.wat0+C.wat1)/2;
+              return html`
+                <polygon key=${'w'+i}
+                  points="${cx},${cy-6} ${cx+6},${cy} ${cx},${cy+6} ${cx-6},${cy}"
+                  fill="#0ea5e9" stroke="#0369a1" strokeWidth="0.5">
+                  <title>Water strike at ${depth} m</title>
+                </polygon>
+              `;
+            })}
+          </g>
         </svg>
-        <h2>Borehole Log — ${loc.id}</h2>
-        <span className="version">GeoFlow / AGS 4.x</span>
       </div>
 
-      <div className="log-sheet-meta">
-        <div className="meta-cell">
-          <div className="lbl">Project</div>
-          <div className="val">${fileInfo?.project || '—'}</div>
+      <!-- Legend -->
+      ${(legendEntries.length > 0 || samp.length > 0 || ispt.length > 0 || wstk.length > 0) && html`
+        <div className="log-pro-legend">
+          <span style=${s('font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px')}>Legend:</span>
+          ${legendEntries.map((e, i) => html`
+            <div key=${i} className="legend-item">
+              <div className="legend-swatch" style=${{ background: e.color, border: '1px solid rgba(0,0,0,.18)' }}></div>
+              <span>${e.label}</span>
+            </div>
+          `)}
+          ${samp.length > 0 && html`
+            <div className="legend-item">
+              <div className="legend-swatch" style=${s('background:#3b82f6;border:1px solid #1d4ed8')}></div>
+              <span>Sample</span>
+            </div>
+          `}
+          ${ispt.length > 0 && html`
+            <div className="legend-item">
+              <div className="legend-swatch" style=${s('background:#f97316;border:1px solid #c2410c')}></div>
+              <span>SPT N-Value</span>
+            </div>
+          `}
+          ${wstk.length > 0 && html`
+            <div className="legend-item">
+              <div className="legend-swatch" style=${s('background:#0ea5e9;border:1px solid #0369a1;transform:rotate(45deg)')}></div>
+              <span>Water Strike</span>
+            </div>
+          `}
         </div>
-        <div className="meta-cell">
-          <div className="lbl">Borehole ID</div>
-          <div className="val">${loc.id}</div>
-        </div>
-        <div className="meta-cell">
-          <div className="lbl">Final Depth</div>
-          <div className="val">${loc.depth != null ? `${loc.depth} m` : '—'}</div>
-        </div>
-        <div className="meta-cell">
-          <div className="lbl">Easting (m E)</div>
-          <div className="val">${loc.easting != null ? loc.easting.toFixed(1) : '—'}</div>
-        </div>
-        <div className="meta-cell">
-          <div className="lbl">Northing (m N)</div>
-          <div className="val">${loc.northing != null ? loc.northing.toFixed(1) : '—'}</div>
-        </div>
-        <div className="meta-cell">
-          <div className="lbl">Ground Level (mOD)</div>
-          <div className="val">—</div>
-        </div>
-      </div>
-
-      <div className="log-sheet-col-hdr">
-        <div className="log-col-lbl" style=${s('width:60px')}>Depth (m)</div>
-        <div className="log-col-lbl" style=${s('width:80px')}>Lithology</div>
-        <div className="log-col-lbl" style=${s('width:20px')}></div>
-        <div className="log-col-lbl" style=${s('width:100px')}>SPT N-value →</div>
-        <div className="log-col-lbl" style=${s('width:50px')}>Water</div>
-      </div>
-
-      <div className="log-sheet-body">
-        ${busy ? html`<p style=${s('padding:16px 0;font-size:13px;color:var(--muted)')}>Rendering…</p>` :
-          svg  ? html`<div dangerouslySetInnerHTML=${{ __html: svg }}></div>` :
-          html`<p style=${s('padding:16px 0;font-size:13px;color:var(--muted)')}>No strip-log data available for this borehole.</p>`
-        }
-      </div>
-
-      <div className="log-sheet-legend">
-        <span style=${s('font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-right:4px')}>Legend:</span>
-        <div className="legend-item">
-          <div className="legend-swatch" style=${s('background:#d1d5db;border:1px solid #9ca3af')}></div>
-          <span>Geology layer</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-swatch" style=${s('background:#3b82f6;border:1px solid #1d4ed8')}></div>
-          <span>Sample</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-swatch" style=${s('background:#f97316;border:1px solid #c2410c')}></div>
-          <span>SPT N-value</span>
-        </div>
-        <div className="legend-item">
-          <div className="legend-swatch" style=${s('background:#06b6d4;border:1px solid #0891b2;transform:rotate(45deg)')}></div>
-          <span>Water strike</span>
-        </div>
-      </div>
+      `}
     </div>
   `;
 }
@@ -1497,30 +1826,115 @@ function UploadTab({ fileBytes, fileName, fileSize, wasmReady, status, fileInfo,
 }
 
 // ── ValidationMapTab ──────────────────────────────────────────────────────────
-function ValidationMapTab({ diagnostics, locations, fileBytes, wasmReady }) {
+function ValidationMapTab({ diagnostics, locations, fileBytes, wasmReady, onValidate }) {
+  const [packYaml, setPackYaml]     = useState('');
+  const [packName, setPackName]     = useState('');
+  const [packDiags, setPackDiags]   = useState(null);
+  const [validating, setValidating] = useState(false);
   const [selectedLoc, setSelectedLoc] = useState(null);
+  const packRef = useRef(null);
 
-  if (!diagnostics && locations.length === 0) return html`
-    <div className="empty">
-      <p>Load and validate a file in the <strong>Upload &amp; Convert</strong> tab to see results here.</p>
-    </div>
-  `;
+  function loadPack(file) {
+    const r = new FileReader();
+    r.onload = e => { setPackYaml(e.target.result); setPackName(file.name); setPackDiags(null); };
+    r.readAsText(file);
+  }
+
+  function runWithPack() {
+    if (!packYaml || !fileBytes || !wasmReady) return;
+    setValidating(true);
+    setTimeout(() => {
+      try {
+        const result = JSON.parse(validate_ags_with_rules(fileBytes, packYaml));
+        setPackDiags(Array.isArray(result) ? result : null);
+      } catch(_) {}
+      setValidating(false);
+    }, 0);
+  }
+
+  // Pack diagnostics override built-in when a pack is active
+  const activeDiags = packDiags ?? diagnostics;
+
+  // Counts for summary bar
+  const counts = useMemo(() => {
+    if (!activeDiags) return null;
+    const c = { error: 0, warning: 0, info: 0 };
+    activeDiags.forEach(d => { if (d.severity in c) c[d.severity]++; });
+    return c;
+  }, [activeDiags]);
 
   return html`
-    <div className="val-map-grid">
-      <div>
-        ${diagnostics !== null
-          ? html`<${DiagnosticsLog} diagnostics=${diagnostics} />`
-          : html`<div className="empty"><p>Run <strong>Validate</strong> in the Upload tab to populate this view.</p></div>`
-        }
+    <div>
+      <!-- Validation control toolbar -->
+      <div className="val-toolbar">
+        <button className="btn-primary" disabled=${!fileBytes || !wasmReady} onClick=${onValidate}>
+          ▶ Run Validation
+        </button>
+        <div className="val-toolbar-sep"></div>
+
+        <!-- Rule pack file upload -->
+        <input ref=${packRef} type="file" accept=".yml,.yaml" style=${s('display:none')}
+          onChange=${e => { if (e.target.files[0]) loadPack(e.target.files[0]); }} />
+        <button className="btn-secondary" onClick=${() => packRef.current.click()}>
+          ${packName
+            ? html`<span className="val-pack-badge">${packName}</span>`
+            : '+ Upload Rule Pack (.yml)'}
+        </button>
+
+        ${packYaml && html`
+          <button className="btn-primary"
+            disabled=${!fileBytes || !wasmReady || validating}
+            onClick=${runWithPack}>
+            ${validating ? 'Validating…' : 'Validate with Pack'}
+          </button>
+          <button className="btn-secondary"
+            onClick=${() => { setPackYaml(''); setPackName(''); setPackDiags(null); }}>
+            ✕ Clear Pack
+          </button>
+        `}
       </div>
-      <div>
-        ${locations.length > 0
-          ? html`<${BoreholeMap} locations=${locations} selectedId=${selectedLoc?.id} onSelect=${setSelectedLoc} />`
-          : html`<div className="empty" style=${s('padding:24px')}><p>No boreholes (LOCA group) in this file.</p></div>`
-        }
-        ${selectedLoc && html`<${BoreholeSvgPanel} loc=${selectedLoc} fileBytes=${fileBytes} wasmReady=${wasmReady} />`}
-      </div>
+
+      <!-- Summary bar -->
+      ${counts !== null && html`
+        <div className="val-summary-bar">
+          ${activeDiags.length === 0
+            ? html`<span className="badge badge-ok">✓ No issues found</span>`
+            : html`
+              ${counts.error   ? html`<span className="badge badge-error">✕ ${counts.error} error${counts.error!==1?'s':''}</span>` : null}
+              ${counts.warning ? html`<span className="badge badge-warning">⚠ ${counts.warning} warning${counts.warning!==1?'s':''}</span>` : null}
+              ${counts.info    ? html`<span className="badge badge-info">ℹ ${counts.info} info</span>` : null}
+            `
+          }
+          ${packDiags && html`
+            <span style=${s('font-size:12px;color:var(--muted)')}>— results from pack: <strong>${packName}</strong></span>
+          `}
+        </div>
+      `}
+
+      <!-- Main content grid -->
+      ${!fileBytes ? html`
+        <div className="empty">
+          <p>Load an AGS file in <strong>Upload &amp; Convert</strong>, then click <strong>Run Validation</strong>.</p>
+        </div>
+      ` : html`
+        <div className="val-map-grid">
+          <div>
+            ${activeDiags !== null
+              ? html`<${DiagnosticsLog} diagnostics=${activeDiags} />`
+              : html`<div className="empty" style=${s('padding:40px')}><p>Click <strong>▶ Run Validation</strong> above to check this file.</p></div>`
+            }
+          </div>
+          <div>
+            ${locations.length > 0
+              ? html`<${BoreholeMap} locations=${locations} selectedId=${selectedLoc?.id} onSelect=${setSelectedLoc} />`
+              : html`<div className="empty" style=${s('padding:24px')}><p>No boreholes (LOCA group) in this file.</p></div>`
+            }
+            ${selectedLoc && html`
+              <${BoreholeSvgPanel} loc=${selectedLoc} fileBytes=${fileBytes} wasmReady=${wasmReady} />
+            `}
+          </div>
+        </div>
+      `}
     </div>
   `;
 }
@@ -1774,43 +2188,107 @@ function OntologyView({ keyField, keyValue, allData, allMeta, onBack, onKeyClick
 const PAGE = 150;
 
 function GroupTable({ groupName, rows, meta, onKeyClick }) {
-  const [search, setSearch] = useState('');
-  const [shown, setShown] = useState(PAGE);
+  const [search,     setSearch]     = useState('');
+  const [shown,      setShown]      = useState(PAGE);
+  const [sortCol,    setSortCol]    = useState(null);
+  const [sortDir,    setSortDir]    = useState(1);   // 1=asc, -1=desc
+  const [colFilters, setColFilters] = useState({});
 
-  useEffect(() => { setSearch(''); setShown(PAGE); }, [groupName]);
+  useEffect(() => {
+    setSearch(''); setShown(PAGE); setSortCol(null); setSortDir(1); setColFilters({});
+  }, [groupName]);
+
+  const headings = meta ?? Object.keys(rows[0] ?? {}).map(name => ({ name, unit: '', is_id: false }));
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return rows;
-    const q = search.toLowerCase();
-    return rows.filter(row =>
-      Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(q))
-    );
-  }, [rows, search]);
+    let r = rows;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      r = r.filter(row => Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(q)));
+    }
+    for (const [col, val] of Object.entries(colFilters)) {
+      if (!val.trim()) continue;
+      const q = val.toLowerCase();
+      r = r.filter(row => { const v = row[col]; return v !== null && v !== undefined && String(v).toLowerCase().includes(q); });
+    }
+    if (sortCol) {
+      r = [...r].sort((a, b) => {
+        const av = a[sortCol], bv = b[sortCol];
+        if (av == null) return sortDir;
+        if (bv == null) return -sortDir;
+        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * sortDir;
+        return String(av).localeCompare(String(bv), undefined, { numeric: true }) * sortDir;
+      });
+    }
+    return r;
+  }, [rows, search, colFilters, sortCol, sortDir]);
 
   const visible = filtered.slice(0, shown);
-  const headings = meta ?? Object.keys(rows[0] ?? {}).map(name => ({ name, unit: '', is_id: false }));
+
+  function toggleSort(col) {
+    if (sortCol === col) setSortDir(d => d * -1);
+    else { setSortCol(col); setSortDir(1); }
+  }
+
+  function exportCsv() {
+    const cols = headings.map(h => h.name);
+    const esc  = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [cols.map(esc).join(','), ...filtered.map(row => cols.map(c => esc(row[c] ?? '')).join(','))];
+    downloadBlob(new Blob([lines.join('\r\n')], { type: 'text/csv' }), groupName + '.csv');
+  }
+
+  const hasActiveFilter = search.trim() || Object.values(colFilters).some(v => v.trim());
 
   return html`
     <div className="data-panel">
       <div className="data-panel-head">
         <h2>${groupName}</h2>
         <span style=${s('font-size:12px;color:var(--muted)')}>${rows.length} row${rows.length!==1?'s':''}</span>
-        <input
-          className="data-search"
-          placeholder="Filter rows…"
-          value=${search}
-          onInput=${e => { setSearch(e.target.value); setShown(PAGE); }}
-        />
+        <div className="data-panel-actions">
+          <input
+            className="data-search"
+            placeholder="Search all…"
+            value=${search}
+            onInput=${e => { setSearch(e.target.value); setShown(PAGE); }}
+          />
+          <button className="tbl-export-btn" onClick=${exportCsv} title="Export filtered rows to CSV">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" d="M12 15V3m0 12-4-4m4 4 4-4M3 17v3a1 1 0 001 1h16a1 1 0 001-1v-3"/>
+            </svg>
+            CSV
+          </button>
+        </div>
       </div>
       <div className="data-tbl-wrap">
         <table className="data-tbl">
           <thead>
+            <!-- Header row with sort -->
             <tr>
               <th>#</th>
+              ${headings.map(h => {
+                const active = sortCol === h.name;
+                return html`
+                  <th key=${h.name} className="sortable" onClick=${() => { toggleSort(h.name); setShown(PAGE); }}>
+                    ${h.name}
+                    <span className=${'sort-ind' + (active ? (sortDir===1?' asc':' desc') : '')}>
+                      ${active ? (sortDir===1 ? '↑' : '↓') : '⇅'}
+                    </span>
+                    ${h.unit ? html`<span className="th-unit">${h.unit}</span>` : null}
+                  </th>
+                `;
+              })}
+            </tr>
+            <!-- Per-column filter row -->
+            <tr className="col-filter-row">
+              <th></th>
               ${headings.map(h => html`
-                <th key=${h.name}>
-                  ${h.name}
-                  ${h.unit ? html`<span className="th-unit">${h.unit}</span>` : null}
+                <th key=${'f'+h.name}>
+                  <input
+                    className="col-filter-input"
+                    placeholder="filter…"
+                    value=${colFilters[h.name] ?? ''}
+                    onInput=${e => { setColFilters(f => ({ ...f, [h.name]: e.target.value })); setShown(PAGE); }}
+                  />
                 </th>
               `)}
             </tr>
@@ -1818,7 +2296,7 @@ function GroupTable({ groupName, rows, meta, onKeyClick }) {
           <tbody>
             ${visible.map((row, ri) => html`
               <tr key=${ri}>
-                <td>${filtered.indexOf(row) + 1}</td>
+                <td>${ri + 1}</td>
                 ${headings.map(h => {
                   const v = cellValue(row[h.name]);
                   if (v === null) return html`<td key=${h.name} className="null">—</td>`;
@@ -1844,11 +2322,11 @@ function GroupTable({ groupName, rows, meta, onKeyClick }) {
         <div className="tbl-more">
           Showing ${shown} of ${filtered.length} rows
           <button className="btn-secondary" style=${s('padding:4px 12px;font-size:12px')}
-            onClick=${() => setShown(s => s + PAGE)}>
+            onClick=${() => setShown(n => n + PAGE)}>
             Show ${Math.min(PAGE, filtered.length - shown)} more
           </button>
         </div>
-      ` : filtered.length < rows.length ? html`
+      ` : hasActiveFilter ? html`
         <div className="tbl-more">${filtered.length} of ${rows.length} rows match filter</div>
       ` : null}
     </div>
@@ -2728,6 +3206,7 @@ function App() {
           <${ValidationMapTab}
             diagnostics=${diagnostics} locations=${locations}
             fileBytes=${fileBytes} wasmReady=${wasmReady}
+            onValidate=${handleValidate}
           />
         `}
         ${tab === 'map' && html`

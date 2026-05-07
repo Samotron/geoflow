@@ -26,6 +26,44 @@ impl Explorer {
                 format!("{truncated}…")
             }
         });
+        env.add_filter("geol_color", |desc: &str| -> &'static str {
+            let u = desc.to_uppercase();
+            if u.contains("MADE GROUND") || u.contains("FILL") || u.contains("HARDCORE") {
+                "#A0785A"
+            } else if u.contains("TOPSOIL") || u.contains("TOP SOIL") {
+                "#5C7A3E"
+            } else if u.contains("PEAT") || u.contains("ORGANIC") {
+                "#3D2B1F"
+            } else if u.contains("CHALK") {
+                "#F5F0C8"
+            } else if u.contains("CLAY") {
+                "#7B9EC5"
+            } else if u.contains("SILT") {
+                "#C4A87C"
+            } else if u.contains("SANDY GRAVEL") || u.contains("GRAVELLY SAND") {
+                "#D99055"
+            } else if u.contains("SILTY SAND") || u.contains("SANDY SILT") {
+                "#D8C080"
+            } else if u.contains("GRAVEL") {
+                "#C87A45"
+            } else if u.contains("SANDSTONE") {
+                "#D4B483"
+            } else if u.contains("SAND") {
+                "#F0D870"
+            } else if u.contains("MUDSTONE") || u.contains("SHALE") {
+                "#7A7A90"
+            } else if u.contains("LIMESTONE") {
+                "#C8CEB8"
+            } else if u.contains("GRANITE") || u.contains("DIORITE") || u.contains("IGNEOUS") {
+                "#808090"
+            } else if u.contains("BASALT") {
+                "#505060"
+            } else if u.contains("ROCK") || u.contains("BEDROCK") {
+                "#9090A0"
+            } else {
+                "#d1d5db"
+            }
+        });
         env.add_template("base", include_str!("explorer/base.html"))
             .unwrap();
         env.add_template("overview", include_str!("explorer/overview.html"))

@@ -1,95 +1,128 @@
 {% extends "base" %}
-{% block title %}Borehole {{ loca_id }} - GeoFlow{% endblock %}
+{% block title %}Borehole {{ loca_id }} — GeoFlow{% endblock %}
 {% block content %}
-    <h1>Borehole: {{ loca_id }}</h1>
-    <div style="display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;">
-        <div>
-            <p><strong>Easting:</strong> {{ loca.LOCA_NATE }}</p>
-            <p><strong>Northing:</strong> {{ loca.LOCA_NATN }}</p>
-            <p><strong>Ground Level:</strong> {{ loca.LOCA_GL }}</p>
+<style>
+    .bh-title-block {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+    .bh-brand {
+        background: #0f2644;
+        color: #fff;
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .bh-brand .company { font-size: 15px; font-weight: 800; letter-spacing: -0.3px; }
+    .bh-brand .doctype { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.6; margin-top: 3px; }
+    .bh-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-left: 1px solid #e2e8f0;
+    }
+    .bh-meta-cell {
+        padding: 8px 14px;
+        border-right: 1px solid #e2e8f0;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 12px;
+    }
+    .bh-meta-cell:nth-child(3n) { border-right: none; }
+    .bh-meta-cell .lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; margin-bottom: 2px; }
+    .bh-meta-cell .val { font-weight: 600; font-family: monospace; font-size: 13px; }
+    .log-wrap {
+        background: #fff;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    .log-body { overflow-x: auto; padding: 0; }
+    .log-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        padding: 10px 16px;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+        font-size: 11px;
+        color: #64748b;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-swatch { width: 14px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+</style>
+
+<h1>Borehole Log — {{ loca_id }}</h1>
+
+<div class="bh-title-block">
+    <div class="bh-brand">
+        <div class="company">GeoFlow</div>
+        <div class="doctype">Borehole Log · AGS 4.x</div>
+    </div>
+    <div class="bh-meta-grid">
+        <div class="bh-meta-cell">
+            <div class="lbl">Borehole ID</div>
+            <div class="val">{{ loca_id }}</div>
         </div>
-        <div style="background:white;border:1px solid #ccc;padding:1rem;overflow-x:auto;">
-            <!--
-                Strip log layout (x positions):
-                  0–50    depth axis labels
-                  50      depth axis line
-                  60–140  lithology strip (GEOL)
-                  140–155 sample markers (SAMP)
-                  160–260 SPT N bars (ISPT)  — max N=100 mapped to 100px wide
-                  265–285 water strike markers (WSTK)
-                  290     column header label space
-            -->
-            <svg width="310" height="820" viewBox="0 0 310 820" font-family="sans-serif">
-                <!-- Column headers -->
-                <text x="100" y="14" font-size="10" text-anchor="middle">Lithology</text>
-                <text x="148" y="14" font-size="10" text-anchor="middle">Samp</text>
-                <text x="210" y="14" font-size="10" text-anchor="middle">SPT N</text>
-                <text x="275" y="14" font-size="10" text-anchor="middle">Water</text>
-
-                <!-- SPT N scale tick marks at 0, 25, 50, 75, 100 -->
-                {% for tick in [0, 25, 50, 75, 100] %}
-                    <line x1="{{ 160 + tick }}" y1="16" x2="{{ 160 + tick }}" y2="800" stroke="#ddd" stroke-width="0.5"/>
-                    <text x="{{ 160 + tick }}" y="26" font-size="8" text-anchor="middle">{{ tick }}</text>
-                {% endfor %}
-
-                <!-- Depth axis -->
-                <line x1="50" y1="30" x2="50" y2="800" stroke="black"/>
-                {% for i in range(0, 51, 5) %}
-                    <text x="44" y="{{ 30 + i * 15 }}" font-size="10" text-anchor="end">{{ i }}</text>
-                    <line x1="46" y1="{{ 30 + i * 15 }}" x2="54" y2="{{ 30 + i * 15 }}" stroke="black"/>
-                {% endfor %}
-
-                <!-- Lithology strip outline -->
-                <rect x="60" y="30" width="80" height="770" fill="none" stroke="black"/>
-
-                <!-- GEOL layers -->
-                {% for layer in geol %}
-                    {% set top = layer.GEOL_TOP | float %}
-                    {% set base = layer.GEOL_BASE | float %}
-                    {% set y_top = 30 + top * 15 %}
-                    {% set h = (base - top) * 15 %}
-                    <rect x="61" y="{{ y_top }}" width="78" height="{{ h }}"
-                          fill="#dcdcdc" stroke="#999" stroke-width="0.5">
-                        <title>{{ layer.GEOL_DESC }} ({{ top }}–{{ base }} m)</title>
-                    </rect>
-                    {% if h > 12 %}
-                        <text x="100" y="{{ y_top + 10 }}" font-size="9" text-anchor="middle"
-                              style="pointer-events:none">{{ layer.GEOL_DESC | truncate(18) }}</text>
-                    {% endif %}
-                {% endfor %}
-
-                <!-- SAMP markers (small blue rectangles beside the lithology strip) -->
-                {% for s in samp %}
-                    {% set depth = s.SAMP_TOP | default(value="0") | float %}
-                    <rect x="142" y="{{ 30 + depth * 15 - 3 }}" width="10" height="6"
-                          fill="#3b82f6" stroke="#1e40af" stroke-width="0.5">
-                        <title>Sample {{ s.SAMP_ID }} ({{ s.SAMP_TYPE }}) at {{ depth }} m</title>
-                    </rect>
-                {% endfor %}
-
-                <!-- ISPT SPT N bars -->
-                {% for test in ispt %}
-                    {% set depth = test.ISPT_TOP | float %}
-                    {% set nval = test.ISPT_NVAL | default(value="0") | float %}
-                    {% set bar_w = [nval, 100] | min %}
-                    {% set y_bar = 30 + depth * 15 - 3 %}
-                    <rect x="160" y="{{ y_bar }}" width="{{ bar_w }}" height="6"
-                          fill="#f97316" stroke="#c2410c" stroke-width="0.5">
-                        <title>SPT N={{ nval }} at {{ depth }} m</title>
-                    </rect>
-                    <text x="{{ 162 + bar_w }}" y="{{ y_bar + 6 }}" font-size="8">{{ nval | int }}</text>
-                {% endfor %}
-
-                <!-- WSTK water strike markers (blue diamond) -->
-                {% for ws in wstk %}
-                    {% set depth = ws.WSTK_DPTH | float %}
-                    {% set cy = 30 + depth * 15 %}
-                    <polygon points="{{ 275 }},{{ cy - 5 }} {{ 280 }},{{ cy }} {{ 275 }},{{ cy + 5 }} {{ 270 }},{{ cy }}"
-                             fill="#06b6d4" stroke="#0891b2" stroke-width="0.5">
-                        <title>Water strike at {{ depth }} m</title>
-                    </polygon>
-                {% endfor %}
-            </svg>
+        <div class="bh-meta-cell">
+            <div class="lbl">Easting (m E)</div>
+            <div class="val">{{ loca.LOCA_NATE | default(value="—") }}</div>
+        </div>
+        <div class="bh-meta-cell">
+            <div class="lbl">Northing (m N)</div>
+            <div class="val">{{ loca.LOCA_NATN | default(value="—") }}</div>
+        </div>
+        <div class="bh-meta-cell">
+            <div class="lbl">Ground Level (mOD)</div>
+            <div class="val">{{ loca.LOCA_GL | default(value="—") }}</div>
+        </div>
+        <div class="bh-meta-cell">
+            <div class="lbl">Final Depth (m)</div>
+            <div class="val">{{ loca.LOCA_FDEP | default(value="—") }}</div>
+        </div>
+        <div class="bh-meta-cell">
+            <div class="lbl">Type</div>
+            <div class="val">{{ loca.LOCA_TYPE | default(value="—") }}</div>
         </div>
     </div>
+</div>
+
+<div class="log-wrap">
+    <div class="log-body">
+        {% include "borehole_svg" %}
+    </div>
+    {% if geol %}
+    <div class="log-legend">
+        <strong style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px">Legend:</strong>
+        {% for layer in geol %}
+            <div class="legend-item">
+                <div class="legend-swatch" style="background:{{ layer.GEOL_DESC | default(value='') | geol_color }};border:1px solid rgba(0,0,0,.2)"></div>
+                <span>{{ layer.GEOL_DESC | default(value="Unknown") | truncate(28) }}</span>
+            </div>
+        {% endfor %}
+        {% if samp %}
+            <div class="legend-item">
+                <div class="legend-swatch" style="background:#3b82f6;border:1px solid #1d4ed8"></div>
+                <span>Sample</span>
+            </div>
+        {% endif %}
+        {% if ispt %}
+            <div class="legend-item">
+                <div class="legend-swatch" style="background:#f97316;border:1px solid #c2410c"></div>
+                <span>SPT N-Value</span>
+            </div>
+        {% endif %}
+        {% if wstk %}
+            <div class="legend-item">
+                <div class="legend-swatch" style="background:#0ea5e9;border:1px solid #0369a1;transform:rotate(45deg)"></div>
+                <span>Water Strike</span>
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
 {% endblock %}
