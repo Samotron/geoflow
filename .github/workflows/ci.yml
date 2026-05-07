@@ -50,6 +50,26 @@ jobs:
       - name: Build WASM
         run: wasm-pack build crates/geoflow-wasm --target web --dev --out-dir $(pwd)/web/pkg
 
+  browser:
+    name: browser e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install npm dependencies
+        run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run browser tests
+        run: npm run test:browser
+
   msrv:
     name: msrv (1.85)
     runs-on: ubuntu-latest

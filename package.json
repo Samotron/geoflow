@@ -1,0 +1,11 @@
+{
+  "name": "geoflow-browser-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:browser": "npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2"
+  }
+}

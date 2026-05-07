@@ -1227,7 +1227,7 @@ import { createRoot } from 'https://esm.sh/react-dom@18/client';
 import htm from 'https://esm.sh/htm@3';
 import init, {
   validate_ags, validate_ags_with_rules, fix_ags, convert_to_diggs, ags_info,
-  render_borehole_svg, diff_ags, get_group_rows, get_map_data,
+  render_borehole_svg, diff_ags, get_group_rows, get_map_data, get_semantic_graph, get_points_for_geol_code,
   get_all_groups_data, get_all_groups_meta,
   parse_description, enhance_ags,
 } from './pkg/geoflow_wasm.js';
@@ -2325,6 +2325,26 @@ function truncate(s, n = 60) {
   return t.length > n ? t.slice(0, n) + '…' : t;
 }
 
+function isOntologyKeyField(heading) {
+  const name = heading?.name ?? '';
+  return !!heading?.is_id || /(?:_ID|_REF)$/.test(name);
+}
+
+function collectBoreholeRelations(allData, locaId) {
+  const target = String(locaId);
+  const matches = [];
+  for (const [group, rows] of Object.entries(allData ?? {})) {
+    const hit = rows.filter(r => r.LOCA_ID !== null && r.LOCA_ID !== undefined && String(r.LOCA_ID) === target);
+    if (hit.length > 0) matches.push({ group, rows: hit });
+  }
+  matches.sort((a, b) => {
+    if (a.group === 'LOCA') return -1;
+    if (b.group === 'LOCA') return 1;
+    return a.group.localeCompare(b.group);
+  });
+  return matches;
+}
+
 // ── MiniTable (compact read-only table used inside OntologyView) ──────────────
 function MiniTable({ rows, meta, onKeyClick }) {
   if (!rows || rows.length === 0) return null;
@@ -2344,7 +2364,7 @@ function MiniTable({ rows, meta, onKeyClick }) {
                 const v = cellValue(row[h.name]);
                 if (v === null) return html`<td key=${h.name} className="null">—</td>`;
                 const isNum = typeof v === 'number';
-                if (h.is_id && v !== '') return html`
+                if (isOntologyKeyField(h) && v !== '') return html`
                   <td key=${h.name}>
                     <button className="key-chip" onClick=${() => onKeyClick(h.name, v)}>${v}</button>
                   </td>`;
@@ -2354,6 +2374,74 @@ function MiniTable({ rows, meta, onKeyClick }) {
           `)}
         </tbody>
       </table>
+    </div>
+  `;
+}
+
+function BoreholeSummaryView({ locaId, allData, allMeta, onBack, onKeyClick }) {
+  const [expanded, setExpanded] = useState({});
+  const matches = useMemo(() => collectBoreholeRelations(allData, locaId), [allData, locaId]);
+  const locaRow = matches.find(m => m.group === 'LOCA')?.rows?.[0] ?? null;
+  const geolRows = matches.find(m => m.group === 'GEOL')?.rows ?? [];
+  const sampleRows = matches.find(m => m.group === 'SAMP')?.rows ?? [];
+  const testRows = matches.find(m => m.group === 'ISPT')?.rows ?? [];
+
+  useEffect(() => {
+    const init = {};
+    matches.forEach(m => { init[m.group] = true; });
+    setExpanded(init);
+  }, [locaId, matches]);
+
+  const toggle = group => setExpanded(prev => ({ ...prev, [group]: !prev[group] }));
+  const finalDepth = locaRow?.LOCA_FDEP ?? locaRow?.LOCA_DPTH ?? locaRow?.HOLE_DPTH ?? '—';
+  const coordBits = [locaRow?.LOCA_NATE, locaRow?.LOCA_NATN].filter(v => v !== undefined && v !== null && v !== '');
+
+  return html`
+    <div>
+      <div className="onto-back-bar">
+        <button className="onto-back-btn" onClick=${onBack}>← Back</button>
+        <span className="onto-title">
+          Borehole Summary
+          <span className="key-chip" style=${s('font-size:13px;padding:3px 12px;margin-left:8px')}>${locaId}</span>
+        </span>
+        <span style=${s('margin-left:auto;font-size:12px;color:var(--muted)')}>${matches.length} group${matches.length!==1?'s':''}</span>
+      </div>
+      <div className="data-panel" style=${s('margin-bottom:14px')}>
+        <div className="data-panel-head">
+          <h2>${locaId}</h2>
+          <span style=${s('font-size:12px;color:var(--muted)')}>Linked AGS records</span>
+        </div>
+        <div className="file-info-bar">
+          <span><strong>Type:</strong> ${locaRow?.LOCA_TYPE ?? '—'}</span>
+          <span><strong>Final depth:</strong> ${finalDepth}</span>
+          <span><strong>Coordinates:</strong> ${coordBits.length ? coordBits.join(', ') : '—'}</span>
+          <span><strong>Geology:</strong> ${geolRows.length} row${geolRows.length!==1?'s':''}</span>
+          <span><strong>Samples:</strong> ${sampleRows.length}</span>
+          <span><strong>SPT:</strong> ${testRows.length}</span>
+        </div>
+      </div>
+      ${matches.length === 0 ? html`
+        <div className="empty"><p>No records found for LOCA_ID = "${locaId}".</p></div>
+      ` : html`
+        <div className="onto-scroll">
+          ${matches.map(({ group, rows }) => {
+            const meta = allMeta[group] ?? null;
+            const isOpen = !!expanded[group];
+            return html`
+              <div key=${group} className="onto-group-section">
+                <div className="onto-group-hdr" onClick=${() => toggle(group)}>
+                  <span className="onto-chevron ${isOpen?'open':''}">▶</span>
+                  <span>${group}</span>
+                  <span className="onto-row-count">${rows.length} row${rows.length!==1?'s':''}</span>
+                </div>
+                ${isOpen && html`
+                  <${MiniTable} rows=${rows} meta=${meta} onKeyClick=${onKeyClick} />
+                `}
+              </div>
+            `;
+          })}
+        </div>
+      `}
     </div>
   `;
 }
@@ -2546,7 +2634,7 @@ function GroupTable({ groupName, rows, meta, onKeyClick }) {
                   const v = cellValue(row[h.name]);
                   if (v === null) return html`<td key=${h.name} className="null">—</td>`;
                   const isNum = typeof v === 'number';
-                  if (h.is_id) return html`
+                  if (isOntologyKeyField(h)) return html`
                     <td key=${h.name}>
                       <button className="key-chip" onClick=${() => onKeyClick(h.name, v)}
                         title="Show all records where ${h.name} = ${v}">
@@ -2628,14 +2716,22 @@ function DataTab({ allGroupData, allGroupsMeta, fileInfo }) {
       <div>
         ${ontologyCtx ? html`
           <div className="data-panel">
-            <${OntologyView}
-              keyField=${ontologyCtx.field}
-              keyValue=${ontologyCtx.value}
-              allData=${allGroupData}
-              allMeta=${allGroupsMeta}
-              onBack=${handleBack}
-              onKeyClick=${handleKeyClick}
-            />
+            ${ontologyCtx.field === 'LOCA_ID'
+              ? html`<${BoreholeSummaryView}
+                  locaId=${ontologyCtx.value}
+                  allData=${allGroupData}
+                  allMeta=${allGroupsMeta}
+                  onBack=${handleBack}
+                  onKeyClick=${handleKeyClick}
+                />`
+              : html`<${OntologyView}
+                  keyField=${ontologyCtx.field}
+                  keyValue=${ontologyCtx.value}
+                  allData=${allGroupData}
+                  allMeta=${allGroupsMeta}
+                  onBack=${handleBack}
+                  onKeyClick=${handleKeyClick}
+                />`}
           </div>
         ` : selectedGroup && allGroupData[selectedGroup] ? html`
           <${GroupTable}
@@ -2645,6 +2741,275 @@ function DataTab({ allGroupData, allGroupsMeta, fileInfo }) {
             onKeyClick=${handleKeyClick}
           />
         ` : html`<div className="empty"><p>Select a group from the list.</p></div>`}
+      </div>
+    </div>
+  `;
+}
+
+function BoreholeGraphTab({ locations, allGroupData, allGroupsMeta, semanticGraph, fileBytes, wasmReady }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const [scope, setScope] = useState('borehole');
+  const [geolCode, setGeolCode] = useState('');
+  const [geolMatches, setGeolMatches] = useState([]);
+
+  useEffect(() => {
+    if (!selectedId && locations?.length) setSelectedId(locations[0].id);
+  }, [locations, selectedId]);
+
+  useEffect(() => {
+    if (!geolCode.trim() || !fileBytes || !wasmReady) { setGeolMatches([]); return; }
+    try {
+      setGeolMatches(JSON.parse(get_points_for_geol_code(fileBytes, geolCode.trim())) || []);
+    } catch (_) {
+      setGeolMatches([]);
+    }
+  }, [geolCode, fileBytes, wasmReady]);
+
+  if (!semanticGraph || !allGroupData || !locations || locations.length === 0) return html`
+    <div className="empty">
+      <p>Load an AGS file with borehole data in <strong>Upload &amp; Convert</strong> to view the graph.</p>
+    </div>
+  `;
+
+  const semanticByPoint = useMemo(() => {
+    const m = {};
+    for (const point of (semanticGraph.investigation_points ?? [])) m[point.loca_id] = point;
+    return m;
+  }, [semanticGraph]);
+  const matches = useMemo(() => {
+    if (!selectedId) return [];
+    const point = semanticByPoint[selectedId];
+    if (!point) return [];
+    const pointId = point.id;
+    const intervalIds = (semanticGraph.intervals ?? []).filter(i => i.point_id === pointId).map(i => i.id);
+    const observationIds = (semanticGraph.lithology_observations ?? []).filter(o => o.point_id === pointId).map(o => o.id);
+    return [
+      { group: 'InvestigationPoint', rows: [point] },
+      { group: 'DepthInterval', rows: (semanticGraph.intervals ?? []).filter(i => i.point_id === pointId) },
+      { group: 'LithologyObservation', rows: (semanticGraph.lithology_observations ?? []).filter(o => o.point_id === pointId) },
+      { group: 'Classification', rows: (semanticGraph.classifications ?? []).filter(c => observationIds.includes(c.subject_id)) },
+      { group: 'MaterialFacet', rows: (semanticGraph.material_facets ?? []).filter(f => observationIds.includes(f.subject_id)) },
+      { group: 'Sample', rows: (semanticGraph.samples ?? []).filter(s => s.point_id === pointId) },
+      { group: 'FieldTest', rows: (semanticGraph.field_tests ?? []).filter(t => t.point_id === pointId) },
+      { group: 'Measurement', rows: (semanticGraph.measurements ?? []).filter(m => {
+        const owner = m.owner_id || '';
+        return owner.startsWith(`fieldtest:${pointId}:`) || owner.startsWith(`labtest:sample:${pointId}:`);
+      }) },
+      { group: 'LabTest', rows: (semanticGraph.lab_tests ?? []).filter(t => t.point_id === pointId) },
+    ].filter(entry => entry.rows.length > 0);
+  }, [semanticGraph, selectedId, semanticByPoint]);
+  const fileRelations = useMemo(() => {
+    const byId = {};
+    for (const point of (semanticGraph.investigation_points ?? [])) {
+      byId[point.loca_id] = [
+        { group: 'DepthInterval', rows: (semanticGraph.intervals ?? []).filter(i => i.point_id === point.id).length },
+        { group: 'LithologyObservation', rows: (semanticGraph.lithology_observations ?? []).filter(o => o.point_id === point.id).length },
+        { group: 'Sample', rows: (semanticGraph.samples ?? []).filter(s => s.point_id === point.id).length },
+        { group: 'FieldTest', rows: (semanticGraph.field_tests ?? []).filter(t => t.point_id === point.id).length },
+        { group: 'LabTest', rows: (semanticGraph.lab_tests ?? []).filter(t => t.point_id === point.id).length },
+      ].filter(item => item.rows > 0);
+    }
+    return {
+      groups: [
+        { group: 'InvestigationPoint', rows: (semanticGraph.investigation_points ?? []).length, boreholes: (semanticGraph.investigation_points ?? []).length },
+        { group: 'DepthInterval', rows: (semanticGraph.intervals ?? []).length, boreholes: new Set((semanticGraph.intervals ?? []).map(i => i.point_id)).size },
+        { group: 'LithologyObservation', rows: (semanticGraph.lithology_observations ?? []).length, boreholes: new Set((semanticGraph.lithology_observations ?? []).map(o => o.point_id)).size },
+        { group: 'Classification', rows: (semanticGraph.classifications ?? []).length, boreholes: new Set((semanticGraph.lithology_observations ?? []).map(o => o.point_id)).size },
+        { group: 'MaterialFacet', rows: (semanticGraph.material_facets ?? []).length, boreholes: new Set((semanticGraph.lithology_observations ?? []).map(o => o.point_id)).size },
+        { group: 'Sample', rows: (semanticGraph.samples ?? []).length, boreholes: new Set((semanticGraph.samples ?? []).map(s => s.point_id)).size },
+        { group: 'FieldTest', rows: (semanticGraph.field_tests ?? []).length, boreholes: new Set((semanticGraph.field_tests ?? []).map(t => t.point_id)).size },
+        { group: 'LabTest', rows: (semanticGraph.lab_tests ?? []).length, boreholes: new Set((semanticGraph.lab_tests ?? []).map(t => t.point_id)).size },
+        { group: 'Measurement', rows: (semanticGraph.measurements ?? []).length, boreholes: new Set((semanticGraph.field_tests ?? []).map(t => t.point_id).concat((semanticGraph.lab_tests ?? []).map(t => t.point_id))).size },
+      ].filter(entry => entry.rows > 0),
+      boreholes: locations.map(loc => ({
+        id: loc.id,
+        links: byId[loc.id] ?? [],
+        totalRows: (byId[loc.id] ?? []).reduce((sum, item) => sum + item.rows, 0),
+      })),
+    };
+  }, [semanticGraph, locations]);
+  const centerX = 420;
+  const centerY = 220;
+  const radius = Math.max(110, 36 * Math.max(matches.length, 3));
+  const countsById = Object.fromEntries(locations.map(loc => [loc.id, collectBoreholeRelations(allGroupData, loc.id).length]));
+  const groupNodes = matches.map(({ group, rows }, i) => {
+    const angle = (-Math.PI / 2) + (i * (2 * Math.PI / Math.max(matches.length, 1)));
+    return {
+      group,
+      rows: rows.length,
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    };
+  });
+  const overviewGroupRadius = Math.max(95, 24 * Math.max(fileRelations.groups.length, 3));
+  const overviewBoreholeRadiusX = 320;
+  const overviewBoreholeRadiusY = 170;
+  const overviewGroupNodes = fileRelations.groups.map((entry, i) => {
+    const angle = (-Math.PI / 2) + (i * (2 * Math.PI / Math.max(fileRelations.groups.length, 1)));
+    return {
+      ...entry,
+      x: centerX + Math.cos(angle) * overviewGroupRadius,
+      y: centerY + Math.sin(angle) * overviewGroupRadius,
+    };
+  });
+  const overviewBoreholeNodes = fileRelations.boreholes.map((entry, i) => {
+    const angle = (-Math.PI / 2) + (i * (2 * Math.PI / Math.max(fileRelations.boreholes.length, 1)));
+    return {
+      ...entry,
+      x: centerX + Math.cos(angle) * overviewBoreholeRadiusX,
+      y: centerY + Math.sin(angle) * overviewBoreholeRadiusY,
+    };
+  });
+  const overviewGroupMap = Object.fromEntries(overviewGroupNodes.map(node => [node.group, node]));
+
+  return html`
+    <div className="data-layout">
+      <div className="grp-list-panel">
+        <div className="grp-list-head">Graph Scope</div>
+        <div className="grp-list-scroll">
+          <div className=${`grp-list-item${scope==='borehole'?' active':''}`} onClick=${() => setScope('borehole')}>
+            <span>Selected borehole</span>
+          </div>
+          <div className=${`grp-list-item${scope==='file'?' active':''}`} onClick=${() => setScope('file')}>
+            <span>Whole file</span>
+          </div>
+        </div>
+        <div className="grp-list-head" style=${s('border-top:1px solid var(--line)')}>Boreholes (${locations.length})</div>
+        <div style=${s('padding:10px 12px;border-bottom:1px solid var(--line)')}>
+          <input
+            className="data-search"
+            placeholder="GEOL_LEG code, e.g. CL"
+            value=${geolCode}
+            onInput=${e => setGeolCode(e.target.value.toUpperCase())}
+          />
+          ${geolCode.trim() ? html`
+            <div style=${s('margin-top:8px;font-size:12px;color:var(--muted)')}>
+              ${geolMatches.length
+                ? `Matches: ${geolMatches.join(', ')}`
+                : 'No semantic matches'}
+            </div>
+          ` : null}
+        </div>
+        <div className="grp-list-scroll">
+          ${locations.map(loc => html`
+            <div key=${loc.id}
+              className=${`grp-list-item${selectedId===loc.id?' active':''}`}
+              onClick=${() => { setSelectedId(loc.id); setScope('borehole'); }}
+            >
+              <span>${loc.id}</span>
+              <span className="grp-count">${countsById[loc.id] ?? 0}</span>
+            </div>
+          `)}
+        </div>
+      </div>
+      <div className="data-panel">
+        <div className="data-panel-head">
+          <h2>Knowledge Graph</h2>
+          <span style=${s('font-size:12px;color:var(--muted)')}>
+            ${scope === 'file' ? 'Relationship view for the whole file' : `Relationship view for ${selectedId ?? '—'}`}
+          </span>
+        </div>
+        ${scope === 'file' ? html`
+          <div className="file-info-bar">
+            <span><strong>${fileRelations.boreholes.length}</strong> boreholes</span>
+            <span><strong>${fileRelations.groups.length}</strong> linked groups</span>
+            <span><strong>${fileRelations.boreholes.reduce((sum, b) => sum + b.totalRows, 0)}</strong> linked rows</span>
+          </div>
+          <svg viewBox="0 0 840 440" width="100%" className="xsec-svg" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="graphBgFile" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#fbfdff" />
+                <stop offset="100%" stop-color="#eef8f1" />
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="840" height="440" rx="18" fill="url(#graphBgFile)" />
+            ${overviewBoreholeNodes.flatMap(node => node.links.map(link => {
+              const groupNode = overviewGroupMap[link.group];
+              if (!groupNode) return null;
+              return html`<line
+                key=${`edge-${node.id}-${link.group}`}
+                x1=${node.x} y1=${node.y} x2=${groupNode.x} y2=${groupNode.y}
+                stroke="#94a3b8" strokeWidth=${Math.min(4, 0.8 + link.rows * 0.35)} opacity="0.22"
+              />`;
+            }))}
+            <circle cx=${centerX} cy=${centerY} r="46" fill="#163a63" />
+            <text x=${centerX} y=${centerY-4} textAnchor="middle" fill="#fff" fontSize="16" fontWeight="700">FILE</text>
+            <text x=${centerX} y=${centerY+16} textAnchor="middle" fill="#cbd5e1" fontSize="10">LOCA network</text>
+            ${overviewGroupNodes.map(node => html`
+              <g key=${node.group}>
+                <line x1=${centerX} y1=${centerY} x2=${node.x} y2=${node.y} stroke="#0f766e" strokeWidth=${Math.min(5, 1 + node.boreholes * 0.08)} opacity="0.35" />
+                <circle cx=${node.x} cy=${node.y} r=${Math.min(28, 16 + node.boreholes * 0.7)} fill="#ffffff" stroke="#0f766e" strokeWidth="2.5" />
+                <text x=${node.x} y=${node.y-3} textAnchor="middle" fill="#134e4a" fontSize="12" fontWeight="700">${node.group}</text>
+                <text x=${node.x} y=${node.y+11} textAnchor="middle" fill="#64748b" fontSize="10">${node.rows} rows</text>
+              </g>
+            `)}
+            ${overviewBoreholeNodes.map(node => html`
+              <g key=${node.id}>
+                <circle cx=${node.x} cy=${node.y} r=${Math.min(14, 7 + Math.max(1, node.links.length) * 0.9)} fill=${node.id === selectedId ? '#dbeafe' : '#f8fafc'} stroke=${node.id === selectedId ? '#2563eb' : '#94a3b8'} strokeWidth=${node.id === selectedId ? '2.5' : '1.5'} />
+                <text x=${node.x} y=${node.y+24} textAnchor="middle" fill="#334155" fontSize="9" fontWeight=${node.id === selectedId ? '700' : '500'}>${node.id}</text>
+              </g>
+            `)}
+          </svg>
+          <div className="onto-scroll" style=${s('margin-top:14px')}>
+            ${fileRelations.groups.map(entry => html`
+              <div key=${entry.group} className="onto-group-section">
+                <div className="onto-group-hdr">
+                  <span>${entry.group}</span>
+                  <span className="onto-row-count">${entry.rows} rows across ${entry.boreholes} borehole${entry.boreholes!==1?'s':''}</span>
+                </div>
+                <${MiniTable}
+                  rows=${(allGroupData?.[entry.group] ?? []).filter(r => r.LOCA_ID != null).slice(0, 5)}
+                  meta=${allGroupsMeta?.[entry.group] ?? null}
+                  onKeyClick=${(field, value) => {
+                    if (field === 'LOCA_ID') {
+                      setSelectedId(String(value));
+                      setScope('borehole');
+                    }
+                  }}
+                />
+              </div>
+            `)}
+          </div>
+        ` : !selectedId ? html`<div className="empty"><p>Select a borehole.</p></div>` : html`
+          <div className="file-info-bar">
+            <span><strong>${selectedId}</strong></span>
+            <span>${matches.length} linked group${matches.length!==1?'s':''}</span>
+            <span>${matches.reduce((sum, m) => sum + m.rows.length, 0)} total row${matches.reduce((sum, m) => sum + m.rows.length, 0)!==1?'s':''}</span>
+          </div>
+          <svg viewBox="0 0 840 440" width="100%" className="xsec-svg" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="graphBg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#f8fbff" />
+                <stop offset="100%" stop-color="#eef6f3" />
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="840" height="440" rx="18" fill="url(#graphBg)" />
+            ${groupNodes.map(node => html`
+              <line key=${'edge-'+node.group} x1=${centerX} y1=${centerY} x2=${node.x} y2=${node.y} stroke="#94a3b8" strokeWidth=${Math.min(6, 1 + node.rows)} opacity="0.9" />
+            `)}
+            <circle cx=${centerX} cy=${centerY} r="64" fill="#163a63" />
+            <text x=${centerX} y=${centerY-6} textAnchor="middle" fill="#fff" fontSize="18" fontWeight="700">${selectedId}</text>
+            <text x=${centerX} y=${centerY+18} textAnchor="middle" fill="#cbd5e1" fontSize="11">LOCA_ID</text>
+            ${groupNodes.map(node => html`
+              <g key=${node.group}>
+                <circle cx=${node.x} cy=${node.y} r=${Math.min(38, 24 + node.rows * 2)} fill="#ffffff" stroke="#3b82f6" strokeWidth="2.5" />
+                <text x=${node.x} y=${node.y-4} textAnchor="middle" fill="#1e3a5f" fontSize="13" fontWeight="700">${node.group}</text>
+                <text x=${node.x} y=${node.y+14} textAnchor="middle" fill="#64748b" fontSize="11">${node.rows} row${node.rows!==1?'s':''}</text>
+              </g>
+            `)}
+          </svg>
+          <div className="onto-scroll" style=${s('margin-top:14px')}>
+            ${matches.map(({ group, rows }) => html`
+              <div key=${group} className="onto-group-section">
+                <div className="onto-group-hdr">
+                  <span>${group}</span>
+                  <span className="onto-row-count">${rows.length} row${rows.length!==1?'s':''}</span>
+                </div>
+                <${MiniTable} rows=${rows.slice(0, 5)} meta=${allGroupsMeta?.[group] ?? null} onKeyClick=${() => {}} />
+              </div>
+            `)}
+          </div>
+        `}
       </div>
     </div>
   `;
@@ -3461,6 +3826,7 @@ function App() {
   const [diagnostics, setDiagnostics]     = useState(null);
   const [locations, setLocations]         = useState([]);
   const [mapData, setMapData]             = useState(null);
+  const [semanticGraph, setSemanticGraph] = useState(null);
   const [allGroupData, setAllGroupData]   = useState(null);
   const [allGroupsMeta, setAllGroupsMeta] = useState(null);
   const [status, setStatus]               = useState({ msg: 'Loading WebAssembly engine…', type: 'loading' });
@@ -3481,6 +3847,9 @@ function App() {
       setLocations((data?.boreholes ?? [])
         .filter(b => b.id)
         .map(b => ({ id: b.id, depth: b.final_depth, easting: b.easting, northing: b.northing })));
+    } catch(_) {}
+    try {
+      setSemanticGraph(JSON.parse(get_semantic_graph(bytes)));
     } catch(_) {}
     try {
       setAllGroupData(JSON.parse(get_all_groups_data(bytes)));
@@ -3533,6 +3902,7 @@ function App() {
     setDiagnostics(null);
     setLocations([]);
     setMapData(null);
+    setSemanticGraph(null);
     setFileInfo(null);
     const r = new FileReader();
     r.onload = e => {
@@ -3583,6 +3953,7 @@ function App() {
   const TABS = [
     { id: 'upload',     label: 'Upload & Convert' },
     { id: 'data',       label: 'Data'             },
+    { id: 'graph',      label: 'Graph'            },
     { id: 'validation', label: 'Validation'       },
     { id: 'map',        label: 'Map'              },
     { id: 'logs',       label: 'Logs'             },
@@ -3629,6 +4000,16 @@ function App() {
             allGroupData=${allGroupData}
             allGroupsMeta=${allGroupsMeta}
             fileInfo=${fileInfo}
+          />
+        `}
+        ${tab === 'graph' && html`
+          <${BoreholeGraphTab}
+            locations=${locations}
+            allGroupData=${allGroupData}
+            allGroupsMeta=${allGroupsMeta}
+            semanticGraph=${semanticGraph}
+            fileBytes=${fileBytes}
+            wasmReady=${wasmReady}
           />
         `}
         ${tab === 'validation' && html`
