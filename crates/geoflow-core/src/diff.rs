@@ -502,8 +502,10 @@ fn row_preview_fields(row: &AgsRow, max_fields: usize) -> Vec<String> {
 fn render_group(file: &AgsFile, group_name: &str) -> String {
     let mut out = String::new();
     if let Some(group) = file.group(group_name) {
-        let mut subfile = AgsFile::default();
-        subfile.ags_version = file.ags_version.clone();
+        let mut subfile = AgsFile {
+            ags_version: file.ags_version.clone(),
+            ..AgsFile::default()
+        };
         subfile.groups.insert(group_name.to_string(), group.clone());
         out = ags::serialize(&subfile);
     }

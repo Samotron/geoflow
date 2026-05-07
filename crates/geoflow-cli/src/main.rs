@@ -1814,8 +1814,8 @@ fn cmd_explore(
     let parsed = geoflow_core::ags::parse_bytes(&bytes);
 
     if let Some(out_dir) = out {
-        export_web_explorer(path, &bytes, out_dir)?;
-        println!("exported web explorer to {}", out_dir.display());
+        export_web_explorer(path, &bytes, &parsed.file, out_dir)?;
+        println!("exported static site to {}", out_dir.display());
     }
 
     if serve {
@@ -1835,9 +1835,14 @@ fn cmd_explore(
 fn export_web_explorer(
     source_path: &std::path::Path,
     source_bytes: &[u8],
+    file: &geoflow_core::model::AgsFile,
     out_dir: &std::path::Path,
 ) -> Result<()> {
-    copy_dir_recursive(std::path::Path::new("web"), out_dir)?;
+    let web_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("web");
+    copy_dir_recursive(&web_dir, out_dir)?;
 
     let source_name = source_path
         .file_name()
@@ -1863,6 +1868,16 @@ fn export_web_explorer(
     let index_html = index_html.replacen(r#"<script type="module">"#, &boot_script, 1);
     std::fs::write(&index_path, index_html)
         .with_context(|| format!("writing {}", index_path.display()))?;
+
+    let explorer = geoflow_core::explorer::Explorer::new();
+    for (relative_path, html) in explorer.render_all(file)? {
+        let page_path = out_dir.join(relative_path);
+        if let Some(parent) = page_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&page_path, html)
+            .with_context(|| format!("writing {}", page_path.display()))?;
+    }
     Ok(())
 }
 
