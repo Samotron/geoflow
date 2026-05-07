@@ -1,0 +1,1562 @@
+{% extends "base" %}
+{% block title %}Map & Sections — GeoFlow{% endblock %}
+{% block content %}
+<style>
+/* ── Map page layout ──────────────────────────────────────────── */
+.map-page { display: flex; flex-direction: column; gap: 0; margin: -24px -28px -60px; }
+
+.map-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    padding: 8px 14px; background: #fff; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 500;
+}
+.toolbar-group {
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 8px; border-right: 1px solid var(--border);
+}
+.toolbar-group:last-child { border-right: none; }
+.toolbar-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--muted); margin-right: 2px;
+}
+.btn-tool {
+    padding: 4px 10px; font-size: 12px; font-weight: 600;
+    background: var(--blue); color: #fff; border: none; border-radius: 4px;
+    cursor: pointer; white-space: nowrap; transition: opacity .15s;
+}
+.btn-tool:hover { opacity: 0.85; }
+.btn-tool.active { background: #ef4444; }
+.btn-secondary { background: #64748b; }
+.btn-secondary:hover { background: #475569; opacity: 1; }
+.btn-outline {
+    padding: 4px 10px; font-size: 12px; font-weight: 600;
+    background: #fff; color: var(--blue); border: 1px solid var(--blue);
+    border-radius: 4px; cursor: pointer; white-space: nowrap; transition: background .15s;
+}
+.btn-outline:hover { background: #eff6ff; }
+.select-tool {
+    padding: 4px 6px; font-size: 12px; border: 1px solid var(--border);
+    border-radius: 4px; background: #fff; color: var(--text); cursor: pointer;
+}
+.range-tool { width: 80px; cursor: pointer; }
+
+/* ── Map container ────────────────────────────────────────────── */
+#map { height: 56vh; min-height: 380px; background: #e8f4f8; }
+
+/* ── Status bar ───────────────────────────────────────────────── */
+.map-status {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 12px; background: #f8fafc; border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--muted); font-family: monospace;
+    min-height: 24px;
+}
+
+/* ── Section panel ────────────────────────────────────────────── */
+.section-panel {
+    background: #fff; border-top: 2px solid var(--blue);
+    display: flex; flex-direction: column; max-height: 440px;
+}
+.section-panel.hidden { display: none; }
+.panel-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px; background: #f8fafc; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.panel-title { font-size: 13px; font-weight: 700; color: var(--navy); }
+.panel-meta { font-size: 11px; color: var(--muted); margin-left: 8px; }
+#section-svg-container {
+    overflow-x: auto; overflow-y: hidden; flex: 1;
+    background: #fafbfc;
+}
+#section-svg { display: block; }
+
+/* ── IFC 3D panel ─────────────────────────────────────────────── */
+.three-panel {
+    background: #111827; border-top: 2px solid #6366f1;
+    display: flex; flex-direction: column;
+}
+.three-panel.hidden { display: none; }
+.three-panel .panel-header { background: #1f2937; border-bottom-color: #374151; flex-shrink: 0; }
+.three-panel .panel-title { color: #e5e7eb; }
+.three-panel .panel-meta { color: #9ca3af; }
+.viewer-body { display: flex; height: 440px; }
+#three-container { flex: 1; position: relative; overflow: hidden; min-width: 0; }
+#ifc-drop-zone {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: #6b7280; text-align: center;
+    border: 2px dashed #374151; margin: 20px; border-radius: 10px;
+    transition: border-color .2s, color .2s; z-index: 10; background: rgba(15,23,42,.9);
+}
+#ifc-drop-zone.drag-over { border-color: #6366f1; color: #a5b4fc; }
+#ifc-drop-zone.hidden { display: none; }
+#ifc-loading {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center; flex-direction: column;
+    background: rgba(17,24,39,.92); color: #9ca3af; font-size: 13px; z-index: 11;
+}
+#ifc-loading.active { display: flex; }
+.ifc-progress { width: 180px; height: 4px; background: #374151; border-radius: 2px; margin-top: 10px; overflow: hidden; }
+.ifc-progress-bar { height: 100%; background: #6366f1; width: 0%; transition: width .3s; }
+.ifc-props-panel {
+    width: 250px; flex-shrink: 0; background: #1e293b; border-left: 1px solid #334155;
+    overflow-y: auto; display: flex; flex-direction: column;
+}
+.ifc-props-panel.hidden { display: none; }
+.ifc-props-head {
+    padding: 10px 12px; font-size: 11px; font-weight: 700; color: #e2e8f0;
+    border-bottom: 1px solid #334155; flex-shrink: 0; background: #1e293b;
+    position: sticky; top: 0;
+}
+.ifc-props-type {
+    display: inline-block; padding: 2px 7px; border-radius: 3px;
+    font-size: 10px; background: #312e81; color: #c7d2fe; margin-bottom: 5px; font-family: monospace;
+}
+.ifc-prop-group { padding: 8px 12px; border-bottom: 1px solid #243041; }
+.ifc-prop-group-name {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px;
+}
+.ifc-prop-row { display: flex; gap: 6px; margin-bottom: 3px; font-size: 11px; }
+.ifc-prop-name { color: #94a3b8; flex: 0 0 88px; word-break: break-word; line-height: 1.4; }
+.ifc-prop-val  { color: #e2e8f0; word-break: break-all; font-family: monospace; line-height: 1.4; }
+
+/* ── Legend ───────────────────────────────────────────────────── */
+#legend-panel {
+    position: absolute; bottom: 30px; right: 10px; z-index: 1000;
+    background: rgba(255,255,255,0.95); border: 1px solid #cbd5e1;
+    border-radius: 6px; padding: 8px 10px; min-width: 130px;
+    font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+.legend-title { font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; color: #334155; }
+.legend-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.legend-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; border: 1px solid rgba(0,0,0,.15); }
+.legend-swatch-circle { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 2px solid rgba(0,0,0,.25); }
+
+/* ── Borehole popup ───────────────────────────────────────────── */
+.bh-popup { font-size: 12px; min-width: 160px; }
+.bh-popup-id { font-weight: 700; font-size: 13px; color: var(--navy); margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+.bh-popup-row { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
+.bh-popup-lbl { color: #64748b; }
+.bh-popup-val { font-weight: 600; font-family: monospace; }
+.bh-popup-link { display: block; margin-top: 6px; color: var(--blue); font-weight: 600; text-decoration: none; }
+.bh-popup-link:hover { text-decoration: underline; }
+
+/* ── Interpolation overlay ────────────────────────────────────── */
+#interp-legend {
+    position: absolute; top: 10px; right: 10px; z-index: 1000;
+    background: rgba(255,255,255,0.95); border: 1px solid #cbd5e1;
+    border-radius: 6px; padding: 8px 10px; min-width: 150px;
+    font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,.12); display: none;
+}
+.color-bar {
+    height: 14px; border-radius: 3px; margin: 4px 0;
+    background: linear-gradient(to right, #1e40af, #3b82f6, #22d3ee, #4ade80, #facc15, #f97316, #dc2626);
+}
+.color-bar-labels { display: flex; justify-content: space-between; font-size: 10px; color: #64748b; }
+</style>
+
+<!-- ── Module resolution for @thatopen/components peer deps ── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+
+<!-- ── Embedded AGS data (Rust-serialized JSON) ── -->
+<script>
+const BH_DATA  = {{ boreholes_json | safe }};
+const GEOL_DATA = {{ geol_json | safe }};
+const WSTK_DATA = {{ wstk_json | safe }};
+const ISPT_DATA = {{ ispt_json | safe }};
+</script>
+
+<!-- ── CDN Libraries ── -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js" crossorigin=""></script>
+<script src="https://d3js.org/d3-array.v2.min.js" crossorigin=""></script>
+<script src="https://d3js.org/d3-contour.v2.min.js" crossorigin=""></script>
+
+<!-- ── HTML layout ── -->
+<div class="map-page">
+
+  <!-- Toolbar -->
+  <div class="map-toolbar">
+    <div class="toolbar-group">
+      <span class="toolbar-label">Section</span>
+      <button id="btn-draw" class="btn-tool">&#9998; Draw Line</button>
+      <button id="btn-clear-section" class="btn-outline" style="display:none">&#10005; Clear</button>
+    </div>
+    <div class="toolbar-group">
+      <span class="toolbar-label">Buffer</span>
+      <input type="range" id="buffer-range" class="range-tool" min="10" max="500" value="100" title="Section buffer (m)">
+      <span id="buffer-val" style="font-size:11px;color:var(--muted);min-width:32px">100 m</span>
+    </div>
+    <div class="toolbar-group">
+      <span class="toolbar-label">Interpolate</span>
+      <select id="interp-surface" class="select-tool">
+        <option value="gl">Ground Level</option>
+        <option value="wt">Water Table Depth</option>
+        <option value="fdep">Final Depth</option>
+      </select>
+      <button id="btn-interp" class="btn-tool">&#9654; Run RBF</button>
+      <button id="btn-clear-interp" class="btn-outline" style="display:none">&#10005; Clear</button>
+    </div>
+    <div class="toolbar-group">
+      <span class="toolbar-label">Export</span>
+      <button id="btn-export-vtk" class="btn-outline">VTK Voxels</button>
+      <button id="btn-export-csv" class="btn-outline">CSV Grid</button>
+    </div>
+    <div class="toolbar-group">
+      <button id="btn-toggle-3d" class="btn-outline">&#9707; 3D / IFC</button>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div style="position:relative;">
+    <div id="map"></div>
+    <div id="legend-panel">
+      <div class="legend-title">Boreholes</div>
+      <div class="legend-row"><div class="legend-swatch-circle" style="background:#1e6fb5"></div><span>Borehole (BH)</span></div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#0f766e"></div><span>Trial Pit (TP)</span></div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#6d28d9;clip-path:polygon(50% 0%,100% 100%,0% 100%)"></div><span>CPT / Other</span></div>
+      <div id="depth-legend" style="margin-top:8px; display:none">
+        <div class="legend-title">Depth (m)</div>
+        <div class="color-bar" id="depth-color-bar"></div>
+        <div class="color-bar-labels">
+          <span id="depth-min">0</span><span id="depth-max">30+</span>
+        </div>
+      </div>
+    </div>
+    <div id="interp-legend">
+      <div class="legend-title" id="interp-legend-title">Ground Level (m OD)</div>
+      <div class="color-bar"></div>
+      <div class="color-bar-labels">
+        <span id="interp-min">—</span><span id="interp-max">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <div class="map-status">
+    <span id="status-text">Ready — <span id="bh-count">0</span> borehole(s) loaded</span>
+    <span id="coord-display"></span>
+  </div>
+
+  <!-- Cross-section panel -->
+  <div id="section-panel" class="section-panel hidden">
+    <div class="panel-header">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="panel-title">Cross-Section</span>
+        <span class="panel-meta" id="section-meta"></span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button id="btn-export-section-svg" class="btn-outline" style="font-size:11px;padding:3px 8px">Export SVG</button>
+        <button id="btn-close-section" class="btn-secondary btn-tool" style="font-size:11px;padding:3px 8px">&#10005; Close</button>
+      </div>
+    </div>
+    <div id="section-svg-container"></div>
+  </div>
+
+  <!-- IFC 3D Viewer panel — powered by That Open Company (@thatopen/components) -->
+  <div id="three-panel" class="three-panel hidden">
+    <div class="panel-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="panel-title" style="color:#e5e7eb">&#9707; 3D / IFC Viewer</span>
+        <span class="panel-meta" id="three-meta" style="color:#6366f1;font-size:10px">That Open Company</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="padding:3px 10px;font-size:11px;font-weight:600;background:#4f46e5;color:#fff;
+                      border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+          &#128196; Load IFC
+          <input type="file" id="ifc-input" accept=".ifc" style="display:none" multiple>
+        </label>
+        <button id="btn-export-gltf" class="btn-outline"
+                style="font-size:11px;padding:3px 8px;color:#e5e7eb;border-color:#475569">VTK Export</button>
+        <button id="btn-close-3d" class="btn-tool"
+                style="background:#374151;font-size:11px;padding:3px 8px">&#10005; Close</button>
+      </div>
+    </div>
+    <div class="viewer-body">
+      <!-- Viewer canvas -->
+      <div id="three-container">
+        <!-- Drop zone shown before any model is loaded -->
+        <div id="ifc-drop-zone">
+          <div style="font-size:42px;line-height:1;margin-bottom:10px">&#128450;</div>
+          <div style="font-size:13px;font-weight:600;color:#cbd5e1;margin-bottom:4px">Drop an IFC file here</div>
+          <div style="font-size:11px;opacity:.55;margin-bottom:16px">or click <strong>Load IFC</strong> above</div>
+          <div id="bh-geo-status" style="font-size:10px;color:#6366f1;font-weight:600"></div>
+        </div>
+        <!-- Progress overlay -->
+        <div id="ifc-loading">
+          <span id="ifc-loading-text" style="color:#cbd5e1">Initialising viewer…</span>
+          <div class="ifc-progress"><div class="ifc-progress-bar" id="ifc-progress-bar"></div></div>
+        </div>
+      </div>
+      <!-- Properties panel — shown when element is clicked -->
+      <div class="ifc-props-panel hidden" id="ifc-props-panel">
+        <div class="ifc-props-head">
+          <div id="ifc-type-badge" class="ifc-props-type">—</div>
+          <div id="ifc-elem-name"  style="color:#e2e8f0;font-size:12px;font-weight:700;margin-top:3px">Click an element</div>
+          <div id="ifc-model-name" style="color:#64748b;font-size:10px;margin-top:1px"></div>
+        </div>
+        <div id="ifc-props-content" style="flex:1;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .map-page -->
+
+<!-- ── Main JavaScript ── -->
+<script>
+{% raw %}
+// ════════════════════════════════════════════════════════════════════
+// 1. CONSTANTS & UTILITIES
+// ════════════════════════════════════════════════════════════════════
+
+proj4.defs('EPSG:27700',
+    '+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 ' +
+    '+x_0=400000 +y_0=-100000 +ellps=airy ' +
+    '+towgs84=446.448,-125.157,542.06,0.15,0.247,0.842,-20.489 ' +
+    '+units=m +no_defs');
+
+function geolColor(desc) {
+    const u = (desc || '').toUpperCase();
+    if (u.includes('MADE GROUND') || u.includes('FILL') || u.includes('HARDCORE')) return '#A0785A';
+    if (u.includes('TOPSOIL') || u.includes('TOP SOIL')) return '#5C7A3E';
+    if (u.includes('PEAT') || u.includes('ORGANIC')) return '#3D2B1F';
+    if (u.includes('CHALK')) return '#F5F0C8';
+    if (u.includes('CLAY')) return '#7B9EC5';
+    if (u.includes('SILT')) return '#C4A87C';
+    if (u.includes('SANDY GRAVEL') || u.includes('GRAVELLY SAND')) return '#D99055';
+    if (u.includes('SILTY SAND') || u.includes('SANDY SILT')) return '#D8C080';
+    if (u.includes('GRAVEL')) return '#C87A45';
+    if (u.includes('SANDSTONE')) return '#D4B483';
+    if (u.includes('SAND')) return '#F0D870';
+    if (u.includes('MUDSTONE') || u.includes('SHALE')) return '#7A7A90';
+    if (u.includes('LIMESTONE')) return '#C8CEB8';
+    if (u.includes('GRANITE') || u.includes('DIORITE') || u.includes('IGNEOUS')) return '#808090';
+    if (u.includes('BASALT')) return '#505060';
+    if (u.includes('ROCK') || u.includes('BEDROCK')) return '#9090A0';
+    return '#d1d5db';
+}
+
+// Detect coordinate reference system from borehole data
+let CRS = 'unknown';
+function detectCRS() {
+    const bhs = BH_DATA.filter(b => b.easting != null && b.northing != null);
+    if (!bhs.length) return 'unknown';
+    const maxE = Math.max(...bhs.map(b => b.easting));
+    const minN = Math.min(...bhs.map(b => b.northing));
+    const maxN = Math.max(...bhs.map(b => b.northing));
+    // BNG: eastings 100k–700k, northings 0–1300k
+    if (maxE > 1000 && maxN > 1000) return 'bng';
+    // WGS84 lat/lng
+    if (maxE <= 180 && maxN >= -90 && maxN <= 90) return 'wgs84';
+    // Local grid (relative coords)
+    return 'local';
+}
+
+function toLatLng(easting, northing) {
+    if (CRS === 'bng') {
+        const [lng, lat] = proj4('EPSG:27700', 'EPSG:4326', [easting, northing]);
+        return [lat, lng];
+    }
+    if (CRS === 'wgs84') return [northing, easting];
+    // Local: treat as small relative coords, centre on 51°N 0°E (UK default)
+    return [51 + northing / 111000, 0 + easting / 75000];
+}
+
+function fromLatLng(lat, lng) {
+    if (CRS === 'bng') return proj4('EPSG:4326', 'EPSG:27700', [lng, lat]);
+    if (CRS === 'wgs84') return [lng, lat];
+    return [(lng) * 75000, (lat - 51) * 111000];
+}
+
+function download(content, filename, mime) {
+    const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(new Blob([content], { type: mime })),
+        download: filename
+    });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+function setStatus(msg) {
+    document.getElementById('status-text').innerHTML = msg;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 2. RBF INTERPOLATION
+// ════════════════════════════════════════════════════════════════════
+
+function gaussianElim(A, b) {
+    const n = A.length;
+    const M = A.map((row, i) => [...row, b[i]]);
+    for (let col = 0; col < n; col++) {
+        let maxRow = col;
+        for (let row = col + 1; row < n; row++) {
+            if (Math.abs(M[row][col]) > Math.abs(M[maxRow][col])) maxRow = row;
+        }
+        [M[col], M[maxRow]] = [M[maxRow], M[col]];
+        if (Math.abs(M[col][col]) < 1e-14) continue;
+        for (let row = col + 1; row < n; row++) {
+            const f = M[row][col] / M[col][col];
+            for (let j = col; j <= n; j++) M[row][j] -= f * M[col][j];
+        }
+    }
+    const x = new Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) {
+        if (Math.abs(M[i][i]) < 1e-14) continue;
+        x[i] = M[i][n];
+        for (let j = i + 1; j < n; j++) x[i] -= M[i][j] * x[j];
+        x[i] /= M[i][i];
+    }
+    return x;
+}
+
+function rbfSolve(points, values) {
+    const n = points.length;
+    if (n === 0) return null;
+    // Epsilon: reciprocal of mean inter-point distance
+    let sumDist = 0, cnt = 0;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+        sumDist += Math.hypot(points[i][0] - points[j][0], points[i][1] - points[j][1]);
+        cnt++;
+    }
+    const eps = cnt > 0 ? 1.5 / (sumDist / cnt) : 0.001;
+    const phi = r => Math.exp(-eps * eps * r * r);
+    const A = Array.from({ length: n }, (_, i) =>
+        Array.from({ length: n }, (_, j) =>
+            phi(Math.hypot(points[i][0] - points[j][0], points[i][1] - points[j][1]))
+        )
+    );
+    const weights = gaussianElim(A, values);
+    return { weights, points, eps, phi };
+}
+
+function rbfEval(model, x, y) {
+    const { weights, points, eps, phi } = model;
+    let v = 0;
+    for (let i = 0; i < points.length; i++) {
+        v += weights[i] * phi(Math.hypot(x - points[i][0], y - points[i][1]));
+    }
+    return v;
+}
+
+function rbfGrid(model, xmin, xmax, ymin, ymax, nx, ny) {
+    const values = [];
+    for (let j = 0; j < ny; j++) {
+        for (let i = 0; i < nx; i++) {
+            const x = xmin + (xmax - xmin) * i / (nx - 1);
+            const y = ymin + (ymax - ymin) * j / (ny - 1);
+            values.push(rbfEval(model, x, y));
+        }
+    }
+    return { values, nx, ny, xmin, xmax, ymin, ymax };
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 3. MAP INITIALISATION
+// ════════════════════════════════════════════════════════════════════
+
+let map, boreholeLayer, wtLayer, sptLayer, interpLayer, sectionLine;
+
+function initMap() {
+    CRS = detectCRS();
+
+    // Centre on first borehole or default UK
+    let centre = [51.5, -1.5];
+    const validBhs = BH_DATA.filter(b => b.easting != null && b.northing != null);
+    if (validBhs.length) {
+        const [lat, lng] = toLatLng(
+            validBhs.reduce((s, b) => s + b.easting, 0) / validBhs.length,
+            validBhs.reduce((s, b) => s + b.northing, 0) / validBhs.length
+        );
+        centre = [lat, lng];
+    }
+
+    map = L.map('map', { zoomControl: true, preferCanvas: true }).setView(centre, 14);
+
+    // Base layers
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+    });
+    const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; CartoDB', maxZoom: 19
+    });
+    const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; Esri', maxZoom: 18
+    });
+    const esriLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 18, attribution: ''
+    });
+    const satellite = L.layerGroup([esri, esriLabels]);
+
+    osm.addTo(map);
+
+    // Overlay layers
+    boreholeLayer = L.layerGroup().addTo(map);
+    wtLayer       = L.layerGroup();
+    sptLayer      = L.layerGroup();
+
+    L.control.layers(
+        { 'OpenStreetMap': osm, 'CartoDB Positron': carto, 'Satellite': satellite },
+        { 'Boreholes': boreholeLayer, 'Water Table': wtLayer, 'SPT Data': sptLayer },
+        { position: 'topright', collapsed: false }
+    ).addTo(map);
+
+    // Mouse coordinate display
+    map.on('mousemove', e => {
+        const m = fromLatLng(e.latlng.lat, e.latlng.lng);
+        document.getElementById('coord-display').textContent =
+            CRS === 'bng'
+                ? `E ${m[0].toFixed(1)} N ${m[1].toFixed(1)} (BNG)`
+                : `Lat ${e.latlng.lat.toFixed(5)} Lng ${e.latlng.lng.toFixed(5)}`;
+    });
+
+    populateLayers();
+    fitBounds();
+    setStatus(`Ready &mdash; <strong>${validBhs.length}</strong> borehole(s) loaded (CRS: ${CRS.toUpperCase()})`);
+    document.getElementById('bh-count').textContent = validBhs.length;
+}
+
+function depthColor(depth, maxDepth) {
+    const t = Math.min((depth || 0) / Math.max(maxDepth, 1), 1);
+    // Blue (#1e6fb5) → Teal (#0f766e) → Green (#15803d) → Amber (#b45309) → Red (#991b1b)
+    const stops = [[30,111,181],[15,118,110],[21,128,61],[180,83,9],[153,27,27]];
+    const seg = t * (stops.length - 1);
+    const i = Math.min(Math.floor(seg), stops.length - 2);
+    const f = seg - i;
+    const r = Math.round(stops[i][0] + f * (stops[i+1][0] - stops[i][0]));
+    const g = Math.round(stops[i][1] + f * (stops[i+1][1] - stops[i][1]));
+    const b = Math.round(stops[i][2] + f * (stops[i+1][2] - stops[i][2]));
+    return `rgb(${r},${g},${b})`;
+}
+
+function populateLayers() {
+    const maxDepth = Math.max(...BH_DATA.map(b => b.final_depth || 0), 30);
+    document.getElementById('depth-min').textContent = '0 m';
+    document.getElementById('depth-max').textContent = `${maxDepth.toFixed(0)} m`;
+    if (BH_DATA.some(b => b.easting)) document.getElementById('depth-legend').style.display = '';
+
+    BH_DATA.forEach(bh => {
+        if (bh.easting == null || bh.northing == null) return;
+        const [lat, lng] = toLatLng(bh.easting, bh.northing);
+        const type = (bh.loca_type || 'BH').toUpperCase();
+        const depth = bh.final_depth || 0;
+        const color = depthColor(depth, maxDepth);
+
+        // Shape by type: circle=BH, square=TP, triangle=CPT
+        let svgShape;
+        if (type.startsWith('TP') || type.includes('TRIAL') || type.includes('PIT')) {
+            svgShape = `<rect x="3" y="3" width="14" height="14" rx="2" fill="${color}" stroke="white" stroke-width="1.5"/>`;
+        } else if (type.startsWith('CP') || type.includes('CONE') || type.includes('SCPTU')) {
+            svgShape = `<polygon points="10,2 19,18 1,18" fill="${color}" stroke="white" stroke-width="1.5"/>`;
+        } else {
+            svgShape = `<circle cx="10" cy="10" r="8" fill="${color}" stroke="white" stroke-width="2"/>`;
+        }
+        const icon = L.divIcon({
+            html: `<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">${svgShape}</svg>`,
+            className: '', iconSize: [20, 20], iconAnchor: [10, 10], popupAnchor: [0, -12]
+        });
+
+        const geolRows = GEOL_DATA.filter(g => g.loca_id === bh.id);
+        const wstk = WSTK_DATA.find(w => w.loca_id === bh.id);
+        const ispt = ISPT_DATA.filter(i => i.loca_id === bh.id);
+        const wtDepth = wstk ? wstk.depth : null;
+        const glVal = bh.ground_level != null ? bh.ground_level.toFixed(2) + ' mOD' : '—';
+        const fdepVal = bh.final_depth != null ? bh.final_depth.toFixed(2) + ' m' : '—';
+        const wtVal = wtDepth != null ? wtDepth.toFixed(2) + ' m bgl' : '—';
+
+        let geolHtml = '';
+        geolRows.slice(0, 4).forEach(g => {
+            const c = geolColor(g.desc);
+            geolHtml += `<div class="legend-row" style="margin:2px 0"><div class="legend-swatch" style="background:${c}"></div><span style="font-size:10px">${(g.desc||'').substring(0,28)} (${g.top||0}–${g.base||0} m)</span></div>`;
+        });
+        if (geolRows.length > 4) geolHtml += `<div style="font-size:10px;color:#64748b">…+${geolRows.length-4} more layers</div>`;
+
+        const popup = L.popup({ maxWidth: 240, className: '' }).setContent(
+            `<div class="bh-popup">
+              <div class="bh-popup-id">${bh.id}</div>
+              <div class="bh-popup-row"><span class="bh-popup-lbl">Type</span><span class="bh-popup-val">${bh.loca_type || 'BH'}</span></div>
+              <div class="bh-popup-row"><span class="bh-popup-lbl">Ground Level</span><span class="bh-popup-val">${glVal}</span></div>
+              <div class="bh-popup-row"><span class="bh-popup-lbl">Final Depth</span><span class="bh-popup-val">${fdepVal}</span></div>
+              <div class="bh-popup-row"><span class="bh-popup-lbl">Water Strike</span><span class="bh-popup-val">${wtVal}</span></div>
+              ${geolHtml}
+              <a class="bh-popup-link" href="/borehole/${bh.id}.html">Open borehole log &rarr;</a>
+            </div>`
+        );
+
+        L.marker([lat, lng], { icon }).bindPopup(popup).addTo(boreholeLayer);
+
+        // Water table overlay marker
+        if (wtDepth != null && bh.ground_level != null) {
+            const wtElev = bh.ground_level - wtDepth;
+            L.circleMarker([lat, lng], {
+                radius: 5, color: '#0369a1', fillColor: '#0ea5e9',
+                fillOpacity: 0.8, weight: 1.5
+            }).bindTooltip(`WT: ${wtElev.toFixed(2)} mOD`).addTo(wtLayer);
+        }
+
+        // SPT markers (sized by max N)
+        if (ispt.length) {
+            const maxN = Math.max(...ispt.map(t => t.nval || 0));
+            const r = Math.min(3 + maxN / 4, 14);
+            L.circleMarker([lat, lng], {
+                radius: r, color: '#c2410c', fillColor: '#f97316',
+                fillOpacity: 0.75, weight: 1.5
+            }).bindTooltip(`${bh.id}: max SPT N=${maxN}`).addTo(sptLayer);
+        }
+    });
+}
+
+function fitBounds() {
+    const pts = BH_DATA
+        .filter(b => b.easting != null && b.northing != null)
+        .map(b => toLatLng(b.easting, b.northing));
+    if (pts.length > 1) {
+        map.fitBounds(L.latLngBounds(pts), { padding: [40, 40] });
+    } else if (pts.length === 1) {
+        map.setView(pts[0], 15);
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 4. SECTION LINE TOOL
+// ════════════════════════════════════════════════════════════════════
+
+const Section = {
+    active: false,
+    vertices: [],    // [[lat,lng], ...]
+    polyline: null,
+    preview: null,
+    markers: [],
+
+    start() {
+        this.active = true;
+        this.vertices = [];
+        this.clearVisuals();
+        map.getContainer().style.cursor = 'crosshair';
+        document.getElementById('btn-draw').textContent = '✓ Finish';
+        document.getElementById('btn-draw').classList.add('active');
+        setStatus('Click to add section vertices &middot; <strong>Finish</strong> when done');
+        map.on('click', Section._onClick);
+        map.on('mousemove', Section._onMove);
+        map.doubleClickZoom.disable();
+    },
+
+    finish() {
+        if (this.vertices.length < 2) {
+            setStatus('&#9888; Draw at least 2 points for a section line');
+            return;
+        }
+        this.active = false;
+        map.off('click', Section._onClick);
+        map.off('mousemove', Section._onMove);
+        map.doubleClickZoom.enable();
+        map.getContainer().style.cursor = '';
+        if (this.preview) { map.removeLayer(this.preview); this.preview = null; }
+        document.getElementById('btn-draw').textContent = '✎ Draw Line';
+        document.getElementById('btn-draw').classList.remove('active');
+        document.getElementById('btn-clear-section').style.display = '';
+        buildCrossSection(this.vertices);
+    },
+
+    clear() {
+        this.active = false;
+        this.vertices = [];
+        this.clearVisuals();
+        map.off('click', Section._onClick);
+        map.off('mousemove', Section._onMove);
+        map.doubleClickZoom.enable();
+        map.getContainer().style.cursor = '';
+        document.getElementById('btn-draw').textContent = '✎ Draw Line';
+        document.getElementById('btn-draw').classList.remove('active');
+        document.getElementById('btn-clear-section').style.display = 'none';
+        document.getElementById('section-panel').classList.add('hidden');
+        setStatus('Section cleared');
+    },
+
+    clearVisuals() {
+        if (this.polyline) { map.removeLayer(this.polyline); this.polyline = null; }
+        if (this.preview)  { map.removeLayer(this.preview);  this.preview  = null; }
+        this.markers.forEach(m => map.removeLayer(m));
+        this.markers = [];
+    },
+
+    _onClick(e) {
+        const ll = [e.latlng.lat, e.latlng.lng];
+        Section.vertices.push(ll);
+        const m = L.circleMarker(ll, {
+            radius: 5, color: '#ef4444', fillColor: '#fca5a5', fillOpacity: 1, weight: 2
+        }).addTo(map);
+        Section.markers.push(m);
+        if (Section.polyline) map.removeLayer(Section.polyline);
+        Section.polyline = L.polyline(Section.vertices, {
+            color: '#ef4444', weight: 3, dashArray: '8 4', opacity: 0.9
+        }).addTo(map);
+        // Label vertices A, B, C…
+        const label = String.fromCharCode(65 + Section.vertices.length - 1);
+        L.tooltip({ permanent: true, className: 'section-label', direction: 'top', offset: [0, -8] })
+            .setContent(`<b>${label}</b>`)
+            .setLatLng(ll)
+            .addTo(map);
+    },
+
+    _onMove(e) {
+        if (Section.vertices.length === 0) return;
+        const last = Section.vertices[Section.vertices.length - 1];
+        if (Section.preview) map.removeLayer(Section.preview);
+        Section.preview = L.polyline([last, [e.latlng.lat, e.latlng.lng]], {
+            color: '#ef4444', weight: 2, dashArray: '4 4', opacity: 0.5
+        }).addTo(map);
+    }
+};
+
+// ════════════════════════════════════════════════════════════════════
+// 5. CROSS-SECTION RENDERING
+// ════════════════════════════════════════════════════════════════════
+
+function projectOntoPolyline(px, py, verts) {
+    // verts in metric coords [[x,y], ...]
+    let totalLen = 0, best = null;
+    for (let i = 0; i < verts.length - 1; i++) {
+        const [ax, ay] = verts[i], [bx, by] = verts[i+1];
+        const segLen = Math.hypot(bx-ax, by-ay);
+        const dx = bx-ax, dy = by-ay, len2 = dx*dx + dy*dy;
+        const t = len2 < 1e-10 ? 0 : Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / len2));
+        const projX = ax + t*dx, projY = ay + t*dy;
+        const dist = Math.hypot(px-projX, py-projY);
+        if (!best || dist < best.dist) {
+            best = { dist, distAlong: totalLen + t * segLen };
+        }
+        totalLen += segLen;
+    }
+    return best ? { ...best, totalLen } : { dist: Infinity, distAlong: 0, totalLen: 0 };
+}
+
+function buildCrossSection(sectionLatLng) {
+    // Convert section vertices to metric
+    const sectionM = sectionLatLng.map(([lat, lng]) => fromLatLng(lat, lng));
+    const totalLen = sectionM.slice(1).reduce((sum, v, i) =>
+        sum + Math.hypot(v[0]-sectionM[i][0], v[1]-sectionM[i][1]), 0);
+
+    const buffer = parseInt(document.getElementById('buffer-range').value, 10);
+
+    // Project each borehole onto the section line
+    const projected = BH_DATA
+        .filter(b => b.easting != null && b.northing != null)
+        .map(bh => {
+            const { dist, distAlong } = projectOntoPolyline(bh.easting, bh.northing, sectionM);
+            return { bh, dist, distAlong };
+        })
+        .filter(p => p.dist <= buffer)
+        .sort((a, b) => a.distAlong - b.distAlong);
+
+    if (projected.length === 0) {
+        setStatus(`&#9888; No boreholes within ${buffer} m buffer — try increasing buffer`);
+        return;
+    }
+
+    const meta = `${projected.length} BH · ${(totalLen/1000).toFixed(2)} km · buffer ${buffer} m`;
+    document.getElementById('section-meta').textContent = meta;
+    document.getElementById('section-panel').classList.remove('hidden');
+
+    renderSectionSVG(projected, totalLen);
+    setStatus(`Cross-section: ${meta}`);
+}
+
+function renderSectionSVG(projected, totalLen) {
+    const W = Math.max(900, projected.length * 120 + 200);
+    const H = 400;
+    const ML = 70, MR = 20, MT = 30, MB = 50;
+    const PW = W - ML - MR, PH = H - MT - MB;
+
+    // Elevation bounds
+    const gls = projected.map(p => p.bh.ground_level).filter(v => v != null);
+    const allTopElev = [];
+    const allBotElev = [];
+    projected.forEach(({ bh }) => {
+        const gl = bh.ground_level || 0;
+        allTopElev.push(gl);
+        const geol = GEOL_DATA.filter(g => g.loca_id === bh.id);
+        if (geol.length) {
+            const maxBase = Math.max(...geol.map(g => g.base || 0));
+            allBotElev.push(gl - maxBase);
+        } else if (bh.final_depth) {
+            allBotElev.push(gl - bh.final_depth);
+        }
+    });
+
+    const elevMax = allTopElev.length ? Math.max(...allTopElev) + 2 : 10;
+    const elevMin = allBotElev.length ? Math.min(...allBotElev) - 2 : -20;
+    const elevRange = elevMax - elevMin || 1;
+
+    const xScale = d => ML + (d / totalLen) * PW;
+    const yScale = e => MT + (1 - (e - elevMin) / elevRange) * PH;
+
+    let svg = `<svg id="section-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="system-ui,sans-serif" xmlns="http://www.w3.org/2000/svg">`;
+
+    // Background
+    svg += `<rect x="${ML}" y="${MT}" width="${PW}" height="${PH}" fill="#f0f9ff" stroke="#cbd5e1" stroke-width="0.5"/>`;
+
+    // Y-axis grid + labels (every ~2m)
+    const yStep = elevRange < 10 ? 1 : elevRange < 30 ? 2 : 5;
+    const yFirst = Math.ceil(elevMin / yStep) * yStep;
+    for (let e = yFirst; e <= elevMax; e += yStep) {
+        const y = yScale(e);
+        svg += `<line x1="${ML}" y1="${y}" x2="${W-MR}" y2="${y}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+        svg += `<text x="${ML-4}" y="${y+4}" text-anchor="end" font-size="9" fill="#64748b">${e.toFixed(0)}</text>`;
+    }
+
+    // X-axis ticks
+    const nTicks = Math.min(10, Math.ceil(totalLen / 50));
+    for (let i = 0; i <= nTicks; i++) {
+        const d = totalLen * i / nTicks;
+        const x = xScale(d);
+        svg += `<line x1="${x}" y1="${MT+PH}" x2="${x}" y2="${MT+PH+5}" stroke="#64748b" stroke-width="1"/>`;
+        svg += `<text x="${x}" y="${MT+PH+16}" text-anchor="middle" font-size="9" fill="#64748b">${(d).toFixed(0)} m</text>`;
+    }
+
+    // Axis labels
+    svg += `<text x="${ML-40}" y="${MT+PH/2}" text-anchor="middle" font-size="10" fill="#334155" transform="rotate(-90,${ML-40},${MT+PH/2})">Elevation (m OD)</text>`;
+    svg += `<text x="${ML+PW/2}" y="${H-6}" text-anchor="middle" font-size="10" fill="#334155">Distance along section (m)</text>`;
+
+    // Borehole columns
+    const colW = Math.min(40, PW / (projected.length * 2.5));
+
+    projected.forEach(({ bh, distAlong }) => {
+        const cx = xScale(distAlong);
+        const gl = bh.ground_level || 0;
+        const geolRows = GEOL_DATA.filter(g => g.loca_id === bh.id)
+            .sort((a, b) => (a.top || 0) - (b.top || 0));
+
+        // Draw geology layers
+        if (geolRows.length) {
+            geolRows.forEach(layer => {
+                const topElev = gl - (layer.top || 0);
+                const botElev = gl - (layer.base || layer.top || 0);
+                if (topElev <= elevMin || botElev >= elevMax) return;
+                const y1 = Math.max(yScale(Math.min(topElev, elevMax)), MT);
+                const y2 = Math.min(yScale(Math.max(botElev, elevMin)), MT + PH);
+                const h = y2 - y1;
+                if (h < 0.5) return;
+                const col = geolColor(layer.desc);
+                svg += `<rect x="${cx - colW/2}" y="${y1}" width="${colW}" height="${h}" fill="${col}" stroke="#9ca3af" stroke-width="0.4">
+                    <title>${bh.id}: ${layer.desc||''} (${layer.top}–${layer.base} m bgl, ${topElev.toFixed(1)}–${botElev.toFixed(1)} mOD)</title></rect>`;
+            });
+        } else if (bh.final_depth) {
+            // Fallback: plain column
+            const y1 = yScale(gl);
+            const y2 = yScale(gl - bh.final_depth);
+            svg += `<rect x="${cx - colW/2}" y="${y1}" width="${colW}" height="${y2-y1}" fill="#d1d5db" stroke="#9ca3af" stroke-width="0.4"/>`;
+        }
+
+        // Ground surface tick
+        const glY = yScale(gl);
+        svg += `<line x1="${cx - colW/2 - 3}" y1="${glY}" x2="${cx + colW/2 + 3}" y2="${glY}" stroke="#1f2937" stroke-width="1.5"/>`;
+
+        // Water table
+        const wstk = WSTK_DATA.find(w => w.loca_id === bh.id);
+        if (wstk && wstk.depth != null) {
+            const wtElev = gl - wstk.depth;
+            const wtY = yScale(wtElev);
+            if (wtY >= MT && wtY <= MT + PH) {
+                svg += `<polygon points="${cx},${wtY-5} ${cx+4},${wtY} ${cx},${wtY+5} ${cx-4},${wtY}" fill="#0ea5e9" stroke="#0369a1" stroke-width="0.5">
+                    <title>Water table: ${wtElev.toFixed(2)} mOD</title></polygon>`;
+            }
+        }
+
+        // SPT bars (right of column)
+        const ispt = ISPT_DATA.filter(i => i.loca_id === bh.id);
+        ispt.forEach(test => {
+            if (test.nval == null) return;
+            const testElev = gl - (test.top || 0);
+            const ty = yScale(testElev);
+            if (ty < MT || ty > MT + PH) return;
+            const barW = Math.min(test.nval / 60 * (colW * 0.8), colW * 0.8);
+            svg += `<rect x="${cx + colW/2 + 1}" y="${ty - 3}" width="${barW}" height="6" fill="#f97316" opacity="0.8">
+                <title>SPT N=${test.nval} at ${testElev.toFixed(1)} mOD</title></rect>`;
+        });
+
+        // Borehole ID label (below x-axis)
+        svg += `<text x="${cx}" y="${MT+PH+32}" text-anchor="middle" font-size="9" font-weight="700" fill="#1e3a5f">${bh.id}</text>`;
+        // Depth label
+        svg += `<text x="${cx}" y="${MT+PH+42}" text-anchor="middle" font-size="8" fill="#64748b">(${distAlong.toFixed(0)} m)</text>`;
+    });
+
+    // Ground surface line
+    const glPoints = projected
+        .filter(p => p.bh.ground_level != null)
+        .map(({ bh, distAlong }) => `${xScale(distAlong).toFixed(1)},${yScale(bh.ground_level).toFixed(1)}`);
+    if (glPoints.length >= 2) {
+        svg += `<polyline points="${glPoints.join(' ')}" fill="none" stroke="#1f2937" stroke-width="2" stroke-dasharray="6 3"/>`;
+    }
+
+    // Water table line
+    const wtPoints = projected
+        .filter(p => {
+            const w = WSTK_DATA.find(ww => ww.loca_id === p.bh.id);
+            return w && w.depth != null && p.bh.ground_level != null;
+        })
+        .map(({ bh, distAlong }) => {
+            const w = WSTK_DATA.find(ww => ww.loca_id === bh.id);
+            const wtE = bh.ground_level - w.depth;
+            return `${xScale(distAlong).toFixed(1)},${yScale(wtE).toFixed(1)}`;
+        });
+    if (wtPoints.length >= 2) {
+        svg += `<polyline points="${wtPoints.join(' ')}" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="4 2"/>`;
+    }
+
+    // Legend
+    let lx = ML, ly = MT - 22;
+    svg += `<line x1="${lx}" y1="${ly+3}" x2="${lx+20}" y2="${ly+3}" stroke="#1f2937" stroke-width="2" stroke-dasharray="6 3"/>`;
+    svg += `<text x="${lx+24}" y="${ly+7}" font-size="9" fill="#1f2937">Ground surface</text>`;
+    lx += 110;
+    svg += `<line x1="${lx}" y1="${ly+3}" x2="${lx+20}" y2="${ly+3}" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="4 2"/>`;
+    svg += `<text x="${lx+24}" y="${ly+7}" font-size="9" fill="#0ea5e9">Water table</text>`;
+    lx += 100;
+    svg += `<rect x="${lx}" y="${ly-2}" width="12" height="9" fill="#f97316"/>`;
+    svg += `<text x="${lx+16}" y="${ly+7}" font-size="9" fill="#374151">SPT N-value</text>`;
+
+    svg += '</svg>';
+    document.getElementById('section-svg-container').innerHTML = svg;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 6. RBF INTERPOLATION OVERLAY
+// ════════════════════════════════════════════════════════════════════
+
+let currentGrid = null;
+
+function runInterpolation() {
+    const surface = document.getElementById('interp-surface').value;
+
+    // Gather data points
+    const pts = [], vals = [];
+    BH_DATA.forEach(bh => {
+        if (bh.easting == null || bh.northing == null) return;
+        let v = null;
+        if (surface === 'gl')   v = bh.ground_level;
+        if (surface === 'fdep') v = bh.final_depth;
+        if (surface === 'wt') {
+            const wstk = WSTK_DATA.find(w => w.loca_id === bh.id);
+            if (wstk && wstk.depth != null) v = wstk.depth;
+        }
+        if (v != null) { pts.push([bh.easting, bh.northing]); vals.push(v); }
+    });
+
+    if (pts.length < 3) {
+        setStatus('&#9888; Need ≥3 data points for interpolation');
+        return;
+    }
+
+    setStatus('Running RBF interpolation…');
+    setTimeout(() => {
+        try {
+            const model = rbfSolve(pts, vals);
+            const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+            const pad = 0.1;
+            const xpad = (Math.max(...xs) - Math.min(...xs)) * pad;
+            const ypad = (Math.max(...ys) - Math.min(...ys)) * pad;
+            const xmin = Math.min(...xs) - xpad, xmax = Math.max(...xs) + xpad;
+            const ymin = Math.min(...ys) - ypad, ymax = Math.max(...ys) + ypad;
+            const NX = 40, NY = 40;
+
+            currentGrid = rbfGrid(model, xmin, xmax, ymin, ymax, NX, NY);
+            renderContours(currentGrid, surface);
+            setStatus(`Interpolation complete — ${pts.length} control points`);
+        } catch (err) {
+            setStatus('Interpolation error: ' + err.message);
+        }
+    }, 10);
+}
+
+function renderContours(grid, surface) {
+    if (interpLayer) { map.removeLayer(interpLayer); interpLayer = null; }
+
+    const { values, nx, ny, xmin, xmax, ymin, ymax } = grid;
+    const vmin = Math.min(...values.filter(Number.isFinite));
+    const vmax = Math.max(...values.filter(Number.isFinite));
+    const nLevels = 10;
+    const step = (vmax - vmin) / nLevels;
+    const thresholds = Array.from({ length: nLevels }, (_, i) => vmin + i * step);
+
+    const colorFor = v => {
+        const t = (v - vmin) / (vmax - vmin || 1);
+        const stops = [[30,64,175],[59,130,246],[34,211,238],[74,222,128],[250,204,21],[249,115,22],[220,38,38]];
+        const seg = t * (stops.length - 1);
+        const i = Math.min(Math.floor(seg), stops.length - 2);
+        const f = seg - i;
+        const r = Math.round(stops[i][0] + f * (stops[i+1][0] - stops[i][0]));
+        const g = Math.round(stops[i][1] + f * (stops[i+1][1] - stops[i][1]));
+        const b = Math.round(stops[i][2] + f * (stops[i+1][2] - stops[i][2]));
+        return `rgb(${r},${g},${b})`;
+    };
+
+    const contours = d3.contours().size([nx, ny]).thresholds(thresholds)(values);
+    interpLayer = L.layerGroup();
+
+    contours.forEach(contour => {
+        const color = colorFor(contour.value);
+        contour.coordinates.forEach(rings => {
+            rings.forEach((ring, ri) => {
+                const latLngs = ring.map(([col, row]) => {
+                    const x = xmin + (xmax - xmin) * col / nx;
+                    const y = ymin + (ymax - ymin) * row / ny;
+                    return toLatLng(x, y);
+                });
+                const poly = ri === 0
+                    ? L.polygon(latLngs, { color, weight: 1.5, fill: true, fillColor: color, fillOpacity: 0.18 })
+                    : L.polygon(latLngs, { color, weight: 1, fill: true, fillColor: '#fff', fillOpacity: 0.25 });
+                poly.bindTooltip(`${contour.value.toFixed(2)} m`, { sticky: true });
+                poly.addTo(interpLayer);
+            });
+        });
+    });
+
+    interpLayer.addTo(map);
+    document.getElementById('btn-clear-interp').style.display = '';
+
+    const labels = { gl: 'Ground Level (m OD)', fdep: 'Final Depth (m)', wt: 'Water Table Depth (m bgl)' };
+    document.getElementById('interp-legend-title').textContent = labels[surface] || 'Interpolated Surface';
+    document.getElementById('interp-min').textContent = vmin.toFixed(2);
+    document.getElementById('interp-max').textContent = vmax.toFixed(2);
+    document.getElementById('interp-legend').style.display = '';
+}
+
+function clearInterp() {
+    if (interpLayer) { map.removeLayer(interpLayer); interpLayer = null; }
+    document.getElementById('btn-clear-interp').style.display = 'none';
+    document.getElementById('interp-legend').style.display = 'none';
+    currentGrid = null;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 7. EXPORT: VTK VOXEL MODEL
+// ════════════════════════════════════════════════════════════════════
+
+function exportVTK() {
+    const bhsM = BH_DATA.filter(b => b.easting != null && b.northing != null && b.ground_level != null);
+    if (bhsM.length < 3) { setStatus('&#9888; Need ≥3 boreholes with ground level for VTK export'); return; }
+
+    setStatus('Building VTK voxel model…');
+    setTimeout(() => {
+        const xs = bhsM.map(b => b.easting), ys = bhsM.map(b => b.northing);
+        const depths = bhsM.map(b => b.final_depth || 20);
+        const xmin = Math.min(...xs), xmax = Math.max(...xs);
+        const ymin = Math.min(...ys), ymax = Math.max(...ys);
+
+        // Pad & grid
+        const pad = (xmax - xmin) * 0.1 + 10;
+        const X0 = xmin - pad, X1 = xmax + pad;
+        const Y0 = ymin - pad, Y1 = ymax + pad;
+        const NX = 25, NY = 25, NZ = 20;
+
+        // Interpolate ground level surface
+        const glPts  = bhsM.map(b => [b.easting, b.northing]);
+        const glVals = bhsM.map(b => b.ground_level);
+        const glMod  = rbfSolve(glPts, glVals);
+
+        // Max interpolated GL & bottom elevation
+        let gMax = -Infinity, gMin = Infinity;
+        for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+            const x = X0 + (X1-X0)*i/(NX-1), y = Y0 + (Y1-Y0)*j/(NY-1);
+            const v = rbfEval(glMod, x, y);
+            if (v > gMax) gMax = v;
+            if (v < gMin) gMin = v;
+        }
+        const maxDepth = Math.max(...depths);
+        const Z0 = gMin - maxDepth - 2, Z1 = gMax + 2;
+
+        // Water table (if available)
+        const wtBhs = bhsM.filter(b => {
+            const w = WSTK_DATA.find(ww => ww.loca_id === b.id);
+            return w && w.depth != null;
+        });
+        const wtMod = wtBhs.length >= 3
+            ? rbfSolve(wtBhs.map(b => [b.easting, b.northing]),
+                       wtBhs.map(b => b.ground_level - WSTK_DATA.find(w => w.loca_id === b.id).depth))
+            : null;
+
+        // Build 3D voxels
+        const total = NX * NY * NZ;
+        const gl3d  = new Float32Array(total);
+        const wt3d  = new Float32Array(total);
+        const geo3d = new Float32Array(total); // simplified geology code (1=soil,2=rock,3=fill)
+
+        const idx = (i, j, k) => k * NX * NY + j * NX + i;
+
+        for (let k = 0; k < NZ; k++) {
+            const z = Z0 + (Z1-Z0)*k/(NZ-1);
+            for (let j = 0; j < NY; j++) {
+                const y = Y0 + (Y1-Y0)*j/(NY-1);
+                for (let i = 0; i < NX; i++) {
+                    const x = X0 + (X1-X0)*i/(NX-1);
+                    const gl = rbfEval(glMod, x, y);
+                    const wt = wtMod ? rbfEval(wtMod, x, y) : 0;
+                    gl3d[idx(i,j,k)] = gl;
+                    wt3d[idx(i,j,k)] = wt;
+
+                    // Simple geology classification by depth below ground
+                    const depthBGL = gl - z;
+                    if (z > gl) {
+                        geo3d[idx(i,j,k)] = 0; // Above ground
+                    } else {
+                        // Find nearest borehole and interpolate geology
+                        let nearDist = Infinity, nearGeoCode = 1;
+                        bhsM.forEach(bh => {
+                            const d = Math.hypot(x - bh.easting, y - bh.northing);
+                            if (d < nearDist) {
+                                nearDist = d;
+                                const layers = GEOL_DATA.filter(g => g.loca_id === bh.id)
+                                    .sort((a, b) => (a.top||0) - (b.top||0));
+                                const activeLayer = layers.find(l =>
+                                    depthBGL >= (l.top||0) && depthBGL < (l.base||999));
+                                if (activeLayer) {
+                                    const d2 = (activeLayer.desc||'').toUpperCase();
+                                    if (d2.includes('MADE') || d2.includes('FILL')) nearGeoCode = 3;
+                                    else if (d2.includes('ROCK') || d2.includes('CHALK') || d2.includes('STONE')) nearGeoCode = 5;
+                                    else if (d2.includes('GRAVEL') || d2.includes('SAND')) nearGeoCode = 4;
+                                    else if (d2.includes('CLAY') || d2.includes('SILT')) nearGeoCode = 2;
+                                    else nearGeoCode = 1;
+                                }
+                            }
+                        });
+                        geo3d[idx(i,j,k)] = nearGeoCode;
+                    }
+                }
+            }
+        }
+
+        // Write VTK
+        const dx = (X1-X0)/(NX-1), dy = (Y1-Y0)/(NY-1), dz = (Z1-Z0)/(NZ-1);
+        let vtk = `# vtk DataFile Version 3.0\nGeoFlow Voxel Model\nASCII\nDATASET STRUCTURED_POINTS\n`;
+        vtk += `DIMENSIONS ${NX} ${NY} ${NZ}\n`;
+        vtk += `ORIGIN ${X0.toFixed(3)} ${Y0.toFixed(3)} ${Z0.toFixed(3)}\n`;
+        vtk += `SPACING ${dx.toFixed(3)} ${dy.toFixed(3)} ${dz.toFixed(3)}\n`;
+        vtk += `POINT_DATA ${total}\n`;
+        vtk += `SCALARS geology_code float 1\nLOOKUP_TABLE default\n`;
+        vtk += Array.from(geo3d).map(v => v.toFixed(0)).join('\n') + '\n';
+        vtk += `SCALARS ground_level float 1\nLOOKUP_TABLE default\n`;
+        vtk += Array.from(gl3d).map(v => v.toFixed(3)).join('\n') + '\n';
+        if (wtMod) {
+            vtk += `SCALARS water_table float 1\nLOOKUP_TABLE default\n`;
+            vtk += Array.from(wt3d).map(v => v.toFixed(3)).join('\n') + '\n';
+        }
+
+        download(vtk, 'geoflow_voxels.vtk', 'text/plain');
+        setStatus('VTK voxel model exported');
+    }, 10);
+}
+
+function exportCSV() {
+    if (!currentGrid) { runInterpolation(); return; }
+    const { values, nx, ny, xmin, xmax, ymin, ymax } = currentGrid;
+    let csv = 'easting,northing,value\n';
+    for (let j = 0; j < ny; j++) {
+        for (let i = 0; i < nx; i++) {
+            const x = xmin + (xmax-xmin)*i/(nx-1);
+            const y = ymin + (ymax-ymin)*j/(ny-1);
+            csv += `${x.toFixed(3)},${y.toFixed(3)},${values[j*nx+i].toFixed(4)}\n`;
+        }
+    }
+    download(csv, 'geoflow_grid.csv', 'text/csv');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 8. THAT OPEN COMPANY — @thatopen/components IFC VIEWER
+// ════════════════════════════════════════════════════════════════════
+
+let obcState = null;  // { components, world, ifcLoader, models: [], THREE, OBC }
+
+function setProgress(pct, text) {
+    const bar  = document.getElementById('ifc-progress-bar');
+    const txt  = document.getElementById('ifc-loading-text');
+    const wrap = document.getElementById('ifc-loading');
+    if (bar)  bar.style.width  = pct + '%';
+    if (txt && text) txt.textContent = text;
+    if (wrap) wrap.className = (pct > 0 && pct < 100) ? 'active' : '';
+}
+
+async function initOBCViewer() {
+    if (obcState) return;
+
+    document.getElementById('ifc-loading').className = 'active';
+    setProgress(10, 'Loading 3D libraries…');
+
+    try {
+        // Lazy dynamic import — Three.js resolves via the importmap above
+        const [THREE, OBC] = await Promise.all([
+            import('three'),
+            import('https://cdn.jsdelivr.net/npm/@thatopen/components@2.4.0/dist/index.esm.js'),
+        ]);
+        setProgress(35, 'Building scene…');
+
+        const container = document.getElementById('three-container');
+        const components = new OBC.Components();
+        const worlds     = components.get(OBC.Worlds);
+        const world      = worlds.create();
+
+        world.scene    = new OBC.SimpleScene(components);
+        world.camera   = new OBC.SimpleCamera(components);
+        world.renderer = new OBC.SimpleRenderer(components, container);
+
+        components.init();
+        world.scene.setup();
+
+        // Grid
+        const grids = components.get(OBC.Grids);
+        grids.create(world);
+
+        setProgress(55, 'Preparing IFC loader…');
+
+        const ifcLoader = components.get(OBC.IfcLoader);
+        await ifcLoader.setup({
+            wasm: {
+                path: 'https://cdn.jsdelivr.net/npm/web-ifc@0.0.68/',
+                absolute: true,
+            },
+        });
+
+        setProgress(72, 'Adding borehole geometry…');
+        _addBoreholeGeometryOBC(world.scene.three, THREE);
+
+        // Fit camera to borehole data
+        const bhsV = BH_DATA.filter(b => b.easting && b.northing && b.ground_level);
+        if (bhsV.length) {
+            const cx = bhsV.reduce((s, b) => s + b.easting,       0) / bhsV.length;
+            const cy = bhsV.reduce((s, b) => s + b.northing,      0) / bhsV.length;
+            const cz = bhsV.reduce((s, b) => s + b.ground_level,  0) / bhsV.length;
+            const spread = bhsV.reduce((s, b) =>
+                s + Math.hypot(b.easting - cx, b.northing - cy), 0) / bhsV.length;
+            const dist = Math.max(spread * 2.5, 60);
+            world.camera.controls.setLookAt(cx - dist * 0.7, cz + dist * 0.8, cy + dist * 0.7, 0, cz, 0);
+        } else {
+            world.camera.controls.setLookAt(50, 50, 50, 0, 0, 0);
+        }
+
+        obcState = { components, world, ifcLoader, models: [], THREE, OBC };
+
+        // Click → highlight + properties
+        world.renderer.three.domElement.addEventListener('click',
+            e => _onViewerClick(e, world, THREE));
+
+        setProgress(100, '');
+
+        // Show drop zone now viewer is ready
+        document.getElementById('ifc-drop-zone').classList.remove('hidden');
+        document.getElementById('bh-geo-status').textContent = bhsV.length
+            ? `${bhsV.length} borehole(s) visible — load an IFC to overlay`
+            : 'No borehole coordinates in this file';
+
+        // File input
+        document.getElementById('ifc-input').addEventListener('change', async e => {
+            for (const f of Array.from(e.target.files)) await loadIFCFile(f);
+            e.target.value = '';
+        });
+
+        // Drag-and-drop
+        container.addEventListener('dragover', ev => {
+            ev.preventDefault();
+            document.getElementById('ifc-drop-zone').classList.add('drag-over');
+        });
+        container.addEventListener('dragleave', () =>
+            document.getElementById('ifc-drop-zone').classList.remove('drag-over'));
+        container.addEventListener('drop', async ev => {
+            ev.preventDefault();
+            document.getElementById('ifc-drop-zone').classList.remove('drag-over');
+            for (const f of Array.from(ev.dataTransfer.files)) {
+                if (f.name.toLowerCase().endsWith('.ifc')) await loadIFCFile(f);
+            }
+        });
+
+        setStatus('3D viewer ready — load an IFC file or inspect borehole columns');
+
+    } catch (err) {
+        console.error('OBC init error:', err);
+        document.getElementById('ifc-loading').className = '';
+        document.getElementById('ifc-drop-zone').innerHTML =
+            `<div style="font-size:32px;color:#ef4444;margin-bottom:8px">&#9888;</div>
+             <div style="font-size:13px;color:#fca5a5">Viewer failed to initialise</div>
+             <div style="font-size:11px;color:#6b7280;margin-top:6px;max-width:260px">${err.message}</div>`;
+        document.getElementById('ifc-drop-zone').classList.remove('hidden');
+    }
+}
+
+function _addBoreholeGeometryOBC(scene, THREE) {
+    const bhsV = BH_DATA.filter(b => b.easting && b.northing && b.ground_level);
+    if (!bhsV.length) return;
+
+    const cx = bhsV.reduce((s, b) => s + b.easting,      0) / bhsV.length;
+    const cy = bhsV.reduce((s, b) => s + b.northing,     0) / bhsV.length;
+    const cz = bhsV.reduce((s, b) => s + b.ground_level, 0) / bhsV.length;
+    const voxW = 6;
+
+    bhsV.forEach(bh => {
+        const dx = bh.easting  - cx;
+        const dz = -(bh.northing - cy);   // Three.js Z is inverted vs northing
+
+        const layers = GEOL_DATA.filter(g => g.loca_id === bh.id)
+            .sort((a, b) => (a.top || 0) - (b.top || 0));
+
+        layers.forEach(layer => {
+            const topE = bh.ground_level - (layer.top  || 0);
+            const botE = bh.ground_level - (layer.base || layer.top || 0);
+            const h = topE - botE;
+            if (h <= 0) return;
+
+            const col = parseInt(geolColor(layer.desc).slice(1), 16);
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(voxW, h, voxW),
+                new THREE.MeshStandardMaterial({ color: col, roughness: 0.65, metalness: 0.05 })
+            );
+            mesh.position.set(dx, (topE + botE) / 2 - cz, dz);
+            mesh.userData.isBorehole = true;
+            mesh.userData.bhId = bh.id;
+            mesh.userData.desc = layer.desc || '';
+            scene.add(mesh);
+        });
+
+        // Water-table disc
+        const wstk = WSTK_DATA.find(w => w.loca_id === bh.id);
+        if (wstk && wstk.depth != null) {
+            const wtE = bh.ground_level - wstk.depth;
+            const disc = new THREE.Mesh(
+                new THREE.CylinderGeometry(voxW, voxW, 0.4, 16),
+                new THREE.MeshStandardMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.7 })
+            );
+            disc.position.set(dx, wtE - cz, dz);
+            disc.userData.isBorehole = true;
+            disc.userData.bhId = bh.id;
+            scene.add(disc);
+        }
+    });
+
+    // Translucent ground plane
+    const spread = Math.max(
+        ...bhsV.map(b => Math.max(Math.abs(b.easting - cx), Math.abs(b.northing - cy))),
+        30
+    );
+    const plane = new THREE.Mesh(
+        new THREE.PlaneGeometry(spread * 3.5, spread * 3.5),
+        new THREE.MeshStandardMaterial({ color: 0x334155, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
+    );
+    plane.rotation.x = -Math.PI / 2;
+    plane.userData.isBorehole = true;
+    scene.add(plane);
+}
+
+async function loadIFCFile(file) {
+    if (!obcState) return;
+    const { ifcLoader, world } = obcState;
+
+    document.getElementById('ifc-drop-zone').classList.add('hidden');
+    setProgress(5, `Parsing ${file.name}…`);
+    document.getElementById('ifc-loading').className = 'active';
+
+    try {
+        setProgress(25, 'Reading file…');
+        const buffer = await file.arrayBuffer();
+
+        setProgress(50, 'Building IFC geometry…');
+        const model = await ifcLoader.load(new Uint8Array(buffer));
+
+        setProgress(85, 'Merging into scene…');
+        world.scene.three.add(model);
+        obcState.models.push({ name: file.name, model });
+
+        setProgress(100, '');
+        const size = (file.size / 1024 / 1024).toFixed(1);
+        document.getElementById('three-meta').textContent =
+            `${file.name} (${size} MB) · ${obcState.models.length} model(s) loaded`;
+        setStatus(`IFC loaded: <strong>${file.name}</strong>`);
+
+    } catch (err) {
+        console.error('IFC load error:', err);
+        setProgress(0, '');
+        document.getElementById('ifc-loading').className = '';
+        document.getElementById('ifc-drop-zone').classList.remove('hidden');
+        setStatus(`&#9888; IFC error: ${err.message}`);
+    }
+}
+
+// ── Raycasting: click to select element and show properties ──────
+
+let _prevHighlightedMesh = null;
+
+function _onViewerClick(e, world, THREE) {
+    const container = document.getElementById('three-container');
+    const rect = container.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width)  *  2 - 1,
+        ((e.clientY - rect.top)  / rect.height) * -2 + 1
+    );
+
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(mouse, world.camera.three);
+    const hits = ray.intersectObjects(world.scene.three.children, true);
+
+    // Clear previous highlight
+    if (_prevHighlightedMesh && _prevHighlightedMesh.material?.emissive) {
+        _prevHighlightedMesh.material.emissive.setHex(0x000000);
+        _prevHighlightedMesh = null;
+    }
+
+    if (!hits.length) {
+        document.getElementById('ifc-props-panel').classList.add('hidden');
+        return;
+    }
+
+    const hit = hits[0].object;
+    if (hit.material?.emissive) {
+        hit.material.emissive.setHex(0x4f46e5);
+        _prevHighlightedMesh = hit;
+    }
+
+    if (hit.userData.isBorehole && hit.userData.bhId) {
+        _showBoreholeProps(hit.userData.bhId);
+    } else {
+        _showIfcProps(hit);
+    }
+}
+
+function _showBoreholeProps(bhId) {
+    const panel = document.getElementById('ifc-props-panel');
+    panel.classList.remove('hidden');
+
+    const bh     = BH_DATA.find(b => b.id === bhId) || {};
+    const layers = GEOL_DATA.filter(g => g.loca_id === bhId);
+    const wstk   = WSTK_DATA.find(w => w.loca_id === bhId);
+    const sptVals = ISPT_DATA.filter(i => i.loca_id === bhId).map(i => i.nval).filter(v => v != null);
+
+    document.getElementById('ifc-type-badge').textContent  = bh.loca_type || 'BH';
+    document.getElementById('ifc-elem-name').textContent   = bhId;
+    document.getElementById('ifc-model-name').textContent  = 'AGS Borehole';
+
+    let html = `<div class="ifc-prop-group">
+        <div class="ifc-prop-group-name">Location</div>`;
+    [['Easting',      bh.easting != null  ? bh.easting.toFixed(2) + ' m' : null],
+     ['Northing',     bh.northing != null ? bh.northing.toFixed(2) + ' m' : null],
+     ['Ground Level', bh.ground_level != null ? bh.ground_level.toFixed(2) + ' mOD' : null],
+     ['Final Depth',  bh.final_depth  != null ? bh.final_depth.toFixed(2)  + ' m bgl' : null],
+    ].forEach(([k, v]) => {
+        if (v != null)
+            html += `<div class="ifc-prop-row"><span class="ifc-prop-name">${k}</span><span class="ifc-prop-val">${v}</span></div>`;
+    });
+    html += '</div>';
+
+    if (wstk && wstk.depth != null) {
+        const wtElev = (bh.ground_level || 0) - wstk.depth;
+        html += `<div class="ifc-prop-group">
+            <div class="ifc-prop-group-name">Groundwater</div>
+            <div class="ifc-prop-row"><span class="ifc-prop-name">Strike depth</span><span class="ifc-prop-val">${wstk.depth.toFixed(2)} m bgl</span></div>
+            <div class="ifc-prop-row"><span class="ifc-prop-name">WT elevation</span><span class="ifc-prop-val">${wtElev.toFixed(2)} mOD</span></div>
+        </div>`;
+    }
+
+    if (sptVals.length) {
+        html += `<div class="ifc-prop-group">
+            <div class="ifc-prop-group-name">SPT</div>
+            <div class="ifc-prop-row"><span class="ifc-prop-name">Max N-value</span><span class="ifc-prop-val">${Math.max(...sptVals)}</span></div>
+            <div class="ifc-prop-row"><span class="ifc-prop-name">Tests</span><span class="ifc-prop-val">${sptVals.length}</span></div>
+        </div>`;
+    }
+
+    if (layers.length) {
+        html += `<div class="ifc-prop-group">
+            <div class="ifc-prop-group-name">Geology — ${layers.length} layer(s)</div>`;
+        layers.slice(0, 10).forEach(l => {
+            const col = geolColor(l.desc);
+            html += `<div class="ifc-prop-row">
+                <span class="ifc-prop-name" style="display:flex;align-items:flex-start;gap:4px">
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:1px;background:${col};flex-shrink:0;margin-top:2px"></span>
+                    ${(l.top || 0)}–${(l.base || 0)} m
+                </span>
+                <span class="ifc-prop-val">${(l.desc || '').slice(0, 35)}</span>
+            </div>`;
+        });
+        if (layers.length > 10) html += `<div style="font-size:10px;color:#64748b;padding:2px 0">… +${layers.length - 10} more</div>`;
+        html += '</div>';
+    }
+
+    document.getElementById('ifc-props-content').innerHTML = html;
+}
+
+function _showIfcProps(obj) {
+    const panel = document.getElementById('ifc-props-panel');
+    panel.classList.remove('hidden');
+
+    const ud = obj.userData || {};
+    document.getElementById('ifc-type-badge').textContent = ud.type || 'IFC';
+    document.getElementById('ifc-elem-name').textContent  = ud.name || obj.name || 'Element';
+    document.getElementById('ifc-model-name').textContent = 'IFC Model';
+
+    const skip = new Set(['isBorehole', 'bvhGeometry', 'mergedMesh']);
+    let html = '<div class="ifc-prop-group"><div class="ifc-prop-group-name">Attributes</div>';
+    Object.entries(ud).forEach(([k, v]) => {
+        if (skip.has(k) || typeof v === 'object') return;
+        html += `<div class="ifc-prop-row">
+            <span class="ifc-prop-name">${k}</span>
+            <span class="ifc-prop-val">${String(v).slice(0, 60)}</span>
+        </div>`;
+    });
+    html += '</div>';
+    document.getElementById('ifc-props-content').innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// 9. EVENT HANDLERS & INIT
+// ════════════════════════════════════════════════════════════════════
+
+document.getElementById('btn-draw').addEventListener('click', () => {
+    if (Section.active) Section.finish();
+    else Section.start();
+});
+document.getElementById('btn-clear-section').addEventListener('click', () => Section.clear());
+
+document.getElementById('buffer-range').addEventListener('input', function () {
+    document.getElementById('buffer-val').textContent = this.value + ' m';
+});
+
+document.getElementById('btn-interp').addEventListener('click', runInterpolation);
+document.getElementById('btn-clear-interp').addEventListener('click', clearInterp);
+
+document.getElementById('btn-export-vtk').addEventListener('click', exportVTK);
+document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
+
+document.getElementById('btn-toggle-3d').addEventListener('click', () => {
+    const panel = document.getElementById('three-panel');
+    const isHidden = panel.classList.toggle('hidden');
+    document.getElementById('btn-toggle-3d').textContent = isHidden ? '⬛ 3D / IFC' : '⬜ 3D / IFC';
+    if (!isHidden && !obcState) setTimeout(initOBCViewer, 50);
+});
+
+document.getElementById('btn-close-3d').addEventListener('click', () => {
+    document.getElementById('three-panel').classList.add('hidden');
+    document.getElementById('btn-toggle-3d').textContent = '⬛ 3D / IFC';
+});
+
+document.getElementById('btn-close-section').addEventListener('click', () => {
+    document.getElementById('section-panel').classList.add('hidden');
+});
+
+document.getElementById('btn-export-section-svg').addEventListener('click', () => {
+    const svg = document.getElementById('section-svg-container').innerHTML;
+    if (svg) download(svg, 'cross_section.svg', 'image/svg+xml');
+});
+
+// VTK voxel export (reuses existing exportVTK)
+document.getElementById('btn-export-gltf').addEventListener('click', exportVTK);
+
+// Kick off
+initMap();
+{% endraw %}
+</script>
+
+{% endblock %}
