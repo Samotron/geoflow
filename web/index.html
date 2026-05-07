@@ -1123,7 +1123,7 @@ import { createRoot } from 'https://esm.sh/react-dom@18/client';
 import htm from 'https://esm.sh/htm@3';
 import init, {
   validate_ags, validate_ags_with_rules, fix_ags, convert_to_diggs, ags_info,
-  list_locations, render_borehole_svg, diff_ags, get_group_rows,
+  render_borehole_svg, diff_ags, get_group_rows, get_map_data,
   get_all_groups_data, get_all_groups_meta,
   parse_description, enhance_ags,
 } from './pkg/geoflow_wasm.js';
@@ -2605,12 +2605,12 @@ function buildSectionBoreholes(sectionA, sectionB, locations, geolByBH, locaById
     const { dist, perp } = projectOntoLine(loc.easting, loc.northing, x1, y1, x2, y2);
     if (perp > tolerance) continue;
     const loca = locaById[loc.id] ?? {};
-    const gl = typeof loca.LOCA_GL === 'number' ? loca.LOCA_GL : null;
+    const gl = typeof loca.ground_level === 'number' ? loca.ground_level : null;
     const layers = (geolByBH[loc.id] ?? [])
       .map(r => ({
-        top:  +(r.GEOL_TOP  ?? 0),
-        base: +(r.GEOL_BASE ?? 0),
-        desc: String(r.GEOL_DESC ?? r.GEOL_GEOL ?? ''),
+        top:  +(r.top  ?? 0),
+        base: +(r.base ?? 0),
+        desc: String(r.desc ?? r.geol ?? ''),
       }))
       .filter(r => Number.isFinite(r.top) && Number.isFinite(r.base) && r.base > r.top)
       .sort((a, b) => a.top - b.top);
@@ -3072,36 +3072,28 @@ function EnhanceTab({ fileBytes, wasmReady }) {
 }
 
 // ── MapTab ────────────────────────────────────────────────────────────────────
-function MapTab({ locations, fileBytes, wasmReady, fileInfo }) {
-  const [geolRows, setGeolRows] = useState([]);
-  const [locaRows, setLocaRows] = useState([]);
+function MapTab({ locations, mapData, fileBytes, wasmReady, fileInfo }) {
   const [sectionA, setSectionA] = useState(null);
   const [sectionB, setSectionB] = useState(null);
   const [drawStep, setDrawStep] = useState(0); // 0=idle, 1=place-A, 2=place-B
   const [tolerance, setTolerance] = useState(200);
 
-  useEffect(() => {
-    if (!fileBytes || !wasmReady) return;
-    try { setGeolRows(JSON.parse(get_group_rows(fileBytes, 'GEOL'))); } catch(_) { setGeolRows([]); }
-    try { setLocaRows(JSON.parse(get_group_rows(fileBytes, 'LOCA'))); } catch(_) { setLocaRows([]); }
-  }, [fileBytes, wasmReady]);
-
   const geolByBH = useMemo(() => {
     const m = {};
-    for (const r of geolRows) {
-      const id = r.LOCA_ID;
+    for (const r of (mapData?.geol ?? [])) {
+      const id = r.loca_id;
       if (!id) continue;
       if (!m[id]) m[id] = [];
       m[id].push(r);
     }
     return m;
-  }, [geolRows]);
+  }, [mapData]);
 
   const locaById = useMemo(() => {
     const m = {};
-    for (const r of locaRows) { if (r.LOCA_ID) m[r.LOCA_ID] = r; }
+    for (const r of (mapData?.boreholes ?? [])) { if (r.id) m[r.id] = r; }
     return m;
-  }, [locaRows]);
+  }, [mapData]);
 
   const sectionBoreholes = useMemo(() => {
     if (!sectionA || !sectionB) return [];
@@ -3183,7 +3175,7 @@ function MapTab({ locations, fileBytes, wasmReady, fileInfo }) {
             Cross Section A–B
             <span className="xsec-meta">
               ${sectionLength.toFixed(0)} m · ${sectionBoreholes.length} boreholes
-              ${geolRows.length === 0 ? ' · No GEOL data in file' : ''}
+              ${(mapData?.geol?.length ?? 0) === 0 ? ' · No GEOL data in file' : ''}
             </span>
           </div>
           ${sectionBoreholes.length === 0 ? html`
@@ -3220,10 +3212,35 @@ function App() {
   const [fileInfo, setFileInfo]           = useState(null);
   const [diagnostics, setDiagnostics]     = useState(null);
   const [locations, setLocations]         = useState([]);
+  const [mapData, setMapData]             = useState(null);
   const [allGroupData, setAllGroupData]   = useState(null);
   const [allGroupsMeta, setAllGroupsMeta] = useState(null);
   const [status, setStatus]               = useState({ msg: 'Loading WebAssembly engine…', type: 'loading' });
   const [tab, setTab]                     = useState('upload');
+
+  const applyLoadedBytes = useCallback((bytes, meta = {}) => {
+    setFileBytes(bytes);
+    setFileName(meta.fileName ?? '');
+    setFileSize(meta.fileSize ?? bytes.length ?? 0);
+    setDiagnostics(null);
+    try {
+      const info = JSON.parse(ags_info(bytes));
+      setFileInfo(info);
+    } catch(_) {}
+    try {
+      const data = JSON.parse(get_map_data(bytes));
+      setMapData(data);
+      setLocations((data?.boreholes ?? [])
+        .filter(b => b.id)
+        .map(b => ({ id: b.id, depth: b.final_depth, easting: b.easting, northing: b.northing })));
+    } catch(_) {}
+    try {
+      setAllGroupData(JSON.parse(get_all_groups_data(bytes)));
+    } catch(_) {}
+    try {
+      setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes)));
+    } catch(_) {}
+  }, []);
 
   useEffect(() => {
     init()
@@ -3237,46 +3254,48 @@ function App() {
     if (!wasmReady || !window.__GEOFLOW_CLI__) return;
     const cli = window.__GEOFLOW_CLI__;
     const bytes = new Uint8Array(0);
-    try { setFileInfo(JSON.parse(ags_info(bytes))); } catch(_) {}
-    try { setLocations(JSON.parse(list_locations(bytes)) || []); } catch(_) {}
-    try { setAllGroupData(JSON.parse(get_all_groups_data(bytes))); } catch(_) {}
-    try { setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes))); } catch(_) {}
-    setFileName(cli.file);
-    setFileSize(0);
-    setFileBytes(bytes);
+    applyLoadedBytes(bytes, { fileName: cli.file, fileSize: 0 });
     setStatus({ msg: `Loaded from CLI: ${cli.file}`, type: '' });
     setTab('data');
-  }, [wasmReady]);
+  }, [wasmReady, applyLoadedBytes]);
+
+  useEffect(() => {
+    if (!wasmReady || window.__GEOFLOW_CLI__ || !window.__GEOFLOW_BOOT__?.sourceUrl) return;
+    const boot = window.__GEOFLOW_BOOT__;
+    fetch(boot.sourceUrl)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then(buf => {
+        const bytes = new Uint8Array(buf);
+        applyLoadedBytes(bytes, {
+          fileName: boot.file ?? boot.sourceUrl.split('/').pop() ?? 'file.ags',
+          fileSize: bytes.length,
+        });
+        setStatus({ msg: `Loaded exported file: ${boot.file ?? 'file.ags'}`, type: '' });
+        setTab('data');
+      })
+      .catch(e => {
+        setStatus({ msg: 'Failed to load exported file: ' + e.message, type: 'error' });
+      });
+  }, [wasmReady, applyLoadedBytes]);
 
   const handleFile = useCallback(file => {
-    setFileName(file.name);
-    setFileSize(file.size);
     setDiagnostics(null);
     setLocations([]);
+    setMapData(null);
     setFileInfo(null);
     const r = new FileReader();
     r.onload = e => {
       const bytes = new Uint8Array(e.target.result);
-      setFileBytes(bytes);
       if (wasmReady) {
-        try {
-          const info = JSON.parse(ags_info(bytes));
-          setFileInfo(info);
-        } catch(_) {}
-        try {
-          setLocations(JSON.parse(list_locations(bytes)) || []);
-        } catch(_) {}
-        try {
-          setAllGroupData(JSON.parse(get_all_groups_data(bytes)));
-        } catch(_) {}
-        try {
-          setAllGroupsMeta(JSON.parse(get_all_groups_meta(bytes)));
-        } catch(_) {}
+        applyLoadedBytes(bytes, { fileName: file.name, fileSize: file.size });
       }
       setStatus({ msg: 'File loaded. Click Validate to check for issues.', type: '' });
     };
     r.readAsArrayBuffer(file);
-  }, [wasmReady]);
+  }, [wasmReady, applyLoadedBytes]);
 
   const handleValidate = useCallback(() => {
     if (!fileBytes || !wasmReady) return;
@@ -3332,7 +3351,11 @@ function App() {
           <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
         </svg>
         <h1>GeoFlow</h1>
-        <span className="hdr-sub">${window.__GEOFLOW_CLI__ ? `CLI Explorer — ${window.__GEOFLOW_CLI__.file}` : 'AGS 4.x Validator & Converter — runs entirely in your browser'}</span>
+        <span className="hdr-sub">${window.__GEOFLOW_CLI__
+          ? `CLI Explorer — ${window.__GEOFLOW_CLI__.file}`
+          : window.__GEOFLOW_BOOT__?.file
+          ? `Explorer — ${window.__GEOFLOW_BOOT__.file}`
+          : 'AGS 4.x Validator & Converter — runs entirely in your browser'}</span>
       </header>
 
       <main>
@@ -3370,7 +3393,7 @@ function App() {
         ${tab === 'map' && html`
           <${MapTab}
             locations=${locations} fileBytes=${fileBytes}
-            wasmReady=${wasmReady} fileInfo=${fileInfo}
+            wasmReady=${wasmReady} fileInfo=${fileInfo} mapData=${mapData}
           />
         `}
         ${tab === 'logs' && html`

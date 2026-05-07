@@ -18,6 +18,7 @@ pub mod diff;
 pub mod diggs;
 pub mod dsl;
 pub mod explorer;
+pub mod explorer_data;
 pub mod export;
 pub mod fix;
 pub mod model;

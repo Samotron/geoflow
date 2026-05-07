@@ -79,27 +79,27 @@ pub fn convert_to_diggs(bytes: &[u8]) -> String {
 #[wasm_bindgen]
 pub fn list_locations(bytes: &[u8]) -> String {
     let file = ags::parse_bytes(bytes).file;
-    let locs: Vec<_> = file
-        .group("LOCA")
-        .map(|g| {
-            g.rows
-                .iter()
-                .filter_map(|r| {
-                    let id = r.get("LOCA_ID")?.as_text()?.to_string();
-                    let depth = r.get("LOCA_FDEP").and_then(|v| v.as_number());
-                    let easting = r.get("LOCA_NATE").and_then(|v| v.as_number());
-                    let northing = r.get("LOCA_NATN").and_then(|v| v.as_number());
-                    Some(serde_json::json!({
-                        "id": id,
-                        "depth": depth,
-                        "easting": easting,
-                        "northing": northing,
-                    }))
-                })
-                .collect()
+    let locs: Vec<_> = geoflow_core::explorer_data::build_map_data(&file)
+        .boreholes
+        .into_iter()
+        .filter_map(|b| {
+            Some(serde_json::json!({
+                "id": b.id?,
+                "depth": b.final_depth,
+                "easting": b.easting,
+                "northing": b.northing,
+            }))
         })
-        .unwrap_or_default();
+        .collect();
     serde_json::to_string(&locs).unwrap_or_default()
+}
+
+/// Return the shared explorer map payload used by both the server explorer and
+/// the browser UI.
+#[wasm_bindgen]
+pub fn get_map_data(bytes: &[u8]) -> String {
+    let file = ags::parse_bytes(bytes).file;
+    serde_json::to_string(&geoflow_core::explorer_data::build_map_data(&file)).unwrap_or_default()
 }
 
 /// Render the SVG strip log for one borehole. Returns an SVG string.
