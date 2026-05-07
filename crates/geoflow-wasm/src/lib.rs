@@ -139,13 +139,14 @@ pub fn ags_info(bytes: &[u8]) -> String {
     .to_string()
 }
 
-/// Compare two AGS files. Returns a JSON diff summary.
+/// Compare two AGS files. Returns a detailed JSON diff summary.
 #[wasm_bindgen]
 pub fn diff_ags(bytes_a: &[u8], bytes_b: &[u8]) -> String {
     let file_a = ags::parse_bytes(bytes_a).file;
     let file_b = ags::parse_bytes(bytes_b).file;
     let result = diff::diff(&file_a, &file_b);
-    serde_json::to_string(&result.to_summary()).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
+    serde_json::to_string(&result.to_detailed_summary(&file_a, &file_b))
+        .unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"))
 }
 
 /// Return all group row data as a single JSON object `{ "GROUP": [rows], … }`.
