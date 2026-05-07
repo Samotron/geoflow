@@ -2059,15 +2059,19 @@ export function enhance_ags(_b)                { return apiGet('/api/enhance'); 
         )
         .route(
             "/api/geol-code/:code",
-            get(|State(s): State<Arc<AppState>>, Path(code): Path<String>| async move {
-                (
-                    [(header::CONTENT_TYPE, "application/json")],
-                    serde_json::to_string(
-                        &geoflow_core::semantic::investigation_points_for_geol_code(&s.file, &code),
+            get(
+                |State(s): State<Arc<AppState>>, Path(code): Path<String>| async move {
+                    (
+                        [(header::CONTENT_TYPE, "application/json")],
+                        serde_json::to_string(
+                            &geoflow_core::semantic::investigation_points_for_geol_code(
+                                &s.file, &code,
+                            ),
+                        )
+                        .unwrap_or_default(),
                     )
-                    .unwrap_or_default(),
-                )
-            }),
+                },
+            ),
         )
         .route(
             "/api/groups",

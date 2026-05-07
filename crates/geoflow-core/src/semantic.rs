@@ -299,7 +299,9 @@ pub fn build_semantic_graph(file: &AgsFile) -> SemanticGraph {
                 });
             }
 
-            if let Some(facets) = geol_facet_index.remove(&(loca_id.clone(), interval_key(top, base, "geol"))) {
+            if let Some(facets) =
+                geol_facet_index.remove(&(loca_id.clone(), interval_key(top, base, "geol")))
+            {
                 for (idx, mut facet) in facets.into_iter().enumerate() {
                     let facet_id = format!("facet:{obs_id}:{}:{}:{idx}", facet.facet, facet.value);
                     facet.id = facet_id.clone();
@@ -363,7 +365,16 @@ pub fn build_semantic_graph(file: &AgsFile) -> SemanticGraph {
         &point_ids,
         &mut graph,
     );
-    build_field_tests(file, "WSTK", "WSTK", "WSTK_DPTH", None, "DPTH", &point_ids, &mut graph);
+    build_field_tests(
+        file,
+        "WSTK",
+        "WSTK",
+        "WSTK_DPTH",
+        None,
+        "DPTH",
+        &point_ids,
+        &mut graph,
+    );
     build_lab_tests(file, &point_ids, &mut graph);
 
     dedupe_intervals(&mut graph);
@@ -375,8 +386,16 @@ pub fn investigation_points_for_geol_code(file: &AgsFile, code: &str) -> Vec<Str
     let mut ids = BTreeSet::new();
     for class in &graph.classifications {
         if class.scheme == "GEOL_LEG" && class.code.eq_ignore_ascii_case(code) {
-            if let Some(obs) = graph.lithology_observations.iter().find(|o| o.id == class.subject_id) {
-                if let Some(point) = graph.investigation_points.iter().find(|p| p.id == obs.point_id) {
+            if let Some(obs) = graph
+                .lithology_observations
+                .iter()
+                .find(|o| o.id == class.subject_id)
+            {
+                if let Some(point) = graph
+                    .investigation_points
+                    .iter()
+                    .find(|p| p.id == obs.point_id)
+                {
                     ids.insert(point.loca_id.clone());
                 }
             }
@@ -404,7 +423,11 @@ fn build_field_tests(
                 continue;
             };
             let depth = row_number(row, depth_col);
-            let test_id = format!("fieldtest:{point_id}:{}:{}:{idx}", test_type.to_lowercase(), depth_fragment(depth));
+            let test_id = format!(
+                "fieldtest:{point_id}:{}:{}:{idx}",
+                test_type.to_lowercase(),
+                depth_fragment(depth)
+            );
             graph.field_tests.push(FieldTest {
                 id: test_id.clone(),
                 point_id: point_id.clone(),
@@ -438,7 +461,11 @@ fn build_field_tests(
     }
 }
 
-fn build_lab_tests(file: &AgsFile, point_ids: &BTreeMap<String, String>, graph: &mut SemanticGraph) {
+fn build_lab_tests(
+    file: &AgsFile,
+    point_ids: &BTreeMap<String, String>,
+    graph: &mut SemanticGraph,
+) {
     for group_name in ["LLPL", "LDEN", "LPDN", "LPEN", "LCON", "LCBR"] {
         let Some(group) = file.group(group_name) else {
             continue;
@@ -482,7 +509,11 @@ fn build_lab_tests(file: &AgsFile, point_ids: &BTreeMap<String, String>, graph: 
                     owner_id: test_id.clone(),
                     measure_name: heading.name.clone(),
                     value,
-                    unit: if heading.unit.is_empty() { None } else { Some(heading.unit.clone()) },
+                    unit: if heading.unit.is_empty() {
+                        None
+                    } else {
+                        Some(heading.unit.clone())
+                    },
                     qualifier: None,
                 });
                 graph.edges.push(SemanticEdge {
@@ -497,7 +528,9 @@ fn build_lab_tests(file: &AgsFile, point_ids: &BTreeMap<String, String>, graph: 
 
 fn dedupe_intervals(graph: &mut SemanticGraph) {
     let mut seen = BTreeSet::new();
-    graph.intervals.retain(|interval| seen.insert(interval.id.clone()));
+    graph
+        .intervals
+        .retain(|interval| seen.insert(interval.id.clone()));
 }
 
 fn row_text(row: &AgsRow, key: &str) -> Option<String> {
@@ -567,7 +600,10 @@ mod tests {
         assert_eq!(graph.samples.len(), 1);
         assert_eq!(graph.field_tests.len(), 1);
         assert!(!graph.classifications.is_empty());
-        assert!(graph.material_facets.iter().any(|f| f.facet == "primary_soil_type"));
+        assert!(graph
+            .material_facets
+            .iter()
+            .any(|f| f.facet == "primary_soil_type"));
     }
 
     #[test]

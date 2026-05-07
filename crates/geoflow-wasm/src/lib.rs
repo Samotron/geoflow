@@ -113,8 +113,10 @@ pub fn get_semantic_graph(bytes: &[u8]) -> String {
 #[wasm_bindgen]
 pub fn get_points_for_geol_code(bytes: &[u8], code: &str) -> String {
     let file = ags::parse_bytes(bytes).file;
-    serde_json::to_string(&geoflow_core::semantic::investigation_points_for_geol_code(&file, code))
-        .unwrap_or_default()
+    serde_json::to_string(&geoflow_core::semantic::investigation_points_for_geol_code(
+        &file, code,
+    ))
+    .unwrap_or_default()
 }
 
 /// Render the SVG strip log for one borehole. Returns an SVG string.
