@@ -13,8 +13,13 @@ description = "Command-line interface for the GeoFlow geotechnical toolkit."
 name = "geoflow"
 path = "src/main.rs"
 
+[features]
+default = ["gui"]
+gui = ["dep:geoflow-desktop"]
+
 [dependencies]
 geoflow-core = { path = "../geoflow-core", version = "2026.506.0", features = ["db"] }
+geoflow-desktop = { path = "../geoflow-desktop", version = "2026.506.0", optional = true }
 rusqlite = { workspace = true }
 clap.workspace = true
 anyhow.workspace = true
