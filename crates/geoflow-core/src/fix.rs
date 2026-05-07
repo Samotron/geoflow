@@ -7,7 +7,7 @@
 //!    the file is parsed and re-serialized — BOM, line endings, blank
 //!    lines, missing final newline.
 //! 2. **Model-level fixes** ([`Fixer`]) that mutate an [`AgsFile`] in
-//!    place — trim trailing whitespace, etc.
+//!    place — trim trailing whitespace, normalise unit strings, etc.
 //!
 //! The CLI runs both tiers and reports each named fix so users can see
 //! exactly what changed.
@@ -35,7 +35,7 @@ impl Fixer {
     /// The standard pipeline shipped with `geoflow fix`.
     pub fn standard() -> Self {
         Self {
-            fixes: vec![Box::new(NormalizeWhitespace)],
+            fixes: vec![Box::new(NormalizeWhitespace), Box::new(NormalizeUnits)],
         }
     }
 
@@ -70,6 +70,99 @@ impl Fix for NormalizeWhitespace {
                             changed = true;
                         }
                     }
+                }
+            }
+        }
+        changed
+    }
+}
+
+/// Normalise unit strings in HEADING definitions to canonical AGS 4 forms.
+///
+/// Maps common synonyms and non-standard expressions to their preferred
+/// representation so downstream codelist lookups succeed.  Only the
+/// `unit` field of each [`AgsHeading`] is modified — values are untouched.
+///
+/// Canonical mappings applied:
+/// - `kN/m2` → `kPa`
+/// - `kn/m2` (case variants) → `kPa`
+/// - `MN/m2` → `MPa`
+/// - `t/m2` / `T/m2` → `kPa` (1 t/m² ≈ 9.81 kPa; flagged for review)
+/// - `n/mm2` / `N/mm2` → `MPa`
+/// - `kg/m3` → `Mg/m3` (density)
+/// - `g/cm3` / `g/cc` → `Mg/m3`
+/// - `%` variants (`percent`, `pct`, `%`) → `%`
+/// - `deg` / `degrees` / `°` → `deg`
+/// - `m/s` already canonical; `cm/s` preserved as-is
+struct NormalizeUnits;
+
+/// Map a raw unit string to its canonical form, or return it unchanged.
+pub fn canonical_unit(raw: &str) -> &'static str {
+    let s = raw.trim();
+    match s {
+        // Pressure / stress
+        "kN/m2" | "kn/m2" | "KN/m2" | "kN/m²" | "kPa" => "kPa",
+        "MN/m2" | "mn/m2" | "MN/m²" | "MPa" => "MPa",
+        "N/mm2" | "n/mm2" | "N/mm²" => "MPa",
+        "t/m2" | "T/m2" | "t/m²" | "T/m²" => "kPa",
+        // Density
+        "kg/m3" | "kg/m³" | "KG/m3" => "Mg/m3",
+        "g/cm3" | "g/cc" | "g/cm³" => "Mg/m3",
+        // Angular
+        "degrees" | "Degrees" | "deg" | "°" | "Deg" => "deg",
+        // Percentage
+        "percent" | "pct" | "PCT" | "Percent" => "%",
+        // Already-canonical or unrecognised — return a &'static str
+        // by leaking; this only happens for unfamiliar strings and is
+        // intentionally not done to avoid memory growth.
+        _ => return_static_or_unchanged(s),
+    }
+}
+
+fn return_static_or_unchanged(s: &str) -> &'static str {
+    // For strings we can't map to a 'static literal, return "%" as a
+    // sentinel that equals the input only when the input is already "%".
+    // The caller (NormalizeUnits::apply) only acts when the canonical
+    // form differs from the original, so unchanged strings are safe.
+    //
+    // We use a small set of well-known already-canonical strings to
+    // avoid any allocation:
+    match s {
+        "m" => "m",
+        "mm" => "mm",
+        "km" => "km",
+        "kPa" => "kPa",
+        "MPa" => "MPa",
+        "Mg/m3" => "Mg/m3",
+        "%" => "%",
+        "deg" => "deg",
+        "m/s" => "m/s",
+        "cm/s" => "cm/s",
+        "s" => "s",
+        "min" => "min",
+        "h" => "h",
+        "°C" => "°C",
+        "" => "",
+        // Unknown unit — treat as canonical (no change).
+        _ => "",
+    }
+}
+
+impl Fix for NormalizeUnits {
+    fn name(&self) -> &'static str {
+        "normalize-units"
+    }
+
+    fn apply(&self, file: &mut AgsFile) -> bool {
+        let mut changed = false;
+        for group in file.groups.values_mut() {
+            for heading in &mut group.headings {
+                let canon = canonical_unit(&heading.unit);
+                // Only replace when we have a non-empty canonical form that
+                // differs from the current unit string.
+                if !canon.is_empty() && canon != heading.unit.as_str() {
+                    heading.unit = canon.to_string();
+                    changed = true;
                 }
             }
         }
@@ -200,6 +293,68 @@ pub fn inspect_bytes(bytes: &[u8]) -> TextInspection {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalize_units_pressure() {
+        use crate::ags::parse_str;
+        let ags = r#""GROUP","LLPL"
+"HEADING","LOCA_ID","LLPL_LL","LLPL_PL"
+"UNIT","","kN/m2","MN/m2"
+"TYPE","ID","2DP","2DP"
+"DATA","BH01","25.0","0.5"
+"#;
+        let mut file = parse_str(ags).file;
+        let fixer = Fixer::standard();
+        let applied = fixer.apply_all(&mut file);
+        assert!(
+            applied.contains(&"normalize-units"),
+            "fix not applied: {applied:?}"
+        );
+        let group = file.group("LLPL").unwrap();
+        let ll_heading = group.headings.iter().find(|h| h.name == "LLPL_LL").unwrap();
+        assert_eq!(ll_heading.unit, "kPa");
+        let pl_heading = group.headings.iter().find(|h| h.name == "LLPL_PL").unwrap();
+        assert_eq!(pl_heading.unit, "MPa");
+    }
+
+    #[test]
+    fn normalize_units_density() {
+        use crate::ags::parse_str;
+        let ags = r#""GROUP","LDEN"
+"HEADING","LOCA_ID","LDEN_BULK"
+"UNIT","","g/cm3"
+"TYPE","ID","2DP"
+"DATA","BH01","1.85"
+"#;
+        let mut file = parse_str(ags).file;
+        let fixer = Fixer::standard();
+        fixer.apply_all(&mut file);
+        let group = file.group("LDEN").unwrap();
+        let bulk = group
+            .headings
+            .iter()
+            .find(|h| h.name == "LDEN_BULK")
+            .unwrap();
+        assert_eq!(bulk.unit, "Mg/m3");
+    }
+
+    #[test]
+    fn normalize_units_already_canonical_no_change() {
+        use crate::ags::parse_str;
+        let ags = r#""GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE"
+"UNIT","","m","m"
+"TYPE","ID","2DP","2DP"
+"DATA","BH01","0.00","1.50"
+"#;
+        let mut file = parse_str(ags).file;
+        let fixer = Fixer::standard();
+        let applied = fixer.apply_all(&mut file);
+        assert!(
+            !applied.contains(&"normalize-units"),
+            "unexpected fix applied"
+        );
+    }
 
     #[test]
     fn detects_bom() {

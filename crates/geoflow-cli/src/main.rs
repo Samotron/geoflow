@@ -54,6 +54,9 @@ enum Command {
         /// Path to a custom dictionary YAML (merged with the standard AGS dict).
         #[arg(long)]
         dict: Option<PathBuf>,
+        /// Also run cross-file consistency checks when multiple files are given.
+        #[arg(long)]
+        cross_file: bool,
     },
     /// Inspect the built-in rule registry.
     Rules {
@@ -74,18 +77,34 @@ enum Command {
         #[arg(short, long)]
         rules: Vec<String>,
     },
-    /// Convert geotechnical data between formats (AGS/DIGGS).
+    /// Convert geotechnical data between formats (AGS/DIGGS/GeoJSON/KML).
     Convert {
         /// Input file.
         input: PathBuf,
         /// Output file.
         output: PathBuf,
-        /// Target format (ags, diggs).
+        /// Target format: ags, diggs, json, geojson, kml.
         #[arg(long)]
         to: String,
+        /// Source format override: ags3 to parse an AGS 3 input file.
+        #[arg(long)]
+        from: Option<String>,
         /// Path to write a lossy-conversion report.
         #[arg(long)]
         report: Option<PathBuf>,
+        /// Convert depth columns to Reduced Level using LOCA_GL.
+        #[arg(long)]
+        datum_rl: bool,
+    },
+    /// Upgrade an AGS 3 file to AGS 4 format.
+    UpgradeFormat {
+        /// AGS 3 input file.
+        input: PathBuf,
+        /// AGS 4 output file.
+        output: PathBuf,
+        /// Print migration notes.
+        #[arg(long)]
+        notes: bool,
     },
     /// Compare two AGS files and report differences.
     Diff {
@@ -149,6 +168,46 @@ enum Command {
         /// Output format: text, json, or csv.
         #[arg(long, default_value = "text")]
         format: String,
+    },
+    /// Validate multiple AGS files and emit an aggregate summary report.
+    Batch {
+        /// AGS files or directories to process.
+        #[arg(required = true)]
+        inputs: Vec<PathBuf>,
+        /// Custom rule packs (YAML) or built-in references.
+        #[arg(short, long)]
+        rules: Vec<String>,
+        /// Output format: text (default), json, or csv.
+        #[arg(long, default_value = "text")]
+        format: String,
+        /// Exit non-zero if any file has errors at or above this severity.
+        #[arg(long, default_value = "error")]
+        fail_on: String,
+    },
+    /// Find potential duplicate boreholes within or across AGS files.
+    Dedupe {
+        /// AGS files to check (multiple files enable cross-file detection).
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+        /// Spatial tolerance in coordinate units (metres).  Boreholes within
+        /// this distance are flagged as potential duplicates.  Use 0 to disable
+        /// coordinate-based detection.
+        #[arg(long, default_value = "1.0")]
+        tolerance: f64,
+        /// Output format: text (default) or json.
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
+    /// Score AGS file data quality (completeness, type validity, cross-references).
+    Score {
+        /// AGS file to score.
+        file: PathBuf,
+        /// Output format: text (default) or json.
+        #[arg(long, default_value = "text")]
+        format: String,
+        /// Exit non-zero if the overall score is below this threshold (0–100).
+        #[arg(long)]
+        min_score: Option<f64>,
     },
     /// Launch the GeoFlow desktop GUI application.
     Gui {
@@ -258,7 +317,15 @@ fn main() -> ExitCode {
             format,
             fail_on,
             dict,
-        } => cmd_validate(&files, &rules, &format, &fail_on, dict.as_deref()),
+            cross_file,
+        } => cmd_validate(
+            &files,
+            &rules,
+            &format,
+            &fail_on,
+            dict.as_deref(),
+            cross_file,
+        ),
         Command::Rules { action } => match action {
             RulesAction::List => cmd_rules_list(),
             RulesAction::Show { id } => cmd_rules_show(&id),
@@ -273,8 +340,15 @@ fn main() -> ExitCode {
             input,
             output,
             to,
+            from,
             report,
-        } => cmd_convert(&input, &output, &to, report),
+            datum_rl,
+        } => cmd_convert(&input, &output, &to, from.as_deref(), report, datum_rl),
+        Command::UpgradeFormat {
+            input,
+            output,
+            notes,
+        } => cmd_upgrade_format(&input, &output, notes),
         Command::Diff {
             file_a,
             file_b,
@@ -320,6 +394,22 @@ fn main() -> ExitCode {
             DbAction::Export { db, out, loca } => cmd_db_export(&db, &out, loca.as_deref()),
             DbAction::Imports { db } => cmd_db_imports(&db),
         },
+        Command::Batch {
+            inputs,
+            rules,
+            format,
+            fail_on,
+        } => cmd_batch(&inputs, &rules, &format, &fail_on),
+        Command::Dedupe {
+            files,
+            tolerance,
+            format,
+        } => cmd_dedupe(&files, tolerance, &format),
+        Command::Score {
+            file,
+            format,
+            min_score,
+        } => cmd_score(&file, &format, min_score),
         Command::Describe { text, format } => cmd_describe(&text, &format),
         Command::Enhance { file, format } => cmd_enhance(&file, &format),
         Command::Gui { file } => cmd_gui(file.as_deref()),
@@ -431,6 +521,7 @@ fn cmd_validate(
     format: &str,
     fail_on: &str,
     dict: Option<&std::path::Path>,
+    cross_file: bool,
 ) -> Result<ExitCode> {
     let format = Format::parse(format)
         .ok_or_else(|| anyhow::anyhow!("unknown format {format:?} (text|json|junit)"))?;
@@ -451,6 +542,8 @@ fn cmd_validate(
     }
 
     let mut all_diagnostics = Vec::new();
+    let mut parsed_files = Vec::new();
+
     for path in files {
         let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
         let parsed = ags::parse_bytes(&bytes);
@@ -474,6 +567,15 @@ fn cmd_validate(
             d.location.file = Some(path.display().to_string());
         }
         all_diagnostics.extend(diagnostics);
+        parsed_files.push((path.display().to_string(), parsed.file));
+    }
+
+    if cross_file && parsed_files.len() > 1 {
+        let file_refs: Vec<&geoflow_core::model::AgsFile> =
+            parsed_files.iter().map(|(_, f)| f).collect();
+        let labels: Vec<&str> = parsed_files.iter().map(|(l, _)| l.as_str()).collect();
+        let xf = geoflow_core::crossfile::validate_cross_file(&file_refs, &labels);
+        all_diagnostics.extend(xf.into_iter().map(|d| d.diagnostic));
     }
 
     println!("{}", render::render(&all_diagnostics, format));
@@ -883,7 +985,9 @@ fn cmd_convert(
     input: &std::path::Path,
     output: &std::path::Path,
     to: &str,
+    from: Option<&str>,
     _report: Option<PathBuf>,
+    datum_rl: bool,
 ) -> Result<ExitCode> {
     let bytes = std::fs::read(input).with_context(|| format!("reading {}", input.display()))?;
 
@@ -892,36 +996,52 @@ fn cmd_convert(
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
-    let file = if ext == "xml" || ext == "diggs" {
-        geoflow_core::diggs::read(&bytes)?
-    } else {
-        geoflow_core::ags::parse_bytes(&bytes).file
+
+    let mut file = match from.map(|s| s.to_lowercase()).as_deref() {
+        Some("ags3") => {
+            geoflow_core::ags3::migrate_bytes(&bytes)
+                .ok_or_else(|| anyhow::anyhow!("input does not appear to be an AGS 3 file"))?
+                .file
+        }
+        _ if ext == "xml" || ext == "diggs" => geoflow_core::diggs::read(&bytes)?,
+        _ => geoflow_core::ags::parse_bytes(&bytes).file,
     };
 
-    match to.to_lowercase().as_str() {
-        "json" => {
-            let json = geoflow_core::export::to_json(&file);
-            let text = serde_json::to_string_pretty(&json)?;
-            std::fs::write(output, text.as_bytes())
-                .with_context(|| format!("writing {}", output.display()))?;
-        }
-        _ => {
-            let out_text = match to.to_lowercase().as_str() {
-                "ags" => geoflow_core::ags::serialize(&file),
-                "diggs" => {
-                    let (xml, report) = geoflow_core::diggs::write(&file)?;
-                    if let Some(r_path) = _report {
-                        let json = serde_json::to_string_pretty(&report)?;
-                        std::fs::write(r_path, json)?;
-                    }
-                    xml
-                }
-                other => anyhow::bail!("unknown target format {other:?} (ags|diggs|json)"),
-            };
-            std::fs::write(output, out_text.as_bytes())
-                .with_context(|| format!("writing {}", output.display()))?;
+    if datum_rl {
+        let n =
+            geoflow_core::datum::apply_datum(&mut file, geoflow_core::datum::DatumMode::DepthToRl);
+        if n > 0 {
+            println!("datum: converted {n} depth values to Reduced Level");
+        } else {
+            eprintln!("datum: no LOCA_GL values found; depths unchanged");
         }
     }
+
+    let out_text = match to.to_lowercase().as_str() {
+        "ags" => geoflow_core::ags::serialize(&file),
+        "diggs" => {
+            let (xml, report) = geoflow_core::diggs::write(&file)?;
+            if let Some(r_path) = _report {
+                let json = serde_json::to_string_pretty(&report)?;
+                std::fs::write(r_path, json)?;
+            }
+            xml
+        }
+        "json" => {
+            let json = geoflow_core::export::to_json(&file);
+            serde_json::to_string_pretty(&json)?
+        }
+        "geojson" => {
+            let gj = geoflow_core::export::to_geojson(&file)
+                .ok_or_else(|| anyhow::anyhow!("no LOCA rows with coordinates found"))?;
+            serde_json::to_string_pretty(&gj)?
+        }
+        "kml" => geoflow_core::export::to_kml(&file)
+            .ok_or_else(|| anyhow::anyhow!("no LOCA rows with coordinates found"))?,
+        other => anyhow::bail!("unknown target format {other:?} (ags|diggs|json|geojson|kml)"),
+    };
+    std::fs::write(output, out_text.as_bytes())
+        .with_context(|| format!("writing {}", output.display()))?;
 
     println!("converted {} to {}", input.display(), output.display());
     Ok(ExitCode::SUCCESS)
@@ -968,6 +1088,26 @@ fn cmd_export(
     });
 
     match format {
+        "geojson" => {
+            let gj = geoflow_core::export::to_geojson(&file)
+                .ok_or_else(|| anyhow::anyhow!("no LOCA rows with coordinates found"))?;
+            let out_path = out
+                .map(|d| d.join("locations.geojson"))
+                .unwrap_or_else(|| std::path::PathBuf::from("locations.geojson"));
+            std::fs::write(&out_path, serde_json::to_string_pretty(&gj)?)
+                .with_context(|| format!("writing {}", out_path.display()))?;
+            println!("exported GeoJSON to {}", out_path.display());
+        }
+        "kml" => {
+            let kml = geoflow_core::export::to_kml(&file)
+                .ok_or_else(|| anyhow::anyhow!("no LOCA rows with coordinates found"))?;
+            let out_path = out
+                .map(|d| d.join("locations.kml"))
+                .unwrap_or_else(|| std::path::PathBuf::from("locations.kml"));
+            std::fs::write(&out_path, kml.as_bytes())
+                .with_context(|| format!("writing {}", out_path.display()))?;
+            println!("exported KML to {}", out_path.display());
+        }
         "json" => {
             let mut json_val = geoflow_core::export::to_json(&file);
             // Apply group filter to the JSON object.
@@ -1020,6 +1160,316 @@ fn cmd_export(
         }
     }
     Ok(ExitCode::SUCCESS)
+}
+
+fn collect_ags_paths(inputs: &[PathBuf]) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for input in inputs {
+        if input.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(input) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.extension().and_then(|e| e.to_str()) == Some("ags") {
+                        paths.push(p);
+                    }
+                }
+            }
+        } else {
+            paths.push(input.clone());
+        }
+    }
+    paths.sort();
+    paths
+}
+
+#[derive(Debug)]
+struct BatchRow {
+    file: String,
+    groups: usize,
+    rows: usize,
+    errors: usize,
+    warnings: usize,
+    infos: usize,
+    score: f64,
+    grade: String,
+}
+
+fn cmd_batch(
+    inputs: &[PathBuf],
+    rule_specs: &[String],
+    format: &str,
+    fail_on: &str,
+) -> Result<ExitCode> {
+    let threshold = parse_severity(fail_on)?;
+    let registry = Registry::standard();
+
+    let mut packs = Vec::new();
+    for spec in rule_specs {
+        packs.push(
+            geoflow_core::dsl::RulePack::load_spec(spec)
+                .with_context(|| format!("loading rule pack {spec}"))?,
+        );
+    }
+
+    let paths = collect_ags_paths(inputs);
+    if paths.is_empty() {
+        eprintln!("no AGS files found");
+        return Ok(ExitCode::from(2));
+    }
+
+    let mut batch_rows: Vec<BatchRow> = Vec::new();
+    let mut any_exceeded = false;
+
+    for path in &paths {
+        let bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("skipping {}: {e}", path.display());
+                continue;
+            }
+        };
+
+        let parsed = ags::parse_bytes(&bytes);
+        let mut diagnostics = parsed.diagnostics;
+        diagnostics.extend(validate::validate(&parsed.file, &registry));
+
+        for pack in &packs {
+            match geoflow_core::dsl::evaluate(&parsed.file, pack) {
+                Ok(pd) => diagnostics.extend(pd),
+                Err(e) => eprintln!("rule pack error for {}: {e}", path.display()),
+            }
+        }
+
+        let errors = diagnostics
+            .iter()
+            .filter(|d| d.severity == geoflow_core::Severity::Error)
+            .count();
+        let warnings = diagnostics
+            .iter()
+            .filter(|d| d.severity == geoflow_core::Severity::Warning)
+            .count();
+        let infos = diagnostics
+            .iter()
+            .filter(|d| d.severity == geoflow_core::Severity::Info)
+            .count();
+
+        let qs = geoflow_core::score::score(&parsed.file);
+        let groups = parsed.file.groups.len();
+        let total_rows: usize = parsed.file.groups.values().map(|g| g.rows.len()).sum();
+
+        if diagnostics
+            .iter()
+            .any(|d| severity_rank(d.severity) >= severity_rank(threshold))
+        {
+            any_exceeded = true;
+        }
+
+        batch_rows.push(BatchRow {
+            file: path.display().to_string(),
+            groups,
+            rows: total_rows,
+            errors,
+            warnings,
+            infos,
+            score: qs.overall,
+            grade: qs.grade,
+        });
+    }
+
+    match format {
+        "json" => {
+            let json: Vec<serde_json::Value> = batch_rows
+                .iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "file": r.file,
+                        "groups": r.groups,
+                        "rows": r.rows,
+                        "errors": r.errors,
+                        "warnings": r.warnings,
+                        "infos": r.infos,
+                        "score": r.score,
+                        "grade": r.grade,
+                    })
+                })
+                .collect();
+            println!("{}", serde_json::to_string_pretty(&json)?);
+        }
+        "csv" => {
+            println!("file,groups,rows,errors,warnings,infos,score,grade");
+            for r in &batch_rows {
+                println!(
+                    "{},{},{},{},{},{},{:.1},{}",
+                    r.file, r.groups, r.rows, r.errors, r.warnings, r.infos, r.score, r.grade
+                );
+            }
+        }
+        _ => {
+            let total_files = batch_rows.len();
+            let total_errors: usize = batch_rows.iter().map(|r| r.errors).sum();
+            let total_warnings: usize = batch_rows.iter().map(|r| r.warnings).sum();
+            let avg_score: f64 = if total_files > 0 {
+                batch_rows.iter().map(|r| r.score).sum::<f64>() / total_files as f64
+            } else {
+                0.0
+            };
+
+            println!(
+                "{:<50}  {:>6}  {:>6}  {:>6}  {:>7}  {:>7}  {:>6}  {:>5}",
+                "file", "groups", "rows", "errors", "warnings", "infos", "score", "grade"
+            );
+            println!("{}", "-".repeat(100));
+            for r in &batch_rows {
+                let short = if r.file.len() > 50 {
+                    format!("…{}", &r.file[r.file.len() - 49..])
+                } else {
+                    r.file.clone()
+                };
+                println!(
+                    "{:<50}  {:>6}  {:>6}  {:>6}  {:>7}  {:>7}  {:>5.1}  {:>5}",
+                    short, r.groups, r.rows, r.errors, r.warnings, r.infos, r.score, r.grade
+                );
+            }
+            println!("{}", "-".repeat(100));
+            println!(
+                "total: {} files  {} errors  {} warnings  avg score {:.1}",
+                total_files, total_errors, total_warnings, avg_score
+            );
+        }
+    }
+
+    Ok(if any_exceeded {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    })
+}
+
+fn cmd_upgrade_format(
+    input: &std::path::Path,
+    output: &std::path::Path,
+    show_notes: bool,
+) -> Result<ExitCode> {
+    let bytes = std::fs::read(input).with_context(|| format!("reading {}", input.display()))?;
+    let outcome = geoflow_core::ags3::migrate_bytes(&bytes).ok_or_else(|| {
+        anyhow::anyhow!("input does not appear to be an AGS 3 file (no ** group headers found)")
+    })?;
+
+    let ags4 = geoflow_core::ags::serialize(&outcome.file);
+    std::fs::write(output, ags4.as_bytes())
+        .with_context(|| format!("writing {}", output.display()))?;
+
+    let groups = outcome.file.groups.len();
+    let rows: usize = outcome.file.groups.values().map(|g| g.rows.len()).sum();
+    println!(
+        "upgraded {} → {} ({} groups, {} rows)",
+        input.display(),
+        output.display(),
+        groups,
+        rows,
+    );
+
+    if show_notes && !outcome.notes.is_empty() {
+        println!("migration notes:");
+        for note in &outcome.notes {
+            println!("  • {note}");
+        }
+    }
+
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_dedupe(files: &[PathBuf], tolerance: f64, format: &str) -> Result<ExitCode> {
+    let mut parsed: Vec<(String, geoflow_core::model::AgsFile)> = Vec::new();
+    for path in files {
+        let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+        parsed.push((path.display().to_string(), ags::parse_bytes(&bytes).file));
+    }
+
+    let file_refs: Vec<&geoflow_core::model::AgsFile> = parsed.iter().map(|(_, f)| f).collect();
+    let labels: Vec<&str> = parsed.iter().map(|(l, _)| l.as_str()).collect();
+    let pairs = geoflow_core::dedupe::find_duplicates(&file_refs, &labels, tolerance);
+
+    match format {
+        "json" => println!("{}", serde_json::to_string_pretty(&pairs)?),
+        _ => {
+            if pairs.is_empty() {
+                println!("no duplicate boreholes found (tolerance {tolerance} m)");
+            } else {
+                println!(
+                    "found {} potential duplicate{}:",
+                    pairs.len(),
+                    if pairs.len() == 1 { "" } else { "s" }
+                );
+                for p in &pairs {
+                    let dist = p
+                        .distance_m
+                        .map(|d| format!("{d:.1} m"))
+                        .unwrap_or_else(|| "n/a".into());
+                    println!(
+                        "  {:?} (file {}) ↔ {:?} (file {})  reason={:?}  distance={}",
+                        p.loca_id_a,
+                        p.file_a + 1,
+                        p.loca_id_b,
+                        p.file_b + 1,
+                        p.reason,
+                        dist
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(if pairs.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    })
+}
+
+fn cmd_score(path: &std::path::Path, format: &str, min_score: Option<f64>) -> Result<ExitCode> {
+    let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let file = ags::parse_bytes(&bytes).file;
+    let result = geoflow_core::score::score(&file);
+
+    match format {
+        "json" => println!("{}", serde_json::to_string_pretty(&result)?),
+        _ => {
+            println!("file:    {}", path.display());
+            println!("overall: {:.1} / 100  ({})", result.overall, result.grade);
+            println!();
+            println!(
+                "{:<12}  {:>5}  {:>14}  {:>14}  {:>13}  {:>11}  {:>7}",
+                "group",
+                "rows",
+                "completeness",
+                "type-validity",
+                "cross-refs",
+                "structural",
+                "total"
+            );
+            println!("{}", "-".repeat(90));
+            for g in &result.groups {
+                println!(
+                    "{:<12}  {:>5}  {:>13.1}%  {:>13.1}%  {:>12.1}%  {:>10.1}%  {:>6.1}",
+                    g.group,
+                    g.rows,
+                    g.completeness,
+                    g.type_validity,
+                    g.cross_reference,
+                    g.structural,
+                    g.total,
+                );
+            }
+        }
+    }
+
+    let threshold = min_score.unwrap_or(0.0);
+    Ok(if result.overall < threshold {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    })
 }
 
 fn cmd_describe(text: &str, format: &str) -> Result<ExitCode> {
