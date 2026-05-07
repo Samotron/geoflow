@@ -67,22 +67,6 @@ rules:
     expr: "groups_meta.all(g, g.headings.all(h, is_valid_ags_type(h.type)))"
     message: "one or more headings carry an unrecognised TYPE code"
 
-  # ── Cross-references ─────────────────────────────────────────────────────────
-
-  - id: AGS-XREF-001
-    description: "Every GEOL row must reference an existing LOCA_ID."
-    severity: error
-    when: "group == 'GEOL'"
-    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
-    message: "GEOL row references unknown LOCA_ID {row.LOCA_ID}"
-
-  - id: AGS-XREF-002
-    description: "Every SAMP row must reference an existing LOCA_ID."
-    severity: error
-    when: "group == 'SAMP'"
-    expr: "exists_in('LOCA', 'LOCA_ID', row.LOCA_ID)"
-    message: "SAMP row references unknown LOCA_ID {row.LOCA_ID}"
-
   # ── Value / range ────────────────────────────────────────────────────────────
 
   - id: AGS-VAL-001
@@ -91,6 +75,25 @@ rules:
     when: "group == 'GEOL'"
     expr: "row.GEOL_BASE == null || row.GEOL_TOP == null || row.GEOL_BASE > row.GEOL_TOP"
     message: "GEOL row has GEOL_BASE ({row.GEOL_BASE}) not greater than GEOL_TOP ({row.GEOL_TOP})"
+
+  - id: AGS-VAL-002
+    description: "GEOL layers within each borehole must be in ascending depth order (no overlaps or reversals)."
+    severity: error
+    scope: "group:LOCA_ID"
+    when: "group == 'GEOL'"
+    expr: "rows.map(r, r.GEOL_TOP).is_monotonic()"
+    message: "GEOL layers for LOCA_ID {key.LOCA_ID} are not in ascending depth order"
+
+  # ── Version ──────────────────────────────────────────────────────────────────
+
+  - id: AGS-STRUCT-004
+    description: "TRAN_AGS must be a recognised AGS 4.x version (4.0.3, 4.0.4, 4.1, 4.1.1, or 4.2)."
+    severity: warning
+    when: "group == 'TRAN'"
+    expr: >-
+      row.TRAN_AGS == null || row.TRAN_AGS == '' ||
+      row.TRAN_AGS in ['4.0.3', '4.0.4', '4.1', '4.1.1', '4.2']
+    message: "TRAN_AGS value '{row.TRAN_AGS}' is not a recognised AGS 4 version"
 
   # ── Formatting ───────────────────────────────────────────────────────────────
 

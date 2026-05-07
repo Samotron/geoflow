@@ -1,0 +1,17 @@
+"GROUP","PROJ"
+"HEADING","PROJ_ID","PROJ_NAME","PROJ_LOC"
+"UNIT","","",""
+"TYPE","ID","X","X"
+"DATA","P1","Tést Projét","Sträße 1"
+
+"GROUP","TRAN"
+"HEADING","TRAN_AGS"
+"UNIT",""
+"TYPE","X"
+"DATA","4.1"
+
+"GROUP","LOCA"
+"HEADING","LOCA_ID","LOCA_TYPE"
+"UNIT","",""
+"TYPE","ID","X"
+"DATA","BH01","CP"

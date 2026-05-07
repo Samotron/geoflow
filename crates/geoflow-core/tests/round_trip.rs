@@ -38,10 +38,17 @@ fn fixtures_round_trip() {
         {
             continue;
         }
+        // Fixtures may contain intentional warnings (e.g. AGS-DATA-SHORT for
+        // the short_row fixture); only hard errors abort the round-trip check.
+        let errors: Vec<_> = parsed
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == geoflow_core::Severity::Error)
+            .collect();
         assert!(
-            parsed.diagnostics.is_empty(),
-            "unexpected diagnostics in {path:?}: {:?}",
-            parsed.diagnostics
+            errors.is_empty(),
+            "unexpected errors in {path:?}: {:?}",
+            errors
         );
         let serialized = serialize(&parsed.file);
         let reparsed = parse_str(&serialized);

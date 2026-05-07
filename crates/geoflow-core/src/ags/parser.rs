@@ -121,6 +121,18 @@ impl ParserState {
             );
             return;
         }
+        if !is_valid_group_name(&name) {
+            self.diagnostics.push(
+                Diagnostic::new(
+                    "AGS-GROUP-FMT",
+                    Severity::Warning,
+                    format!(
+                        "GROUP name {name:?} does not follow AGS convention (1\u{2013}4 uppercase letters)"
+                    ),
+                )
+                .at_line(line_no),
+            );
+        }
         let mut grp = AgsGroup::new(&name);
         grp.source_line = Some(line_no);
         self.file.groups.insert(name.clone(), grp);
@@ -239,6 +251,9 @@ impl ParserState {
             return;
         }
 
+        let payload_len = payload.len();
+        let heading_len = group.headings.len();
+
         let mut row: AgsRow = IndexMap::new();
         for (i, raw) in payload.into_iter().enumerate() {
             let Some(h) = group.headings.get(i) else {
@@ -255,6 +270,20 @@ impl ParserState {
             };
             let value = coerce(&raw, &h.data_type);
             row.insert(h.name.clone(), value);
+        }
+        // Warn when a DATA row has fewer values than the HEADING count.
+        if payload_len < heading_len {
+            self.diagnostics.push(
+                Diagnostic::new(
+                    "AGS-DATA-SHORT",
+                    Severity::Warning,
+                    format!(
+                        "{group_name}: DATA row has {payload_len} values but HEADING declares {heading_len}"
+                    ),
+                )
+                .at_group(&group_name)
+                .at_line(line_no),
+            );
         }
         // Pad short rows with explicit nulls so downstream code can rely
         // on every heading being present.
@@ -293,6 +322,11 @@ impl ParserState {
     }
 }
 
+/// Returns true when a GROUP name matches the AGS 4 convention: 1–4 uppercase letters.
+fn is_valid_group_name(name: &str) -> bool {
+    !name.is_empty() && name.len() <= 4 && name.chars().all(|c| c.is_ascii_uppercase())
+}
+
 /// Coerce a raw textual value into an [`AgsValue`] using the column's
 /// declared AGS type.
 fn coerce(raw: &str, ty: &AgsType) -> AgsValue {
@@ -301,8 +335,8 @@ fn coerce(raw: &str, ty: &AgsType) -> AgsValue {
     }
     match ty {
         AgsType::YN => match raw.trim().to_ascii_uppercase().as_str() {
-            "Y" | "YES" | "TRUE" => AgsValue::Bool(true),
-            "N" | "NO" | "FALSE" => AgsValue::Bool(false),
+            "Y" => AgsValue::Bool(true),
+            "N" => AgsValue::Bool(false),
             _ => AgsValue::Raw(raw.to_string()),
         },
         t if t.is_numeric() => match raw.trim().parse::<f64>() {
@@ -386,5 +420,45 @@ mod tests {
     fn empty_input_produces_warning() {
         let out = parse_str("");
         assert!(out.diagnostics.iter().any(|d| d.rule_id == "AGS-EMPTY"));
+    }
+
+    #[test]
+    fn short_data_row_produces_warning() {
+        let bad = r#""GROUP","X"
+"HEADING","X_A","X_B","X_C"
+"UNIT","","",""
+"TYPE","X","X","X"
+"DATA","one","two"
+"#;
+        let out = parse_str(bad);
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.rule_id == "AGS-DATA-SHORT"),
+            "expected AGS-DATA-SHORT, got: {:?}",
+            out.diagnostics
+        );
+        // Row is still added with the last column padded to null.
+        let group = out.file.group("X").unwrap();
+        assert_eq!(group.rows.len(), 1);
+        assert!(group.rows[0].get("X_C").unwrap().is_null());
+    }
+
+    #[test]
+    fn exact_column_count_no_warning() {
+        let ok = r#""GROUP","X"
+"HEADING","X_A","X_B"
+"UNIT","",""
+"TYPE","X","X"
+"DATA","one","two"
+"#;
+        let out = parse_str(ok);
+        assert!(
+            !out.diagnostics
+                .iter()
+                .any(|d| d.rule_id == "AGS-DATA-SHORT"),
+            "should not warn: {:?}",
+            out.diagnostics
+        );
     }
 }
