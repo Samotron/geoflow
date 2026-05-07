@@ -70,20 +70,55 @@
 }
 #section-svg { display: block; }
 
-/* ── 3D panel ─────────────────────────────────────────────────── */
+/* ── IFC 3D panel ─────────────────────────────────────────────── */
 .three-panel {
     background: #111827; border-top: 2px solid #6366f1;
+    display: flex; flex-direction: column;
 }
 .three-panel.hidden { display: none; }
-.three-panel .panel-header { background: #1f2937; border-bottom-color: #374151; }
+.three-panel .panel-header { background: #1f2937; border-bottom-color: #374151; flex-shrink: 0; }
 .three-panel .panel-title { color: #e5e7eb; }
 .three-panel .panel-meta { color: #9ca3af; }
-#three-container { width: 100%; height: 400px; position: relative; }
-#three-canvas { display: block; }
-#three-loading {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: #9ca3af; font-size: 13px;
+.viewer-body { display: flex; height: 440px; }
+#three-container { flex: 1; position: relative; overflow: hidden; min-width: 0; }
+#ifc-drop-zone {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: #6b7280; text-align: center;
+    border: 2px dashed #374151; margin: 20px; border-radius: 10px;
+    transition: border-color .2s, color .2s; z-index: 10; background: rgba(15,23,42,.9);
 }
+#ifc-drop-zone.drag-over { border-color: #6366f1; color: #a5b4fc; }
+#ifc-drop-zone.hidden { display: none; }
+#ifc-loading {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center; flex-direction: column;
+    background: rgba(17,24,39,.92); color: #9ca3af; font-size: 13px; z-index: 11;
+}
+#ifc-loading.active { display: flex; }
+.ifc-progress { width: 180px; height: 4px; background: #374151; border-radius: 2px; margin-top: 10px; overflow: hidden; }
+.ifc-progress-bar { height: 100%; background: #6366f1; width: 0%; transition: width .3s; }
+.ifc-props-panel {
+    width: 250px; flex-shrink: 0; background: #1e293b; border-left: 1px solid #334155;
+    overflow-y: auto; display: flex; flex-direction: column;
+}
+.ifc-props-panel.hidden { display: none; }
+.ifc-props-head {
+    padding: 10px 12px; font-size: 11px; font-weight: 700; color: #e2e8f0;
+    border-bottom: 1px solid #334155; flex-shrink: 0; background: #1e293b;
+    position: sticky; top: 0;
+}
+.ifc-props-type {
+    display: inline-block; padding: 2px 7px; border-radius: 3px;
+    font-size: 10px; background: #312e81; color: #c7d2fe; margin-bottom: 5px; font-family: monospace;
+}
+.ifc-prop-group { padding: 8px 12px; border-bottom: 1px solid #243041; }
+.ifc-prop-group-name {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #64748b; margin-bottom: 4px;
+}
+.ifc-prop-row { display: flex; gap: 6px; margin-bottom: 3px; font-size: 11px; }
+.ifc-prop-name { color: #94a3b8; flex: 0 0 88px; word-break: break-word; line-height: 1.4; }
+.ifc-prop-val  { color: #e2e8f0; word-break: break-all; font-family: monospace; line-height: 1.4; }
 
 /* ── Legend ───────────────────────────────────────────────────── */
 #legend-panel {
@@ -120,6 +155,16 @@
 .color-bar-labels { display: flex; justify-content: space-between; font-size: 10px; color: #64748b; }
 </style>
 
+<!-- ── Module resolution for @thatopen/components peer deps ── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+
 <!-- ── Embedded AGS data (Rust-serialized JSON) ── -->
 <script>
 const BH_DATA  = {{ boreholes_json | safe }};
@@ -134,7 +179,6 @@ const ISPT_DATA = {{ ispt_json | safe }};
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js" crossorigin=""></script>
 <script src="https://d3js.org/d3-array.v2.min.js" crossorigin=""></script>
 <script src="https://d3js.org/d3-contour.v2.min.js" crossorigin=""></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" crossorigin=""></script>
 
 <!-- ── HTML layout ── -->
 <div class="map-page">
@@ -167,7 +211,7 @@ const ISPT_DATA = {{ ispt_json | safe }};
       <button id="btn-export-csv" class="btn-outline">CSV Grid</button>
     </div>
     <div class="toolbar-group">
-      <button id="btn-toggle-3d" class="btn-outline">&#11035; 3D Model</button>
+      <button id="btn-toggle-3d" class="btn-outline">&#9707; 3D / IFC</button>
     </div>
   </div>
 
@@ -217,21 +261,50 @@ const ISPT_DATA = {{ ispt_json | safe }};
     <div id="section-svg-container"></div>
   </div>
 
-  <!-- 3D panel -->
+  <!-- IFC 3D Viewer panel — powered by That Open Company (@thatopen/components) -->
   <div id="three-panel" class="three-panel hidden">
     <div class="panel-header">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="panel-title" style="color:#e5e7eb">3D Voxel Model</span>
-        <span class="panel-meta" id="three-meta">Drag to rotate · Scroll to zoom</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="panel-title" style="color:#e5e7eb">&#9707; 3D / IFC Viewer</span>
+        <span class="panel-meta" id="three-meta" style="color:#6366f1;font-size:10px">That Open Company</span>
       </div>
-      <div style="display:flex;gap:6px">
-        <button id="btn-export-gltf" class="btn-outline" style="font-size:11px;padding:3px 8px;color:#e5e7eb;border-color:#6b7280">Export VTK 3D</button>
-        <button id="btn-close-3d" class="btn-tool" style="background:#374151;font-size:11px;padding:3px 8px">&#10005; Close</button>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="padding:3px 10px;font-size:11px;font-weight:600;background:#4f46e5;color:#fff;
+                      border:none;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;gap:4px">
+          &#128196; Load IFC
+          <input type="file" id="ifc-input" accept=".ifc" style="display:none" multiple>
+        </label>
+        <button id="btn-export-gltf" class="btn-outline"
+                style="font-size:11px;padding:3px 8px;color:#e5e7eb;border-color:#475569">VTK Export</button>
+        <button id="btn-close-3d" class="btn-tool"
+                style="background:#374151;font-size:11px;padding:3px 8px">&#10005; Close</button>
       </div>
     </div>
-    <div id="three-container">
-      <canvas id="three-canvas"></canvas>
-      <div id="three-loading">Building voxel model…</div>
+    <div class="viewer-body">
+      <!-- Viewer canvas -->
+      <div id="three-container">
+        <!-- Drop zone shown before any model is loaded -->
+        <div id="ifc-drop-zone">
+          <div style="font-size:42px;line-height:1;margin-bottom:10px">&#128450;</div>
+          <div style="font-size:13px;font-weight:600;color:#cbd5e1;margin-bottom:4px">Drop an IFC file here</div>
+          <div style="font-size:11px;opacity:.55;margin-bottom:16px">or click <strong>Load IFC</strong> above</div>
+          <div id="bh-geo-status" style="font-size:10px;color:#6366f1;font-weight:600"></div>
+        </div>
+        <!-- Progress overlay -->
+        <div id="ifc-loading">
+          <span id="ifc-loading-text" style="color:#cbd5e1">Initialising viewer…</span>
+          <div class="ifc-progress"><div class="ifc-progress-bar" id="ifc-progress-bar"></div></div>
+        </div>
+      </div>
+      <!-- Properties panel — shown when element is clicked -->
+      <div class="ifc-props-panel hidden" id="ifc-props-panel">
+        <div class="ifc-props-head">
+          <div id="ifc-type-badge" class="ifc-props-type">—</div>
+          <div id="ifc-elem-name"  style="color:#e2e8f0;font-size:12px;font-weight:700;margin-top:3px">Click an element</div>
+          <div id="ifc-model-name" style="color:#64748b;font-size:10px;margin-top:1px"></div>
+        </div>
+        <div id="ifc-props-content" style="flex:1;overflow-y:auto"></div>
+      </div>
     </div>
   </div>
 
@@ -1097,155 +1170,344 @@ function exportCSV() {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// 8. THREE.JS 3D VIEWER
+// 8. THAT OPEN COMPANY — @thatopen/components IFC VIEWER
 // ════════════════════════════════════════════════════════════════════
 
-let threeRenderer = null, threeScene, threeCamera, threeGroup;
-let rotX = 20, rotY = -30, camDist = 1, isDragging = false, lastMX, lastMY;
+let obcState = null;  // { components, world, ifcLoader, models: [], THREE, OBC }
 
-function initThreeJS() {
-    const container = document.getElementById('three-container');
-    const canvas    = document.getElementById('three-canvas');
-    canvas.width  = container.clientWidth;
-    canvas.height = 400;
-
-    threeRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    threeRenderer.setSize(canvas.width, canvas.height);
-    threeRenderer.setClearColor(0x111827);
-    threeRenderer.shadowMap.enabled = true;
-
-    threeScene = new THREE.Scene();
-
-    const fov = 45, aspect = canvas.width / canvas.height;
-    threeCamera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 100000);
-
-    // Lights
-    threeScene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    const sun = new THREE.DirectionalLight(0xfff8e1, 0.9);
-    sun.position.set(1, 2, 1.5);
-    threeScene.add(sun);
-
-    buildThreeModel();
-    animateThree();
-
-    // Drag to rotate
-    canvas.addEventListener('mousedown', e => { isDragging = true; lastMX = e.clientX; lastMY = e.clientY; });
-    canvas.addEventListener('mouseup', () => { isDragging = false; });
-    canvas.addEventListener('mousemove', e => {
-        if (!isDragging) return;
-        rotY += (e.clientX - lastMX) * 0.5;
-        rotX += (e.clientY - lastMY) * 0.5;
-        rotX = Math.max(-89, Math.min(89, rotX));
-        lastMX = e.clientX; lastMY = e.clientY;
-    });
-    canvas.addEventListener('wheel', e => {
-        camDist *= (1 + e.deltaY * 0.001);
-        camDist = Math.max(0.2, Math.min(5, camDist));
-        e.preventDefault();
-    }, { passive: false });
-    canvas.style.cursor = 'grab';
-
-    document.getElementById('three-loading').style.display = 'none';
+function setProgress(pct, text) {
+    const bar  = document.getElementById('ifc-progress-bar');
+    const txt  = document.getElementById('ifc-loading-text');
+    const wrap = document.getElementById('ifc-loading');
+    if (bar)  bar.style.width  = pct + '%';
+    if (txt && text) txt.textContent = text;
+    if (wrap) wrap.className = (pct > 0 && pct < 100) ? 'active' : '';
 }
 
-function buildThreeModel() {
-    threeGroup = new THREE.Group();
-    threeScene.add(threeGroup);
+async function initOBCViewer() {
+    if (obcState) return;
 
-    const bhsM = BH_DATA.filter(b => b.easting != null && b.northing != null && b.ground_level != null);
-    if (!bhsM.length) return;
+    document.getElementById('ifc-loading').className = 'active';
+    setProgress(10, 'Loading 3D libraries…');
 
-    const cx = bhsM.reduce((s, b) => s + b.easting, 0) / bhsM.length;
-    const cy = bhsM.reduce((s, b) => s + b.northing, 0) / bhsM.length;
-    const cz = bhsM.reduce((s, b) => s + b.ground_level, 0) / bhsM.length;
+    try {
+        // Lazy dynamic import — Three.js resolves via the importmap above
+        const [THREE, OBC] = await Promise.all([
+            import('three'),
+            import('https://cdn.jsdelivr.net/npm/@thatopen/components@2.4.0/dist/index.esm.js'),
+        ]);
+        setProgress(35, 'Building scene…');
 
-    const voxW = 8;
+        const container = document.getElementById('three-container');
+        const components = new OBC.Components();
+        const worlds     = components.get(OBC.Worlds);
+        const world      = worlds.create();
 
-    bhsM.forEach(bh => {
+        world.scene    = new OBC.SimpleScene(components);
+        world.camera   = new OBC.SimpleCamera(components);
+        world.renderer = new OBC.SimpleRenderer(components, container);
+
+        components.init();
+        world.scene.setup();
+
+        // Grid
+        const grids = components.get(OBC.Grids);
+        grids.create(world);
+
+        setProgress(55, 'Preparing IFC loader…');
+
+        const ifcLoader = components.get(OBC.IfcLoader);
+        await ifcLoader.setup({
+            wasm: {
+                path: 'https://cdn.jsdelivr.net/npm/web-ifc@0.0.68/',
+                absolute: true,
+            },
+        });
+
+        setProgress(72, 'Adding borehole geometry…');
+        _addBoreholeGeometryOBC(world.scene.three, THREE);
+
+        // Fit camera to borehole data
+        const bhsV = BH_DATA.filter(b => b.easting && b.northing && b.ground_level);
+        if (bhsV.length) {
+            const cx = bhsV.reduce((s, b) => s + b.easting,       0) / bhsV.length;
+            const cy = bhsV.reduce((s, b) => s + b.northing,      0) / bhsV.length;
+            const cz = bhsV.reduce((s, b) => s + b.ground_level,  0) / bhsV.length;
+            const spread = bhsV.reduce((s, b) =>
+                s + Math.hypot(b.easting - cx, b.northing - cy), 0) / bhsV.length;
+            const dist = Math.max(spread * 2.5, 60);
+            world.camera.controls.setLookAt(cx - dist * 0.7, cz + dist * 0.8, cy + dist * 0.7, 0, cz, 0);
+        } else {
+            world.camera.controls.setLookAt(50, 50, 50, 0, 0, 0);
+        }
+
+        obcState = { components, world, ifcLoader, models: [], THREE, OBC };
+
+        // Click → highlight + properties
+        world.renderer.three.domElement.addEventListener('click',
+            e => _onViewerClick(e, world, THREE));
+
+        setProgress(100, '');
+
+        // Show drop zone now viewer is ready
+        document.getElementById('ifc-drop-zone').classList.remove('hidden');
+        document.getElementById('bh-geo-status').textContent = bhsV.length
+            ? `${bhsV.length} borehole(s) visible — load an IFC to overlay`
+            : 'No borehole coordinates in this file';
+
+        // File input
+        document.getElementById('ifc-input').addEventListener('change', async e => {
+            for (const f of Array.from(e.target.files)) await loadIFCFile(f);
+            e.target.value = '';
+        });
+
+        // Drag-and-drop
+        container.addEventListener('dragover', ev => {
+            ev.preventDefault();
+            document.getElementById('ifc-drop-zone').classList.add('drag-over');
+        });
+        container.addEventListener('dragleave', () =>
+            document.getElementById('ifc-drop-zone').classList.remove('drag-over'));
+        container.addEventListener('drop', async ev => {
+            ev.preventDefault();
+            document.getElementById('ifc-drop-zone').classList.remove('drag-over');
+            for (const f of Array.from(ev.dataTransfer.files)) {
+                if (f.name.toLowerCase().endsWith('.ifc')) await loadIFCFile(f);
+            }
+        });
+
+        setStatus('3D viewer ready — load an IFC file or inspect borehole columns');
+
+    } catch (err) {
+        console.error('OBC init error:', err);
+        document.getElementById('ifc-loading').className = '';
+        document.getElementById('ifc-drop-zone').innerHTML =
+            `<div style="font-size:32px;color:#ef4444;margin-bottom:8px">&#9888;</div>
+             <div style="font-size:13px;color:#fca5a5">Viewer failed to initialise</div>
+             <div style="font-size:11px;color:#6b7280;margin-top:6px;max-width:260px">${err.message}</div>`;
+        document.getElementById('ifc-drop-zone').classList.remove('hidden');
+    }
+}
+
+function _addBoreholeGeometryOBC(scene, THREE) {
+    const bhsV = BH_DATA.filter(b => b.easting && b.northing && b.ground_level);
+    if (!bhsV.length) return;
+
+    const cx = bhsV.reduce((s, b) => s + b.easting,      0) / bhsV.length;
+    const cy = bhsV.reduce((s, b) => s + b.northing,     0) / bhsV.length;
+    const cz = bhsV.reduce((s, b) => s + b.ground_level, 0) / bhsV.length;
+    const voxW = 6;
+
+    bhsV.forEach(bh => {
         const dx = bh.easting  - cx;
-        const dy = bh.northing - cy;
+        const dz = -(bh.northing - cy);   // Three.js Z is inverted vs northing
 
-        const geolRows = GEOL_DATA.filter(g => g.loca_id === bh.id)
-            .sort((a, b) => (a.top||0) - (b.top||0));
+        const layers = GEOL_DATA.filter(g => g.loca_id === bh.id)
+            .sort((a, b) => (a.top || 0) - (b.top || 0));
 
-        geolRows.forEach(layer => {
-            const topElev  = bh.ground_level - (layer.top  || 0);
-            const botElev  = bh.ground_level - (layer.base || layer.top || 0);
-            const h = topElev - botElev;
+        layers.forEach(layer => {
+            const topE = bh.ground_level - (layer.top  || 0);
+            const botE = bh.ground_level - (layer.base || layer.top || 0);
+            const h = topE - botE;
             if (h <= 0) return;
 
             const col = parseInt(geolColor(layer.desc).slice(1), 16);
-            const geo = new THREE.BoxGeometry(voxW, h, voxW);
-            const mat = new THREE.MeshPhongMaterial({ color: col });
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.set(dx, (topElev + botElev) / 2 - cz, -dy);
-            mesh.castShadow = true;
-            threeGroup.add(mesh);
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(voxW, h, voxW),
+                new THREE.MeshStandardMaterial({ color: col, roughness: 0.65, metalness: 0.05 })
+            );
+            mesh.position.set(dx, (topE + botE) / 2 - cz, dz);
+            mesh.userData.isBorehole = true;
+            mesh.userData.bhId = bh.id;
+            mesh.userData.desc = layer.desc || '';
+            scene.add(mesh);
         });
 
-        // Water table disc
+        // Water-table disc
         const wstk = WSTK_DATA.find(w => w.loca_id === bh.id);
         if (wstk && wstk.depth != null) {
             const wtE = bh.ground_level - wstk.depth;
             const disc = new THREE.Mesh(
-                new THREE.CylinderGeometry(voxW * 0.7, voxW * 0.7, 0.3, 16),
-                new THREE.MeshPhongMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.75 })
+                new THREE.CylinderGeometry(voxW, voxW, 0.4, 16),
+                new THREE.MeshStandardMaterial({ color: 0x0ea5e9, transparent: true, opacity: 0.7 })
             );
-            disc.position.set(dx, wtE - cz, -dy);
-            threeGroup.add(disc);
+            disc.position.set(dx, wtE - cz, dz);
+            disc.userData.isBorehole = true;
+            disc.userData.bhId = bh.id;
+            scene.add(disc);
         }
     });
 
-    // Ground plane
-    const extent = Math.max(
-        Math.max(...bhsM.map(b => Math.abs(b.easting - cx))),
-        Math.max(...bhsM.map(b => Math.abs(b.northing - cy))),
-        50
-    ) * 2.2;
+    // Translucent ground plane
+    const spread = Math.max(
+        ...bhsV.map(b => Math.max(Math.abs(b.easting - cx), Math.abs(b.northing - cy))),
+        30
+    );
     const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(extent, extent),
-        new THREE.MeshPhongMaterial({ color: 0x4b7c3f, transparent: true, opacity: 0.35 })
+        new THREE.PlaneGeometry(spread * 3.5, spread * 3.5),
+        new THREE.MeshStandardMaterial({ color: 0x334155, transparent: true, opacity: 0.2, side: THREE.DoubleSide })
     );
     plane.rotation.x = -Math.PI / 2;
-    plane.position.y = cz - cz; // ground level
-    threeGroup.add(plane);
-
-    // Fit camera
-    const bbox = new THREE.Box3().setFromObject(threeGroup);
-    const size = bbox.getSize(new THREE.Vector3());
-    const maxSide = Math.max(size.x, size.y, size.z);
-    camDist = 1;
-    threeCamera.far  = maxSide * 20;
-    threeCamera.near = 0.01;
-    threeCamera.updateProjectionMatrix();
-    threeCamera._baseDistance = maxSide * 2.5;
-    threeCamera._target = new THREE.Vector3(0, size.y / 2, 0);
+    plane.userData.isBorehole = true;
+    scene.add(plane);
 }
 
-function updateCamera() {
-    if (!threeCamera) return;
-    const base = threeCamera._baseDistance || 100;
-    const dist = base * camDist;
-    const phi  = (90 - rotX) * Math.PI / 180;
-    const theta = rotY * Math.PI / 180;
-    const tgt = threeCamera._target || new THREE.Vector3();
-    threeCamera.position.set(
-        tgt.x + dist * Math.sin(phi) * Math.sin(theta),
-        tgt.y + dist * Math.cos(phi),
-        tgt.z + dist * Math.sin(phi) * Math.cos(theta)
+async function loadIFCFile(file) {
+    if (!obcState) return;
+    const { ifcLoader, world } = obcState;
+
+    document.getElementById('ifc-drop-zone').classList.add('hidden');
+    setProgress(5, `Parsing ${file.name}…`);
+    document.getElementById('ifc-loading').className = 'active';
+
+    try {
+        setProgress(25, 'Reading file…');
+        const buffer = await file.arrayBuffer();
+
+        setProgress(50, 'Building IFC geometry…');
+        const model = await ifcLoader.load(new Uint8Array(buffer));
+
+        setProgress(85, 'Merging into scene…');
+        world.scene.three.add(model);
+        obcState.models.push({ name: file.name, model });
+
+        setProgress(100, '');
+        const size = (file.size / 1024 / 1024).toFixed(1);
+        document.getElementById('three-meta').textContent =
+            `${file.name} (${size} MB) · ${obcState.models.length} model(s) loaded`;
+        setStatus(`IFC loaded: <strong>${file.name}</strong>`);
+
+    } catch (err) {
+        console.error('IFC load error:', err);
+        setProgress(0, '');
+        document.getElementById('ifc-loading').className = '';
+        document.getElementById('ifc-drop-zone').classList.remove('hidden');
+        setStatus(`&#9888; IFC error: ${err.message}`);
+    }
+}
+
+// ── Raycasting: click to select element and show properties ──────
+
+let _prevHighlightedMesh = null;
+
+function _onViewerClick(e, world, THREE) {
+    const container = document.getElementById('three-container');
+    const rect = container.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width)  *  2 - 1,
+        ((e.clientY - rect.top)  / rect.height) * -2 + 1
     );
-    threeCamera.lookAt(tgt);
+
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(mouse, world.camera.three);
+    const hits = ray.intersectObjects(world.scene.three.children, true);
+
+    // Clear previous highlight
+    if (_prevHighlightedMesh && _prevHighlightedMesh.material?.emissive) {
+        _prevHighlightedMesh.material.emissive.setHex(0x000000);
+        _prevHighlightedMesh = null;
+    }
+
+    if (!hits.length) {
+        document.getElementById('ifc-props-panel').classList.add('hidden');
+        return;
+    }
+
+    const hit = hits[0].object;
+    if (hit.material?.emissive) {
+        hit.material.emissive.setHex(0x4f46e5);
+        _prevHighlightedMesh = hit;
+    }
+
+    if (hit.userData.isBorehole && hit.userData.bhId) {
+        _showBoreholeProps(hit.userData.bhId);
+    } else {
+        _showIfcProps(hit);
+    }
 }
 
-function animateThree() {
-    if (!threeRenderer) return;
-    requestAnimationFrame(animateThree);
-    updateCamera();
-    threeRenderer.render(threeScene, threeCamera);
+function _showBoreholeProps(bhId) {
+    const panel = document.getElementById('ifc-props-panel');
+    panel.classList.remove('hidden');
+
+    const bh     = BH_DATA.find(b => b.id === bhId) || {};
+    const layers = GEOL_DATA.filter(g => g.loca_id === bhId);
+    const wstk   = WSTK_DATA.find(w => w.loca_id === bhId);
+    const sptVals = ISPT_DATA.filter(i => i.loca_id === bhId).map(i => i.nval).filter(v => v != null);
+
+    document.getElementById('ifc-type-badge').textContent  = bh.loca_type || 'BH';
+    document.getElementById('ifc-elem-name').textContent   = bhId;
+    document.getElementById('ifc-model-name').textContent  = 'AGS Borehole';
+
+    let html = `<div class="ifc-prop-group">
+        <div class="ifc-prop-group-name">Location</div>`;
+    [['Easting',      bh.easting != null  ? bh.easting.toFixed(2) + ' m' : null],
+     ['Northing',     bh.northing != null ? bh.northing.toFixed(2) + ' m' : null],
+     ['Ground Level', bh.ground_level != null ? bh.ground_level.toFixed(2) + ' mOD' : null],
+     ['Final Depth',  bh.final_depth  != null ? bh.final_depth.toFixed(2)  + ' m bgl' : null],
+    ].forEach(([k, v]) => {
+        if (v != null)
+            html += `<div class="ifc-prop-row"><span class="ifc-prop-name">${k}</span><span class="ifc-prop-val">${v}</span></div>`;
+    });
+    html += '</div>';
+
+    if (wstk && wstk.depth != null) {
+        const wtElev = (bh.ground_level || 0) - wstk.depth;
+        html += `<div class="ifc-prop-group">
+            <div class="ifc-prop-group-name">Groundwater</div>
+            <div class="ifc-prop-row"><span class="ifc-prop-name">Strike depth</span><span class="ifc-prop-val">${wstk.depth.toFixed(2)} m bgl</span></div>
+            <div class="ifc-prop-row"><span class="ifc-prop-name">WT elevation</span><span class="ifc-prop-val">${wtElev.toFixed(2)} mOD</span></div>
+        </div>`;
+    }
+
+    if (sptVals.length) {
+        html += `<div class="ifc-prop-group">
+            <div class="ifc-prop-group-name">SPT</div>
+            <div class="ifc-prop-row"><span class="ifc-prop-name">Max N-value</span><span class="ifc-prop-val">${Math.max(...sptVals)}</span></div>
+            <div class="ifc-prop-row"><span class="ifc-prop-name">Tests</span><span class="ifc-prop-val">${sptVals.length}</span></div>
+        </div>`;
+    }
+
+    if (layers.length) {
+        html += `<div class="ifc-prop-group">
+            <div class="ifc-prop-group-name">Geology — ${layers.length} layer(s)</div>`;
+        layers.slice(0, 10).forEach(l => {
+            const col = geolColor(l.desc);
+            html += `<div class="ifc-prop-row">
+                <span class="ifc-prop-name" style="display:flex;align-items:flex-start;gap:4px">
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:1px;background:${col};flex-shrink:0;margin-top:2px"></span>
+                    ${(l.top || 0)}–${(l.base || 0)} m
+                </span>
+                <span class="ifc-prop-val">${(l.desc || '').slice(0, 35)}</span>
+            </div>`;
+        });
+        if (layers.length > 10) html += `<div style="font-size:10px;color:#64748b;padding:2px 0">… +${layers.length - 10} more</div>`;
+        html += '</div>';
+    }
+
+    document.getElementById('ifc-props-content').innerHTML = html;
 }
 
-function export3DVTK() {
-    exportVTK(); // Reuse 3D VTK export
+function _showIfcProps(obj) {
+    const panel = document.getElementById('ifc-props-panel');
+    panel.classList.remove('hidden');
+
+    const ud = obj.userData || {};
+    document.getElementById('ifc-type-badge').textContent = ud.type || 'IFC';
+    document.getElementById('ifc-elem-name').textContent  = ud.name || obj.name || 'Element';
+    document.getElementById('ifc-model-name').textContent = 'IFC Model';
+
+    const skip = new Set(['isBorehole', 'bvhGeometry', 'mergedMesh']);
+    let html = '<div class="ifc-prop-group"><div class="ifc-prop-group-name">Attributes</div>';
+    Object.entries(ud).forEach(([k, v]) => {
+        if (skip.has(k) || typeof v === 'object') return;
+        html += `<div class="ifc-prop-row">
+            <span class="ifc-prop-name">${k}</span>
+            <span class="ifc-prop-val">${String(v).slice(0, 60)}</span>
+        </div>`;
+    });
+    html += '</div>';
+    document.getElementById('ifc-props-content').innerHTML = html;
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1271,15 +1533,13 @@ document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
 document.getElementById('btn-toggle-3d').addEventListener('click', () => {
     const panel = document.getElementById('three-panel');
     const isHidden = panel.classList.toggle('hidden');
-    document.getElementById('btn-toggle-3d').textContent = isHidden ? '⬛ 3D Model' : '⬜ 3D Model';
-    if (!isHidden && !threeRenderer) {
-        setTimeout(initThreeJS, 50);
-    }
+    document.getElementById('btn-toggle-3d').textContent = isHidden ? '⬛ 3D / IFC' : '⬜ 3D / IFC';
+    if (!isHidden && !obcState) setTimeout(initOBCViewer, 50);
 });
 
 document.getElementById('btn-close-3d').addEventListener('click', () => {
     document.getElementById('three-panel').classList.add('hidden');
-    document.getElementById('btn-toggle-3d').textContent = '⬛ 3D Model';
+    document.getElementById('btn-toggle-3d').textContent = '⬛ 3D / IFC';
 });
 
 document.getElementById('btn-close-section').addEventListener('click', () => {
@@ -1291,7 +1551,8 @@ document.getElementById('btn-export-section-svg').addEventListener('click', () =
     if (svg) download(svg, 'cross_section.svg', 'image/svg+xml');
 });
 
-document.getElementById('btn-export-gltf').addEventListener('click', export3DVTK);
+// VTK voxel export (reuses existing exportVTK)
+document.getElementById('btn-export-gltf').addEventListener('click', exportVTK);
 
 // Kick off
 initMap();
