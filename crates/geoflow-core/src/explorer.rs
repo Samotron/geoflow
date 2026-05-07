@@ -80,6 +80,8 @@ impl Explorer {
             .unwrap();
         env.add_template("certificate", include_str!("explorer/certificate.html"))
             .unwrap();
+        env.add_template("fix_log", include_str!("explorer/fix_log.html"))
+            .unwrap();
         Self { env }
     }
 
@@ -242,6 +244,27 @@ impl Explorer {
         Ok(html)
     }
 
+    /// Render the fix-log page showing every change made by [`crate::fix::Fixer`].
+    pub fn render_fix_log(&self, log: &crate::fix::FixLog) -> Result<String> {
+        let applied_fixes = log.applied_fixes();
+        let groups_affected: Vec<String> = log
+            .changes
+            .iter()
+            .map(|c| c.group.clone())
+            .filter(|g| !g.is_empty())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+
+        let tmpl = self.env.get_template("fix_log")?;
+        let html = tmpl.render(context!(
+            log => log.changes,
+            applied_fixes => applied_fixes,
+            groups_affected => groups_affected,
+        ))?;
+        Ok(html)
+    }
+
     pub fn render_certificate(
         &self,
         file: &AgsFile,
@@ -249,9 +272,39 @@ impl Explorer {
         active_pack_refs: &[String],
         validated_at: &str,
     ) -> Result<String> {
+        self.render_certificate_with_hash(file, extra_packs, active_pack_refs, validated_at, None)
+    }
+
+    pub fn render_certificate_with_hash(
+        &self,
+        file: &AgsFile,
+        extra_packs: &[crate::dsl::LoadedPack],
+        active_pack_refs: &[String],
+        validated_at: &str,
+        file_hash: Option<&str>,
+    ) -> Result<String> {
         let diagnostics = run_validation(file, extra_packs);
         let summary = diagnostic_summary(&diagnostics);
         let passed = summary.get("error").copied().unwrap_or(0) == 0;
+
+        // Quality score for the certificate.
+        let qs = crate::score::score(file);
+
+        // Project metadata.
+        let proj_id = file
+            .group("PROJ")
+            .and_then(|g| g.rows.first())
+            .and_then(|r| r.get("PROJ_ID"))
+            .and_then(|v| v.as_text())
+            .unwrap_or("-");
+        let proj_name = file
+            .group("PROJ")
+            .and_then(|g| g.rows.first())
+            .and_then(|r| r.get("PROJ_NAME"))
+            .and_then(|v| v.as_text())
+            .unwrap_or("-");
+        let location_count = file.group("LOCA").map(|g| g.rows.len()).unwrap_or(0);
+
         let tmpl = self.env.get_template("certificate")?;
         let html = tmpl.render(context!(
             file => file,
@@ -260,6 +313,12 @@ impl Explorer {
             active_pack_refs => active_pack_refs,
             validated_at => validated_at,
             passed => passed,
+            quality_score => qs.overall,
+            quality_grade => qs.grade,
+            proj_id => proj_id,
+            proj_name => proj_name,
+            location_count => location_count,
+            file_hash => file_hash.unwrap_or("-"),
         ))?;
         Ok(html)
     }

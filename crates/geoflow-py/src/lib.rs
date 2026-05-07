@@ -112,15 +112,19 @@ impl PyAgsFile {
     }
 
     /// Automatically fix safe issues in the AGS file in-place.
-    /// Returns a list of the names of fixes that were applied.
+    ///
+    /// Returns `(applied_fixes, change_log)` where `applied_fixes` is a list
+    /// of fix names and `change_log` is a list of dicts describing every
+    /// individual change made (group, row_index, heading, before, after, kind).
     #[pyo3(signature = (rules = None))]
-    fn fix(&mut self, rules: Option<Vec<String>>) -> PyResult<Vec<String>> {
-        let mut applied = Vec::new();
-
+    fn fix<'py>(
+        &mut self,
+        py: Python<'py>,
+        rules: Option<Vec<String>>,
+    ) -> PyResult<(Vec<String>, Bound<'py, PyList>)> {
         let fixer = geoflow_core::fix::Fixer::standard();
-        for name in fixer.apply_all(&mut self.inner) {
-            applied.push(name.to_string());
-        }
+        let (fix_names, log) = fixer.apply_all_logged(&mut self.inner);
+        let mut applied: Vec<String> = fix_names.iter().map(|s| s.to_string()).collect();
 
         for spec in rules.unwrap_or_default() {
             let pack = dsl::RulePack::load_spec(&spec)
@@ -132,7 +136,21 @@ impl PyAgsFile {
 
         applied.sort();
         applied.dedup();
-        Ok(applied)
+
+        let log_list = PyList::empty_bound(py);
+        for change in &log.changes {
+            let dict = PyDict::new_bound(py);
+            dict.set_item("fix", &change.fix)?;
+            dict.set_item("group", &change.group)?;
+            dict.set_item("row_index", change.row_index)?;
+            dict.set_item("heading", change.heading.as_deref())?;
+            dict.set_item("before", &change.before)?;
+            dict.set_item("after", &change.after)?;
+            dict.set_item("kind", format!("{:?}", change.kind).to_lowercase())?;
+            log_list.append(dict)?;
+        }
+
+        Ok((applied, log_list))
     }
 
     /// Serialize to a DIGGS XML string. Returns `(xml, report_json)`.

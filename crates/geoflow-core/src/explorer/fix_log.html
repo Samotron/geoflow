@@ -1,0 +1,135 @@
+{% extends "base" %}
+{% block title %}Fix Log - GeoFlow{% endblock %}
+{% block content %}
+<style>
+  .fix-summary { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+  .fix-badge { background: #0f2644; color: #fff; border-radius: 4px; padding: 0.25rem 0.7rem; font-size: 0.82rem; font-family: monospace; }
+  .fix-badge.empty { background: #64748b; }
+  .fix-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .fix-table th { text-align: left; background: #1a4080; color: #fff; padding: 0.5rem 0.75rem; }
+  .fix-table td { padding: 0.45rem 0.75rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  .fix-table tr:nth-child(even) td { background: #f8fafc; }
+  .fix-table tr:hover td { background: #eff6ff; }
+  .kind-badge { border-radius: 3px; padding: 0.1rem 0.45rem; font-size: 0.78rem; font-weight: 600; display: inline-block; }
+  .kind-cell_value { background: #dbeafe; color: #1e40af; }
+  .kind-heading_unit { background: #fef3c7; color: #92400e; }
+  .kind-heading_name { background: #f3e8ff; color: #6b21a8; }
+  .kind-group_added { background: #dcfce7; color: #166534; }
+  .val-before { color: #dc2626; text-decoration: line-through; font-family: monospace; }
+  .val-after  { color: #16a34a; font-family: monospace; }
+  .empty-state { color: #64748b; text-align: center; padding: 3rem 0; font-size: 1rem; }
+  .filter-bar { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+  .filter-bar select, .filter-bar input { border: 1px solid #cbd5e1; border-radius: 4px; padding: 0.3rem 0.6rem; font-size: 0.9rem; }
+  .stats-row { display: flex; gap: 2rem; margin-bottom: 1.5rem; }
+  .stat-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem 1.25rem; }
+  .stat-box .stat-num { font-size: 1.5rem; font-weight: 700; color: #0f2644; }
+  .stat-box .stat-label { font-size: 0.8rem; color: #64748b; }
+</style>
+
+<h1>Fix Log</h1>
+
+{% if log is undefined or log | length == 0 %}
+  <div class="empty-state">No fixes were applied — the file was already clean.</div>
+{% else %}
+
+<div class="stats-row">
+  <div class="stat-box">
+    <div class="stat-num">{{ log | length }}</div>
+    <div class="stat-label">total changes</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-num">{{ applied_fixes | length }}</div>
+    <div class="stat-label">fixes applied</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-num">{{ groups_affected | length }}</div>
+    <div class="stat-label">groups affected</div>
+  </div>
+</div>
+
+<h2 style="margin-bottom:0.6rem">Applied Fixes</h2>
+<div class="fix-summary">
+  {% for fix_name in applied_fixes %}
+    <span class="fix-badge">{{ fix_name }}</span>
+  {% endfor %}
+  {% if applied_fixes | length == 0 %}
+    <span class="fix-badge empty">none</span>
+  {% endif %}
+</div>
+
+<h2 style="margin-bottom:0.6rem">Change Detail</h2>
+
+<div class="filter-bar">
+  <label>Group:
+    <select id="group-filter" onchange="filterTable()">
+      <option value="">All</option>
+      {% for g in groups_affected %}
+        <option>{{ g }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Fix:
+    <select id="fix-filter" onchange="filterTable()">
+      <option value="">All</option>
+      {% for fix_name in applied_fixes %}
+        <option>{{ fix_name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <input type="search" id="text-filter" placeholder="Search before/after…" oninput="filterTable()" style="min-width:200px">
+</div>
+
+<table class="fix-table" id="fix-table">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Fix</th>
+      <th>Group</th>
+      <th>Row</th>
+      <th>Heading</th>
+      <th>Kind</th>
+      <th>Before</th>
+      <th>After</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for change in log %}
+    <tr
+      data-group="{{ change.group }}"
+      data-fix="{{ change.fix }}"
+      data-text="{{ change.before }} {{ change.after }}"
+    >
+      <td style="color:#94a3b8">{{ loop.index }}</td>
+      <td><code>{{ change.fix }}</code></td>
+      <td>{{ change.group }}</td>
+      <td>{{ change.row_index }}</td>
+      <td>{{ change.heading }}</td>
+      <td>
+        <span class="kind-badge kind-{{ change.kind }}">
+          {{ change.kind | replace("_", " ") }}
+        </span>
+      </td>
+      <td class="val-before">{{ change.before }}</td>
+      <td class="val-after">{{ change.after }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<script>
+function filterTable() {
+  const gf = document.getElementById('group-filter').value.toLowerCase();
+  const ff = document.getElementById('fix-filter').value.toLowerCase();
+  const tf = document.getElementById('text-filter').value.toLowerCase();
+  document.querySelectorAll('#fix-table tbody tr').forEach(tr => {
+    const g = tr.dataset.group.toLowerCase();
+    const f = tr.dataset.fix.toLowerCase();
+    const t = tr.dataset.text.toLowerCase();
+    const show = (!gf || g === gf) && (!ff || f === ff) && (!tf || t.includes(tf));
+    tr.style.display = show ? '' : 'none';
+  });
+}
+</script>
+
+{% endif %}
+{% endblock %}

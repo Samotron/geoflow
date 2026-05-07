@@ -42,10 +42,13 @@ impl Rule for TypeValueRule {
                     if let Some(msg) =
                         type_violation(group_name, &heading.name, value, &heading.data_type)
                     {
-                        diagnostics.push(
-                            Diagnostic::new("AGS-TYPE-002", Severity::Error, msg)
-                                .at_group(group_name),
-                        );
+                        let fix_id = type_violation_fix_id(value, &heading.data_type);
+                        let mut d = Diagnostic::new("AGS-TYPE-002", Severity::Error, msg)
+                            .at_group(group_name);
+                        if let Some(f) = fix_id {
+                            d = d.with_fix(f);
+                        }
+                        diagnostics.push(d);
                     }
                 }
             }
@@ -85,6 +88,24 @@ fn type_violation(group: &str, heading: &str, value: &AgsValue, ty: &AgsType) ->
                 None
             }
         }
+        _ => None,
+    }
+}
+
+/// Return the fix-id for a type violation if the fix engine can auto-correct it.
+fn type_violation_fix_id(value: &AgsValue, ty: &AgsType) -> Option<&'static str> {
+    match (value, ty) {
+        (AgsValue::Raw(s), AgsType::YN) => {
+            // Fixable if the raw string is a common YN synonym.
+            match s.trim().to_ascii_uppercase().as_str() {
+                "Y" | "YES" | "TRUE" | "1" | "N" | "NO" | "FALSE" | "0" => {
+                    Some("normalize-yn-values")
+                }
+                _ => None,
+            }
+        }
+        (AgsValue::Raw(_), t) if t.is_numeric() => Some("coerce-numeric-fields"),
+        (AgsValue::Text(s), AgsType::DT) if !s.is_empty() => Some("normalize-date-fields"),
         _ => None,
     }
 }

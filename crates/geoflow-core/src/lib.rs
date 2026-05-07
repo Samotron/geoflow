@@ -7,6 +7,10 @@
 pub mod db;
 
 pub mod ags;
+pub mod ags3;
+pub mod crossfile;
+pub mod datum;
+pub mod dedupe;
 pub mod describe;
 pub mod diagnostics;
 pub mod dict;
@@ -18,6 +22,7 @@ pub mod export;
 pub mod fix;
 pub mod model;
 pub mod render;
+pub mod score;
 pub mod spatial;
 pub mod typecheck;
 pub mod validate;

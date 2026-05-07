@@ -49,6 +49,25 @@ pub fn fix_ags(bytes: &[u8]) -> Vec<u8> {
     ags::serialize(&file).into_bytes()
 }
 
+/// Apply safe auto-fixes to an AGS file and return a JSON object with the
+/// fixed AGS text and a structured change log.
+///
+/// Returns `{"ags": "...", "applied": [...], "log": [...]}`.
+#[wasm_bindgen]
+pub fn fix_ags_with_log(bytes: &[u8]) -> String {
+    let parsed = ags::parse_bytes(bytes);
+    let mut file = parsed.file;
+    let fixer = fix::Fixer::standard();
+    let (applied, log) = fixer.apply_all_logged(&mut file);
+    let fixed_ags = ags::serialize(&file);
+    serde_json::json!({
+        "ags": fixed_ags,
+        "applied": applied,
+        "log": log.changes,
+    })
+    .to_string()
+}
+
 /// Convert an AGS file to DIGGS XML. Returns the XML string.
 #[wasm_bindgen]
 pub fn convert_to_diggs(bytes: &[u8]) -> String {
