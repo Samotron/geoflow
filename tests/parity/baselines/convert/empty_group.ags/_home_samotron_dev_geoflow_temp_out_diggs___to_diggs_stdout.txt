@@ -1,0 +1,1 @@
+converted /home/samotron/dev/geoflow/tests/fixtures/ags/empty_group.ags to /home/samotron/dev/geoflow/temp_out.diggs

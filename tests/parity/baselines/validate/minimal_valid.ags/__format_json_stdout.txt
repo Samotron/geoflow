@@ -1,0 +1,62 @@
+[
+  {
+    "rule_id": "AGS-DICT-004",
+    "severity": "warning",
+    "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+      "line": null,
+      "column": null,
+      "group": "LOCA",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-004",
+    "severity": "warning",
+    "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+      "line": null,
+      "column": null,
+      "group": "LOCA",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-004",
+    "severity": "warning",
+    "message": "LOCA: heading \"LOCA_GL\" is not in the standard AGS dictionary",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+      "line": null,
+      "column": null,
+      "group": "LOCA",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-004",
+    "severity": "warning",
+    "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+      "line": null,
+      "column": null,
+      "group": "GEOL",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-005",
+    "severity": "warning",
+    "message": "file contains non-standard headings but has no DICT group to define them",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+      "line": null,
+      "column": null,
+      "group": null,
+      "row_index": null
+    }
+  }
+]

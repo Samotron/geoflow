@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "fix": "normalize-line-endings",
+      "group": "",
+      "before": "",
+      "after": "(text-level normalisation)",
+      "kind": "cell_value"
+    }
+  ]
+}

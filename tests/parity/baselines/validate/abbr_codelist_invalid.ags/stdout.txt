@@ -1,0 +1,6 @@
+error: [AGS-ABBR-001] GEOL.GEOL_LEG: "UNKNOWN_CODE" is not defined in ABBR group (file=/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags, group=GEOL)
+warning: [AGS-DICT-004] GEOL: heading "GEOL_LEG" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags, group=GEOL)
+warning: [AGS-DICT-005] file contains non-standard headings but has no DICT group to define them (file=/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags)
+
+summary: 1 error, 2 warning, 0 info
+

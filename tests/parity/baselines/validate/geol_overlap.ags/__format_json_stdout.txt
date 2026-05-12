@@ -1,0 +1,14 @@
+[
+  {
+    "rule_id": "AGS-VAL-002",
+    "severity": "error",
+    "message": "GEOL layers for LOCA_ID BH01 are not in ascending depth order",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags",
+      "line": null,
+      "column": null,
+      "group": "GEOL",
+      "row_index": null
+    }
+  }
+]

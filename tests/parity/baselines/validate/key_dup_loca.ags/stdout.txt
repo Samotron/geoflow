@@ -1,0 +1,7 @@
+error: [AGS-ID-001] LOCA.LOCA_ID: duplicate value "BH01" (file=/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATE" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATN" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags, group=LOCA)
+warning: [AGS-DICT-005] file contains non-standard headings but has no DICT group to define them (file=/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags)
+
+summary: 1 error, 3 warning, 0 info
+

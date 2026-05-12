@@ -1,0 +1,4 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags
+groups: 0
+rows: 0
+diagnostics: 1

@@ -1,0 +1,4 @@
+error: [AGS-VAL-002] GEOL layers for LOCA_ID BH01 are not in ascending depth order (file=/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags, group=GEOL)
+
+summary: 1 error, 0 warning, 0 info
+

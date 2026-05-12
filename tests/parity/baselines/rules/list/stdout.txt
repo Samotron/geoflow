@@ -1,0 +1,31 @@
+AGS-DICT-001         error    Required standard heading missing from group
+AGS-DICT-002         warning  Depth heading should carry unit "m"
+AGS-TYPE-002         error    Data values must conform to their declared AGS type
+AGS-ABBR-001         error    PA-type field values must be defined in the ABBR group
+AGS-UNIT-001         warning  PU-type field values must be defined in the UNIT group
+AGS-XREF-LOCA        error    All LOCA_ID references must resolve to an existing LOCA row
+AGS-ID-001           error    ID-type primary key columns must have unique values within their group
+AGS-KEY-002          error    Within a borehole, LOCA_ID + SAMP_TOP + SAMP_REF must be unique in SAMP
+AGS-DICT-003         error    Required headings must have non-empty values in every DATA row
+AGS-HEAD-004         warning  Heading names should be ≤9 characters, uppercase alphanumeric and underscore only
+AGS-STRUCT-005       warning  Every group must contain at least one DATA row
+AGS-DICT-004         warning  Non-standard headings should be declared in the DICT group
+AGS-HEAD-007         warning  Required headings should appear in the standard dictionary reference order
+AGS-KEY-010          error    Composite key fields must be unique within their group
+AGS-XREF-PGRP        error    Child group rows must reference an existing parent group composite key
+AGS-TRAN-001         warning  TRAN_DLIM must be declared in TRAN when any RL-type field is used
+AGS-RL-001           error    RL-type field values (GROUP:ID) must reference an existing group and ID
+AGS-TYPE-003         warning  All AGS type codes used in the file must be listed in the TYPE group
+AGS-STRUCT-001       error    AGS files must contain exactly one PROJ group with one row.
+AGS-STRUCT-002       error    AGS 4 files must contain a TRAN group with a TRAN_AGS heading.
+AGS-STRUCT-003       error    Every LOCA row must have a non-empty LOCA_ID.
+AGS-HEAD-001         error    Every group must declare a HEADING row.
+AGS-HEAD-002         warning  Numeric headings should declare a unit.
+AGS-HEAD-003         error    Every heading must have a declared TYPE.
+AGS-TYPE-001         warning  TYPE codes must be one of the AGS 4.x defined codes.
+AGS-VAL-001          error    GEOL_BASE must be greater than GEOL_TOP for every layer.
+AGS-VAL-002          error    GEOL layers within each borehole must be in ascending depth order (no overlaps or reversals).
+AGS-STRUCT-004       warning  TRAN_AGS must be a recognised AGS 4.x version (4.0.3, 4.0.4, 4.1, 4.1.1, or 4.2).
+AGS-FMT-001          warning  Text values must not have trailing whitespace.
+PACK ags:standard@4.x installed rule pack
+PACK ice:mini@0.1    installed rule pack

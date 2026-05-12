@@ -1,0 +1,6 @@
+error: [AGS-V3-UNSUPPORTED] file appears to be AGS 3 format; this parser only supports AGS 4.x (file=/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags)
+error: [AGS-STRUCT-001] PROJ group missing or does not have exactly one DATA row (file=/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags)
+error: [AGS-STRUCT-002] missing TRAN group or TRAN_AGS heading (file=/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags)
+
+summary: 3 error, 0 warning, 0 info
+

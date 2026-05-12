@@ -1,0 +1,6 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/encoding_win1252.ags
+ags version: 4.1
+groups: 3
+rows: 3
+locations: 1
+project: Tést Projét

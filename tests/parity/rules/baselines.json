@@ -1,0 +1,1404 @@
+{
+  "rules/specs/ags/standard/4.x/pack.yml": {
+    "abbr_codelist_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-ABBR-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL.GEOL_LEG: \\\"UNKNOWN_CODE\\\" is not defined in ABBR group\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"GEOL: heading \\\"GEOL_LEG\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "abbr_codelist_valid.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "browser_explorer.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_GL\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_FDEP\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "SAMP: heading \"SAMP_ID\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "SAMP: heading \"SAMP_BASE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-HEAD-007",
+        "severity": "warning",
+        "message": "SAMP: headings are not in the standard reference order (expected: LOCA_ID, SAMP_TOP, SAMP_REF, SAMP_TYPE)",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-HEAD-002",
+        "severity": "warning",
+        "message": "one or more numeric headings have no unit declared",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-HEAD-002",
+        "severity": "warning",
+        "message": "one or more numeric headings have no unit declared",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "empty_group.ags": [
+      {
+        "rule_id": "AGS-STRUCT-005",
+        "severity": "warning",
+        "message": "LOCA: group has no DATA rows",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/empty_group.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "encoding_win1252.ags": [],
+    "fixable.ags": [
+      {
+        "rule_id": "AGS-STRUCT-004",
+        "severity": "warning",
+        "message": "TRAN_AGS value '4.1  ' is not a recognised AGS 4 version",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in PROJ contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "PROJ",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in TRAN contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in LOCA contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "AGS-STRUCT-004",
+        "severity": "warning",
+        "message": "TRAN_AGS value '4.1  ' is not a recognised AGS 4 version",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in PROJ contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "PROJ",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in TRAN contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in LOCA contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "geol_overlap.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-VAL-002\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL layers for LOCA_ID BH01 are not in ascending depth order\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-VAL-002\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL layers for LOCA_ID BH01 are not in ascending depth order\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "ice_mini_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL is missing required heading GEOL_DESC\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA is missing required heading LOCA_TYPE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP: LOCA_ID \\\"BHX\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"SAMP: heading \\\"SAMP_ID\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-VAL-002\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL layers for LOCA_ID BH1 are not in ascending depth order\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-VAL-002\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL layers for LOCA_ID BH1 are not in ascending depth order\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "ice_mini_valid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL is missing required heading GEOL_DESC\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA is missing required heading LOCA_TYPE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"SAMP: heading \\\"SAMP_ID\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "key_dup_loca.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-ID-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA.LOCA_ID: duplicate value \\\"BH01\\\"\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "minimal_valid.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_GL\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "nonstandard_heading.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_XTRA\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/nonstandard_heading.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/nonstandard_heading.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "samp_key_dup.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-KEY-002\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP: duplicate composite key LOCA_ID=\\\"BH01\\\" SAMP_TOP=\\\"1.5\\\" SAMP_REF=\\\"S1\\\"\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "sample_v3.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-V3-UNSUPPORTED\",\n    \"severity\": \"error\",\n    \"message\": \"file appears to be AGS 3 format; this parser only supports AGS 4.x\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-STRUCT-001\",\n    \"severity\": \"error\",\n    \"message\": \"PROJ group missing or does not have exactly one DATA row\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-STRUCT-002\",\n    \"severity\": \"error\",\n    \"message\": \"missing TRAN group or TRAN_AGS heading\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-STRUCT-001\",\n    \"severity\": \"error\",\n    \"message\": \"PROJ group missing or does not have exactly one DATA row\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-STRUCT-002\",\n    \"severity\": \"error\",\n    \"message\": \"missing TRAN group or TRAN_AGS heading\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "short_row.ags": [
+      {
+        "rule_id": "AGS-DATA-SHORT",
+        "severity": "warning",
+        "message": "PROJ: DATA row has 2 values but HEADING declares 3",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags",
+          "line": 5,
+          "column": null,
+          "group": "PROJ",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DATA-SHORT",
+        "severity": "warning",
+        "message": "LOCA: DATA row has 2 values but HEADING declares 4",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags",
+          "line": 17,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "tran_ags_4_1_1.ags": [],
+    "tran_ags_4_2.ags": [],
+    "tran_version_warn.ags": [
+      {
+        "rule_id": "AGS-STRUCT-004",
+        "severity": "warning",
+        "message": "TRAN_AGS value '4.99' is not a recognised AGS 4 version",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-STRUCT-004",
+        "severity": "warning",
+        "message": "TRAN_AGS value '4.99' is not a recognised AGS 4 version",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      }
+    ],
+    "unit_codelist_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SPEC_DPTH\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-UNIT-001\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL.LLPL_UNIT: unit \\\"psi\\\" is not defined in UNIT group\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_LL\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_UNIT\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "unit_codelist_valid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SPEC_DPTH\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_LL\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_UNIT\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "xref_multi_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\" --rules \"rules/specs/ags/standard/4.x/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"ISPT is missing required heading ISPT_TESN\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"ISPT\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"ISPT: LOCA_ID \\\"GHOST_ISPT\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"ISPT\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"WSTK: LOCA_ID \\\"GHOST_WSTK\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"WSTK\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"HOLE: LOCA_ID \\\"GHOST_HOLE\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"HOLE\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-HEAD-002\",\n    \"severity\": \"warning\",\n    \"message\": \"one or more numeric headings have no unit declared\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-HEAD-002\",\n    \"severity\": \"warning\",\n    \"message\": \"one or more numeric headings have no unit declared\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    }
+  },
+  "rules/specs/ice/mini/0.1/pack.yml": {
+    "abbr_codelist_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-ABBR-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL.GEOL_LEG: \\\"UNKNOWN_CODE\\\" is not defined in ABBR group\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"GEOL: heading \\\"GEOL_LEG\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "abbr_codelist_valid.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "browser_explorer.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_GL\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_FDEP\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "SAMP: heading \"SAMP_ID\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "SAMP: heading \"SAMP_BASE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-HEAD-007",
+        "severity": "warning",
+        "message": "SAMP: headings are not in the standard reference order (expected: LOCA_ID, SAMP_TOP, SAMP_REF, SAMP_TYPE)",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-HEAD-002",
+        "severity": "warning",
+        "message": "one or more numeric headings have no unit declared",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "empty_group.ags": [
+      {
+        "rule_id": "AGS-STRUCT-005",
+        "severity": "warning",
+        "message": "LOCA: group has no DATA rows",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/empty_group.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "encoding_win1252.ags": [
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/encoding_win1252.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "fixable.ags": [
+      {
+        "rule_id": "AGS-STRUCT-004",
+        "severity": "warning",
+        "message": "TRAN_AGS value '4.1  ' is not a recognised AGS 4 version",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in PROJ contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "PROJ",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in TRAN contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in LOCA contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "geol_overlap.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-VAL-002\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL layers for LOCA_ID BH01 are not in ascending depth order\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"GEOL-001\",\n    \"severity\": \"error\",\n    \"message\": \"Non-monotonic GEOL layers under LOCA BH01\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "ice_mini_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA is missing required heading LOCA_TYPE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL is missing required heading GEOL_DESC\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP: LOCA_ID \\\"BHX\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"SAMP: heading \\\"SAMP_ID\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-VAL-002\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL layers for LOCA_ID BH1 are not in ascending depth order\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"SAMP-001\",\n    \"severity\": \"error\",\n    \"message\": \"Sample S2 references unknown location BHX\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"SAMP-002\",\n    \"severity\": \"warning\",\n    \"message\": \"Sample S2 has unusual type ZZ\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"GEOL-001\",\n    \"severity\": \"error\",\n    \"message\": \"Non-monotonic GEOL layers under LOCA BH1\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "ice_mini_valid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA is missing required heading LOCA_TYPE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL is missing required heading GEOL_DESC\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"SAMP: heading \\\"SAMP_ID\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "key_dup_loca.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-ID-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA.LOCA_ID: duplicate value \\\"BH01\\\"\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "minimal_valid.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_GL\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "nonstandard_heading.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_XTRA\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/nonstandard_heading.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/nonstandard_heading.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/nonstandard_heading.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "samp_key_dup.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-KEY-002\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP: duplicate composite key LOCA_ID=\\\"BH01\\\" SAMP_TOP=\\\"1.5\\\" SAMP_REF=\\\"S1\\\"\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "sample_v3.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-V3-UNSUPPORTED\",\n    \"severity\": \"error\",\n    \"message\": \"file appears to be AGS 3 format; this parser only supports AGS 4.x\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-STRUCT-001\",\n    \"severity\": \"error\",\n    \"message\": \"PROJ group missing or does not have exactly one DATA row\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-STRUCT-002\",\n    \"severity\": \"error\",\n    \"message\": \"missing TRAN group or TRAN_AGS heading\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "short_row.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DATA-SHORT\",\n    \"severity\": \"warning\",\n    \"message\": \"PROJ: DATA row has 2 values but HEADING declares 3\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": 5,\n      \"column\": null,\n      \"group\": \"PROJ\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DATA-SHORT\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: DATA row has 2 values but HEADING declares 4\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": 17,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA BH01 is missing coordinates\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "tran_ags_4_1_1.ags": [
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_ags_4_1_1.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "tran_ags_4_2.ags": [
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_ags_4_2.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "tran_version_warn.ags": [
+      {
+        "rule_id": "AGS-STRUCT-004",
+        "severity": "warning",
+        "message": "TRAN_AGS value '4.99' is not a recognised AGS 4 version",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "unit_codelist_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SPEC_DPTH\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-UNIT-001\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL.LLPL_UNIT: unit \\\"psi\\\" is not defined in UNIT group\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_LL\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_UNIT\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "unit_codelist_valid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SPEC_DPTH\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_LL\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_UNIT\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "xref_multi_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\" --rules \"rules/specs/ice/mini/0.1/pack.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"ISPT is missing required heading ISPT_TESN\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"ISPT\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"ISPT: LOCA_ID \\\"GHOST_ISPT\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"ISPT\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"WSTK: LOCA_ID \\\"GHOST_WSTK\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"WSTK\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"HOLE: LOCA_ID \\\"GHOST_HOLE\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"HOLE\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-HEAD-002\",\n    \"severity\": \"warning\",\n    \"message\": \"one or more numeric headings have no unit declared\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    }
+  },
+  "examples/rules/ice_mini.yml": {
+    "abbr_codelist_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-ABBR-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL.GEOL_LEG: \\\"UNKNOWN_CODE\\\" is not defined in ABBR group\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"GEOL: heading \\\"GEOL_LEG\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "abbr_codelist_valid.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "browser_explorer.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_GL\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_FDEP\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "SAMP: heading \"SAMP_ID\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "SAMP: heading \"SAMP_BASE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-HEAD-007",
+        "severity": "warning",
+        "message": "SAMP: headings are not in the standard reference order (expected: LOCA_ID, SAMP_TOP, SAMP_REF, SAMP_TYPE)",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": "SAMP",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-HEAD-002",
+        "severity": "warning",
+        "message": "one or more numeric headings have no unit declared",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "empty_group.ags": [
+      {
+        "rule_id": "AGS-STRUCT-005",
+        "severity": "warning",
+        "message": "LOCA: group has no DATA rows",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/empty_group.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "encoding_win1252.ags": [
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/encoding_win1252.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "fixable.ags": [
+      {
+        "rule_id": "AGS-STRUCT-004",
+        "severity": "warning",
+        "message": "TRAN_AGS value '4.1  ' is not a recognised AGS 4 version",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in PROJ contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "PROJ",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in TRAN contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "AGS-FMT-001",
+        "severity": "warning",
+        "message": "row in LOCA contains a value with trailing whitespace",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        },
+        "fix_id": "normalize-whitespace"
+      },
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "geol_overlap.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-VAL-002\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL layers for LOCA_ID BH01 are not in ascending depth order\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"GEOL-001\",\n    \"severity\": \"error\",\n    \"message\": \"Non-monotonic GEOL layers under LOCA BH01\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/geol_overlap.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "ice_mini_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL is missing required heading GEOL_DESC\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA is missing required heading LOCA_TYPE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP: LOCA_ID \\\"BHX\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"SAMP: heading \\\"SAMP_ID\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-VAL-002\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL layers for LOCA_ID BH1 are not in ascending depth order\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"SAMP-001\",\n    \"severity\": \"error\",\n    \"message\": \"Sample S2 references unknown location BHX\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"SAMP-002\",\n    \"severity\": \"warning\",\n    \"message\": \"Sample S2 has unusual type ZZ\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"GEOL-001\",\n    \"severity\": \"error\",\n    \"message\": \"Non-monotonic GEOL layers under LOCA BH1\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "ice_mini_valid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"GEOL is missing required heading GEOL_DESC\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"GEOL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA is missing required heading LOCA_TYPE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"SAMP: heading \\\"SAMP_ID\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "key_dup_loca.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-ID-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA.LOCA_ID: duplicate value \\\"BH01\\\"\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "minimal_valid.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_GL\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "GEOL: heading \"GEOL_LEG\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": "GEOL",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      }
+    ],
+    "nonstandard_heading.ags": [
+      {
+        "rule_id": "AGS-DICT-004",
+        "severity": "warning",
+        "message": "LOCA: heading \"LOCA_XTRA\" is not in the standard AGS dictionary",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/nonstandard_heading.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "AGS-DICT-005",
+        "severity": "warning",
+        "message": "file contains non-standard headings but has no DICT group to define them",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/nonstandard_heading.ags",
+          "line": null,
+          "column": null,
+          "group": null,
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/nonstandard_heading.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "samp_key_dup.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-KEY-002\",\n    \"severity\": \"error\",\n    \"message\": \"SAMP: duplicate composite key LOCA_ID=\\\"BH01\\\" SAMP_TOP=\\\"1.5\\\" SAMP_REF=\\\"S1\\\"\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"SAMP\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "sample_v3.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-V3-UNSUPPORTED\",\n    \"severity\": \"error\",\n    \"message\": \"file appears to be AGS 3 format; this parser only supports AGS 4.x\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-STRUCT-001\",\n    \"severity\": \"error\",\n    \"message\": \"PROJ group missing or does not have exactly one DATA row\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-STRUCT-002\",\n    \"severity\": \"error\",\n    \"message\": \"missing TRAN group or TRAN_AGS heading\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "short_row.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DATA-SHORT\",\n    \"severity\": \"warning\",\n    \"message\": \"PROJ: DATA row has 2 values but HEADING declares 3\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": 5,\n      \"column\": null,\n      \"group\": \"PROJ\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DATA-SHORT\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: DATA row has 2 values but HEADING declares 4\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": 17,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATE\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LOCA: heading \\\"LOCA_NATN\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"error\",\n    \"message\": \"LOCA BH01 is missing coordinates\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "tran_ags_4_1_1.ags": [
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_ags_4_1_1.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "tran_ags_4_2.ags": [
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_ags_4_2.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "tran_version_warn.ags": [
+      {
+        "rule_id": "AGS-STRUCT-004",
+        "severity": "warning",
+        "message": "TRAN_AGS value '4.99' is not a recognised AGS 4 version",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags",
+          "line": null,
+          "column": null,
+          "group": "TRAN",
+          "row_index": null
+        }
+      },
+      {
+        "rule_id": "LOCA-001",
+        "severity": "warning",
+        "message": "rule LOCA-001 runtime error: No such key: LOCA_NATE",
+        "location": {
+          "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags",
+          "line": null,
+          "column": null,
+          "group": "LOCA",
+          "row_index": null
+        }
+      }
+    ],
+    "unit_codelist_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SPEC_DPTH\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-UNIT-001\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL.LLPL_UNIT: unit \\\"psi\\\" is not defined in UNIT group\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_LL\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_UNIT\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "unit_codelist_valid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_TOP\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SAMP_REF\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"LLPL is missing required heading SPEC_DPTH\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_LL\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-004\",\n    \"severity\": \"warning\",\n    \"message\": \"LLPL: heading \\\"LLPL_UNIT\\\" is not in the standard AGS dictionary\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LLPL\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-DICT-005\",\n    \"severity\": \"warning\",\n    \"message\": \"file contains non-standard headings but has no DICT group to define them\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    },
+    "xref_multi_invalid.ags": {
+      "error": "Command failed: /home/samotron/dev/geoflow/target/debug/geoflow validate \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\" --rules \"examples/rules/ice_mini.yml\" --format json",
+      "stdout": "[\n  {\n    \"rule_id\": \"AGS-DICT-001\",\n    \"severity\": \"error\",\n    \"message\": \"ISPT is missing required heading ISPT_TESN\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"ISPT\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"ISPT: LOCA_ID \\\"GHOST_ISPT\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"ISPT\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"WSTK: LOCA_ID \\\"GHOST_WSTK\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"WSTK\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-XREF-LOCA\",\n    \"severity\": \"error\",\n    \"message\": \"HOLE: LOCA_ID \\\"GHOST_HOLE\\\" does not exist in LOCA\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"HOLE\",\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"AGS-HEAD-002\",\n    \"severity\": \"warning\",\n    \"message\": \"one or more numeric headings have no unit declared\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": null,\n      \"row_index\": null\n    }\n  },\n  {\n    \"rule_id\": \"LOCA-001\",\n    \"severity\": \"warning\",\n    \"message\": \"rule LOCA-001 runtime error: No such key: LOCA_NATE\",\n    \"location\": {\n      \"file\": \"/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags\",\n      \"line\": null,\n      \"column\": null,\n      \"group\": \"LOCA\",\n      \"row_index\": null\n    }\n  }\n]\n"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+only in b: SAMP
+
+ABBR: 2 unchanged  3 added
+  + ABBR_HDNG="GEOL_LEG", ABBR_CODE="GR", ABBR_DESC="Gravel"
+  + ABBR_HDNG="SAMP_TYPE", ABBR_CODE="U", ABBR_DESC="Undisturbe…
+  + ABBR_HDNG="SAMP_TYPE", ABBR_CODE="B", ABBR_DESC="Bulk"
+
+GEOL: 1 unchanged  1 modified
+  ~ BH01 / 1.5
+      GEOL_DESC: "Mystery material" → "Gravel"
+      GEOL_LEG: "UNKNOWN_CODE" → "GR"
+
+PROJ: 1 modified
+  ~ P1
+      PROJ_NAME: "ABBR codelist invalid" → "ABBR codelist valid"

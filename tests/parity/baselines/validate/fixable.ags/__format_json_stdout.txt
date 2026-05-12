@@ -1,0 +1,53 @@
+[
+  {
+    "rule_id": "AGS-STRUCT-004",
+    "severity": "warning",
+    "message": "TRAN_AGS value '4.1  ' is not a recognised AGS 4 version",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+      "line": null,
+      "column": null,
+      "group": "TRAN",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-FMT-001",
+    "severity": "warning",
+    "message": "row in PROJ contains a value with trailing whitespace",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+      "line": null,
+      "column": null,
+      "group": "PROJ",
+      "row_index": null
+    },
+    "fix_id": "normalize-whitespace"
+  },
+  {
+    "rule_id": "AGS-FMT-001",
+    "severity": "warning",
+    "message": "row in TRAN contains a value with trailing whitespace",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+      "line": null,
+      "column": null,
+      "group": "TRAN",
+      "row_index": null
+    },
+    "fix_id": "normalize-whitespace"
+  },
+  {
+    "rule_id": "AGS-FMT-001",
+    "severity": "warning",
+    "message": "row in LOCA contains a value with trailing whitespace",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags",
+      "line": null,
+      "column": null,
+      "group": "LOCA",
+      "row_index": null
+    },
+    "fix_id": "normalize-whitespace"
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "rule_id": "AGS-STRUCT-004",
+    "severity": "warning",
+    "message": "TRAN_AGS value '4.99' is not a recognised AGS 4 version",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags",
+      "line": null,
+      "column": null,
+      "group": "TRAN",
+      "row_index": null
+    }
+  }
+]

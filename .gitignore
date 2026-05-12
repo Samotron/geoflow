@@ -1,6 +1,18 @@
 /target
 **/*.rs.bk
 Cargo.lock.bak
+
+# TypeScript / pnpm workspace
+node_modules/
+**/dist/
+**/build/
+**/coverage/
+**/*.tsbuildinfo
+.vite/
+.cache/
+playwright-report/
+test-results/
+.dep-age-cache.json
 .idea/
 .vscode/
 *.swp

@@ -1,0 +1,25 @@
+{
+  "name": "@geoflow/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "geoflow": "./bin/geoflow.mjs"
+  },
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geoflow/core": "workspace:*",
+    "@geoflow/db": "workspace:*",
+    "@geoflow/rules": "workspace:*",
+    "@geoflow/rules-engine": "workspace:*",
+    "@effect/cli": "^0.48.0",
+    "@effect/platform": "^0.69.0",
+    "@effect/platform-node": "^0.64.0",
+    "effect": "^3.10.0"
+  }
+}

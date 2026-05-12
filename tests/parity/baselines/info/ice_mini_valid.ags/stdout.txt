@@ -1,0 +1,7 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_valid.ags
+ags version: 4.1
+groups: 5
+rows: 6
+locations: 1
+project: ICE Mini Valid
+depth range: 0..2 m

@@ -1,0 +1,4 @@
+warning: [AGS-STRUCT-004] TRAN_AGS value '4.99' is not a recognised AGS 4 version (file=/home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags, group=TRAN)
+
+summary: 0 error, 1 warning, 0 info
+

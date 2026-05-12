@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+    <gml:description>Browser Explorer Fixture</gml:description>
+  </Project>
+  <SamplingLocation>
+    <gml:name>BH01</gml:name>
+    <easting>100</easting>
+    <northing>200</northing>
+  </SamplingLocation>
+  <SamplingLocation>
+    <gml:name>BH02</gml:name>
+    <easting>115</easting>
+    <northing>212</northing>
+  </SamplingLocation>
+  <SamplingLocation>
+    <gml:name>TP01</gml:name>
+    <easting>130</easting>
+    <northing>225</northing>
+  </SamplingLocation>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>0</topDepth>
+    <baseDepth>1.2</baseDepth>
+    <description>Brown CLAY with occasional gravel</description>
+    <legendCode>CL</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>1.2</topDepth>
+    <baseDepth>4.5</baseDepth>
+    <description>Grey SAND</description>
+    <legendCode>SA</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>BH02</locationId>
+    <topDepth>0</topDepth>
+    <baseDepth>0.8</baseDepth>
+    <description>Topsoil</description>
+    <legendCode>TS</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>BH02</locationId>
+    <topDepth>0.8</topDepth>
+    <baseDepth>3</baseDepth>
+    <description>White CHALK</description>
+    <legendCode>CH</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>TP01</locationId>
+    <topDepth>0</topDepth>
+    <baseDepth>1</baseDepth>
+    <description>Made Ground</description>
+    <legendCode>MG</legendCode>
+  </Lithology>
+  <Sample>
+    <locationId>BH01</locationId>
+    <sampleId>S1</sampleId>
+    <sampleType>B</sampleType>
+  </Sample>
+  <Sample>
+    <locationId>BH01</locationId>
+    <sampleId>S2</sampleId>
+    <sampleType>U</sampleType>
+  </Sample>
+  <Sample>
+    <locationId>BH02</locationId>
+    <sampleId>S3</sampleId>
+    <sampleType>B</sampleType>
+  </Sample>
+  <SPTTest>
+    <locationId>BH01</locationId>
+    <testDepth>1.5</testDepth>
+    <blowCount>18</blowCount>
+  </SPTTest>
+  <SPTTest>
+    <locationId>BH02</locationId>
+    <testDepth>2</testDepth>
+    <blowCount>35</blowCount>
+  </SPTTest>
+  <WaterStrike>
+    <locationId>BH01</locationId>
+    <strikeDepth>3.2</strikeDepth>
+  </WaterStrike>
+  <DataGroup name="TRAN">
+    <heading name="TRAN_AGS" unit="" type="X"/>
+    <row>
+      <field name="TRAN_AGS">4.1</field>
+    </row>
+  </DataGroup>
+</Diggs>

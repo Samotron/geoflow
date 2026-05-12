@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+    <gml:description>Synthetic minimal AGS file</gml:description>
+  </Project>
+  <SamplingLocation>
+    <gml:name>BH01</gml:name>
+    <easting>123456.78</easting>
+    <northing>234567.89</northing>
+  </SamplingLocation>
+  <SamplingLocation>
+    <gml:name>BH02</gml:name>
+    <easting>123460</easting>
+    <northing>234570</northing>
+  </SamplingLocation>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>0</topDepth>
+    <baseDepth>1.5</baseDepth>
+    <description>Topsoil</description>
+    <legendCode>TS</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>1.5</topDepth>
+    <baseDepth>5.2</baseDepth>
+    <description>Sandy clay</description>
+    <legendCode>CL</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>BH02</locationId>
+    <topDepth>0</topDepth>
+    <baseDepth>0.8</baseDepth>
+    <description>Made ground</description>
+    <legendCode>MG</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>BH02</locationId>
+    <topDepth>0.8</topDepth>
+    <baseDepth>6.4</baseDepth>
+    <description>Stiff clay</description>
+    <legendCode>CL</legendCode>
+  </Lithology>
+  <DataGroup name="TRAN">
+    <heading name="TRAN_AGS" unit="" type="X"/>
+    <heading name="TRAN_DATE" unit="yyyy-mm-dd" type="DT"/>
+    <heading name="TRAN_PROD" unit="" type="X"/>
+    <row>
+      <field name="TRAN_AGS">4.1</field>
+      <field name="TRAN_DATE">2026-05-02</field>
+      <field name="TRAN_PROD">geoflow</field>
+    </row>
+  </DataGroup>
+</Diggs>

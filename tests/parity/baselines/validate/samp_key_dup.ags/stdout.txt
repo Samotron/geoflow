@@ -1,0 +1,4 @@
+error: [AGS-KEY-002] SAMP: duplicate composite key LOCA_ID="BH01" SAMP_TOP="1.5" SAMP_REF="S1" (file=/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags, group=SAMP)
+
+summary: 1 error, 0 warning, 0 info
+

@@ -1,0 +1,5 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/tran_ags_4_2.ags
+ags version: 4.2
+groups: 3
+rows: 3
+locations: 1

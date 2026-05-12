@@ -1,0 +1,1 @@
+converted /home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags to /home/samotron/dev/geoflow/temp_out.diggs

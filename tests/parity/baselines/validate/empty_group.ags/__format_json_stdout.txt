@@ -1,0 +1,14 @@
+[
+  {
+    "rule_id": "AGS-STRUCT-005",
+    "severity": "warning",
+    "message": "LOCA: group has no DATA rows",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/empty_group.ags",
+      "line": null,
+      "column": null,
+      "group": "LOCA",
+      "row_index": null
+    }
+  }
+]

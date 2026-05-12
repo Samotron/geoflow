@@ -1,0 +1,7 @@
+raw:          Soft grey CLAY
+material:     Soil
+soil type:    Clay
+consistency:  Soft
+colours:      grey
+cu (kPa):     20–40
+confidence:   100%
