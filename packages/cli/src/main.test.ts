@@ -15,6 +15,10 @@ function normalizeConvertStdout(text: string): string {
   return maskCosmetic(text).replace(/ to .+$/m, " to <OUTFILE>");
 }
 
+function normalizeEol(text: string): string {
+  return text.replace(/\r\n/g, "\n");
+}
+
 function normalizeTextOutput(text: string): string {
   // Normalise Windows backslash path separators before masking so the masked
   // relative path (e.g. tests/fixtures/...) uses forward slashes on all platforms.
@@ -141,8 +145,8 @@ describe("@geoflow/cli", () => {
       .replaceAll(file, "/home/samotron/dev/geoflow/temp_fixed.ags");
     expect(maskCosmetic(normalizedStdout)).toBe(maskCosmetic(baselineStdout));
     expect(result.stderr).toBe("");
-    expect(readFileSync(diffFile, "utf8")).toBe(baselineDiff);
-    expect(readFileSync(file, "utf8")).toBe(baselineFixed);
+    expect(normalizeEol(readFileSync(diffFile, "utf8"))).toBe(normalizeEol(baselineDiff));
+    expect(normalizeEol(readFileSync(file, "utf8"))).toBe(normalizeEol(baselineFixed));
   });
 
   it("returns validation failure exit code for invalid files", () => {
@@ -318,7 +322,7 @@ describe("@geoflow/cli", () => {
         expect(normalizeConvertStdout(result.stdout).trimEnd()).toBe(normalizeConvertStdout(baselineStdout).trimEnd());
         expect(result.stderr).toBe("");
         if (baselineExit === 0) {
-          expect(readFileSync(outFile, "utf8")).toBe(baselineOutput);
+          expect(normalizeEol(readFileSync(outFile, "utf8"))).toBe(normalizeEol(baselineOutput));
         }
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
@@ -342,7 +346,7 @@ describe("@geoflow/cli", () => {
       expect(normalizeConvertStdout(result.stdout).trimEnd()).toBe(normalizeConvertStdout(baselineStdout).trimEnd());
       expect(result.stderr).toBe("");
       if (baselineExit === 0) {
-        expect(readFileSync(outFile, "utf8")).toBe(baselineOutput);
+        expect(normalizeEol(readFileSync(outFile, "utf8"))).toBe(normalizeEol(baselineOutput));
       }
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
