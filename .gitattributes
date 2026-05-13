@@ -1,0 +1,4 @@
+# Force LF line endings for AGS test fixtures on all platforms.
+# Windows git autocrlf would otherwise convert them to CRLF on checkout,
+# breaking the normalize-line-endings fixer detection in fix.test.ts.
+tests/fixtures/**/*.ags text eol=lf
