@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { decodeBytes, parseStr, diffFiles, renderDiffText, diffToSummary, isIdentical } from '../core.js';
+import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued';
+import { decodeBytes, parseStr, diffFiles, diffToSummary, isIdentical } from '../core.js';
 import type { AgsFile, DiffResult, GroupDiff } from '../core.js';
 import { DropZone } from '../App.js';
 
 interface FileSlot {
   name: string;
   bytes: Uint8Array;
+  text: string;
   parsed: AgsFile;
 }
 
-type ViewMode = 'summary' | 'unified';
+type ViewMode = 'summary' | 'split' | 'unified';
 
 export function DiffTab() {
   const [fileA, setFileA] = useState<FileSlot | null>(null);
@@ -24,7 +26,7 @@ export function DiffTab() {
     try {
       const text = decodeBytes(bytes);
       const parsed = parseStr(text);
-      const entry = { name, bytes, parsed: parsed.file };
+      const entry = { name, bytes, text, parsed: parsed.file };
       if (slot === 'a') setFileA(entry);
       else setFileB(entry);
       setDiffResult(null);
@@ -50,7 +52,6 @@ export function DiffTab() {
   };
 
   const summary = diffResult ? diffToSummary(diffResult) : null;
-  const rawText = diffResult ? renderDiffText(diffResult) : null;
 
   const pillStyle = (active: boolean): React.CSSProperties => ({
     padding: '5px 14px',
@@ -68,21 +69,11 @@ export function DiffTab() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>File A</div>
-          <DropZone
-            onFile={loadFile('a')}
-            fileName={fileA?.name}
-            fileSize={fileA?.bytes.length}
-            label="File A"
-          />
+          <DropZone onFile={loadFile('a')} fileName={fileA?.name} fileSize={fileA?.bytes.length} label="File A" />
         </div>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>File B</div>
-          <DropZone
-            onFile={loadFile('b')}
-            fileName={fileB?.name}
-            fileSize={fileB?.bytes.length}
-            label="File B"
-          />
+          <DropZone onFile={loadFile('b')} fileName={fileB?.name} fileSize={fileB?.bytes.length} label="File B" />
         </div>
       </div>
 
@@ -97,6 +88,7 @@ export function DiffTab() {
         {diffResult && (
           <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
             <button style={pillStyle(viewMode === 'summary')} onClick={() => setViewMode('summary')}>Summary</button>
+            <button style={pillStyle(viewMode === 'split')} onClick={() => setViewMode('split')}>Side by Side</button>
             <button style={pillStyle(viewMode === 'unified')} onClick={() => setViewMode('unified')}>Unified</button>
           </div>
         )}
@@ -114,9 +106,9 @@ export function DiffTab() {
         </div>
       )}
 
+      {/* ── Summary view ── */}
       {diffResult !== null && !identical && viewMode === 'summary' && summary && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Only-in-A / Only-in-B */}
           {(summary.only_in_a.length > 0 || summary.only_in_b.length > 0) && (
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
               <div style={{ padding: '10px 16px', background: '#f8fafc', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>
@@ -140,8 +132,6 @@ export function DiffTab() {
               </div>
             </div>
           )}
-
-          {/* Per-group diff */}
           {summary.groups.map((g) => {
             const hasChanges = g.rows_added > 0 || g.rows_removed > 0 || g.rows_modified > 0;
             if (!hasChanges) return null;
@@ -161,22 +151,40 @@ export function DiffTab() {
         </div>
       )}
 
-      {diffResult !== null && !identical && viewMode === 'unified' && rawText && (
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-          <pre style={{ margin: 0, padding: 16, background: '#0f172a', color: '#e2e8f0', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, lineHeight: 1.45, overflowX: 'auto' }}>
-            {rawText.split('\n').map((line, i) => {
-              let color = '#e2e8f0';
-              if (line.startsWith('  +')) color = '#86efac';
-              else if (line.startsWith('  -')) color = '#fca5a5';
-              else if (line.startsWith('  ~')) color = '#fde68a';
-              else if (line.startsWith('only in')) color = '#93c5fd';
-              return (
-                <span key={i} style={{ display: 'block', color }}>
-                  {line}
-                </span>
-              );
-            })}
-          </pre>
+      {/* ── Text diff views (react-diff-viewer-continued) ── */}
+      {diffResult !== null && !identical && (viewMode === 'split' || viewMode === 'unified') && fileA && fileB && (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', fontSize: 12 }}>
+          <ReactDiffViewer
+            oldValue={fileA.text}
+            newValue={fileB.text}
+            splitView={viewMode === 'split'}
+            leftTitle={fileA.name}
+            rightTitle={viewMode === 'split' ? fileB.name : undefined}
+            compareMethod={DiffMethod.LINES}
+            showDiffOnly
+            extraLinesSurroundingDiff={3}
+            useDarkTheme={false}
+            styles={{
+              variables: {
+                light: {
+                  addedBackground: '#f0fdf4',
+                  addedColor: '#166534',
+                  removedBackground: '#fef2f2',
+                  removedColor: '#991b1b',
+                  wordAddedBackground: '#bbf7d0',
+                  wordRemovedBackground: '#fecaca',
+                  addedGutterBackground: '#dcfce7',
+                  removedGutterBackground: '#fee2e2',
+                  gutterBackground: '#f8fafc',
+                  gutterBackgroundDark: '#f1f5f9',
+                  highlightBackground: '#fffbeb',
+                  highlightGutterBackground: '#fef9c3',
+                  codeFoldGutterBackground: '#e2e8f0',
+                  codeFoldBackground: '#f1f5f9',
+                },
+              },
+            }}
+          />
         </div>
       )}
 
