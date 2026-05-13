@@ -23,7 +23,9 @@ export const COSMETIC_PATTERNS = [
  * Applies all cosmetic masking patterns to a string.
  */
 export function maskCosmetic(text: string): string {
-  let masked = text;
+  // Normalise Windows path separators first so the path patterns (which use
+  // [/\\]) reliably match, and so the post-mask remainder uses forward slashes.
+  let masked = text.replace(/\\/g, "/");
   for (const pattern of COSMETIC_PATTERNS) {
     masked = masked.replace(pattern, '<MASKED>');
   }
