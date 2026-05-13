@@ -7,10 +7,10 @@ export const COSMETIC_PATTERNS = [
   /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?/g,
   /\d{2}:\d{2}:\d{2}/g,
 
-  // Absolute paths: e.g. /home/user/dev/geoflow/ or /home/user/geoflow/
-  // We mask the root portion to keep tests portable.
-  /\/home\/[a-z0-9_-]+(\/[a-z0-9_-]+)*\/geoflow\//gi,
-  /C:\\Users\\[a-z0-9_-]+(\\[a-z0-9_-]+)*\\geoflow\\/gi,
+  // Absolute paths — matches Unix (/home/…/geoflow/) and all Windows
+  // variants (C:\Users\…\geoflow\, D:\a\geoflow\geoflow\, etc.) using
+  // [/\\] so no global backslash-normalisation is needed.
+  /(?:[a-zA-Z]:)?[/\\](?:[^/\\\s]+[/\\])*geoflow[/\\]/gi,
 
   // Version strings: e.g. geoflow 2026.506.0
   /geoflow \d{4}\.\d{1,3}\.\d+/g,
