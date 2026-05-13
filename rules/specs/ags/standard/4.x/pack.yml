@@ -2,8 +2,7 @@ version: 1
 name: ags-standard
 pack_version: "4.x"
 
-# AGS 4.x standard validation rules expressed in the GeoFlow DSL.
-# These mirror the built-in Rust rules and serve as worked examples.
+# AGS 4.x standard validation rules expressed in the GeoFlow DSL (JEXL).
 # Reference: ags:standard@4.x
 
 rules:
@@ -20,11 +19,7 @@ rules:
     description: "AGS 4 files must contain a TRAN group with a TRAN_AGS heading."
     severity: error
     scope: file
-    expr: >-
-      has_group('TRAN') &&
-      groups_meta.exists(g,
-        g.name == 'TRAN' &&
-        g.headings.exists(h, h.name == 'TRAN_AGS'))
+    expr: "has_group('TRAN') && group_has_heading('TRAN', 'TRAN_AGS')"
     message: "missing TRAN group or TRAN_AGS heading"
 
   - id: AGS-STRUCT-003
@@ -40,31 +35,28 @@ rules:
     description: "Every group must declare a HEADING row."
     severity: error
     scope: file
-    expr: "groups_meta.all(g, g.headings.size() > 0)"
+    expr: "all_groups_have_headings()"
     message: "one or more groups are missing a HEADING row"
 
   - id: AGS-HEAD-002
     description: "Numeric headings should declare a unit."
     severity: warning
     scope: file
-    expr: >-
-      groups_meta.all(g,
-        g.headings.all(h,
-          !is_numeric_ags_type(h.type) || h.unit != ''))
+    expr: "all_numeric_headings_have_unit()"
     message: "one or more numeric headings have no unit declared"
 
   - id: AGS-HEAD-003
     description: "Every heading must have a declared TYPE."
     severity: error
     scope: file
-    expr: "groups_meta.all(g, g.headings.all(h, h.type != ''))"
+    expr: "all_headings_have_type()"
     message: "one or more headings are missing a TYPE declaration"
 
   - id: AGS-TYPE-001
     description: "TYPE codes must be one of the AGS 4.x defined codes."
     severity: warning
     scope: file
-    expr: "groups_meta.all(g, g.headings.all(h, is_valid_ags_type(h.type)))"
+    expr: "all_headings_have_valid_type()"
     message: "one or more headings carry an unrecognised TYPE code"
 
   # ── Value / range ────────────────────────────────────────────────────────────
@@ -77,17 +69,17 @@ rules:
     message: "GEOL row has GEOL_BASE ({row.GEOL_BASE}) not greater than GEOL_TOP ({row.GEOL_TOP})"
 
   - id: AGS-VAL-002
-    description: "GEOL layers within each borehole must be in ascending depth order (no overlaps or reversals)."
+    description: "GEOL layers within each borehole must be in ascending depth order."
     severity: error
     scope: "group:LOCA_ID"
     when: "group == 'GEOL'"
-    expr: "rows.map(r, r.GEOL_TOP).is_monotonic()"
+    expr: "is_monotonic(pluck(rows, 'GEOL_TOP'))"
     message: "GEOL layers for LOCA_ID {key.LOCA_ID} are not in ascending depth order"
 
   # ── Version ──────────────────────────────────────────────────────────────────
 
   - id: AGS-STRUCT-004
-    description: "TRAN_AGS must be a recognised AGS 4.x version (4.0.3, 4.0.4, 4.1, 4.1.1, or 4.2)."
+    description: "TRAN_AGS must be a recognised AGS 4.x version."
     severity: warning
     when: "group == 'TRAN'"
     expr: >-

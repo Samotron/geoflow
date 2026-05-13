@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+  </Project>
+  <DataGroup name="TRAN">
+    <heading name="TRAN_AGS" unit="" type="X"/>
+    <row>
+      <field name="TRAN_AGS">4.1</field>
+    </row>
+  </DataGroup>
+</Diggs>

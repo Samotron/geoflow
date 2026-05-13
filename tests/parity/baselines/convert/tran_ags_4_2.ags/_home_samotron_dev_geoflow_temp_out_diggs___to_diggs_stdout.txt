@@ -1,0 +1,1 @@
+converted /home/samotron/dev/geoflow/tests/fixtures/ags/tran_ags_4_2.ags to /home/samotron/dev/geoflow/temp_out.diggs

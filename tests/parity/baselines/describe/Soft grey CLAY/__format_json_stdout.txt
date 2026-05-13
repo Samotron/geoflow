@@ -1,0 +1,15 @@
+{
+  "raw": "Soft grey CLAY",
+  "material_type": "soil",
+  "primary_soil_type": "clay",
+  "consistency": "soft",
+  "colours": [
+    "grey"
+  ],
+  "is_made_ground": false,
+  "strength_params": {
+    "cu_min_kpa": 20.0,
+    "cu_max_kpa": 40.0
+  },
+  "confidence": 1.0
+}

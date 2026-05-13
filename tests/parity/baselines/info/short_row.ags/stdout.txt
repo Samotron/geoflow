@@ -1,0 +1,7 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags
+ags version: 4.1
+groups: 3
+rows: 3
+locations: 1
+project: Short row test
+diagnostics: 2

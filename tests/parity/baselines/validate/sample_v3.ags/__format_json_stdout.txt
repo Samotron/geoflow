@@ -1,0 +1,38 @@
+[
+  {
+    "rule_id": "AGS-V3-UNSUPPORTED",
+    "severity": "error",
+    "message": "file appears to be AGS 3 format; this parser only supports AGS 4.x",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags",
+      "line": null,
+      "column": null,
+      "group": null,
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-STRUCT-001",
+    "severity": "error",
+    "message": "PROJ group missing or does not have exactly one DATA row",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags",
+      "line": null,
+      "column": null,
+      "group": null,
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-STRUCT-002",
+    "severity": "error",
+    "message": "missing TRAN group or TRAN_AGS heading",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/sample_v3.ags",
+      "line": null,
+      "column": null,
+      "group": null,
+      "row_index": null
+    }
+  }
+]

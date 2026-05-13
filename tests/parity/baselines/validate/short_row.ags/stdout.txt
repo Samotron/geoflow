@@ -1,0 +1,8 @@
+warning: [AGS-DATA-SHORT] PROJ: DATA row has 2 values but HEADING declares 3 (file=/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags, group=PROJ, line=5)
+warning: [AGS-DATA-SHORT] LOCA: DATA row has 2 values but HEADING declares 4 (file=/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags, group=LOCA, line=17)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATE" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATN" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags, group=LOCA)
+warning: [AGS-DICT-005] file contains non-standard headings but has no DICT group to define them (file=/home/samotron/dev/geoflow/tests/fixtures/ags/short_row.ags)
+
+summary: 0 error, 5 warning, 0 info
+

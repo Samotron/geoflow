@@ -1,0 +1,6 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags
+ags version: 4.1
+groups: 6
+rows: 9
+locations: 1
+project: Multi-group xref test

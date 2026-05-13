@@ -1,0 +1,14 @@
+[
+  {
+    "rule_id": "AGS-KEY-002",
+    "severity": "error",
+    "message": "SAMP: duplicate composite key LOCA_ID=\"BH01\" SAMP_TOP=\"1.5\" SAMP_REF=\"S1\"",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags",
+      "line": null,
+      "column": null,
+      "group": "SAMP",
+      "row_index": null
+    }
+  }
+]

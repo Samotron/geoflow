@@ -34,5 +34,5 @@ rules:
     severity: error
     scope: "group:LOCA_ID"
     when: "group == 'GEOL'"
-    expr: "is_monotonic(rows.map(r, r.GEOL_TOP))"
+    expr: "is_monotonic(pluck(rows, 'GEOL_TOP'))"
     message: "Non-monotonic GEOL layers under LOCA {key.LOCA_ID}"

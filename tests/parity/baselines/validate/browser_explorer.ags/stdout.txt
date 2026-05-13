@@ -1,0 +1,13 @@
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATE" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATN" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_GL" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_FDEP" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags, group=LOCA)
+warning: [AGS-DICT-004] GEOL: heading "GEOL_LEG" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags, group=GEOL)
+warning: [AGS-DICT-004] SAMP: heading "SAMP_ID" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags, group=SAMP)
+warning: [AGS-DICT-004] SAMP: heading "SAMP_BASE" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags, group=SAMP)
+warning: [AGS-DICT-005] file contains non-standard headings but has no DICT group to define them (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags)
+warning: [AGS-HEAD-007] SAMP: headings are not in the standard reference order (expected: LOCA_ID, SAMP_TOP, SAMP_REF, SAMP_TYPE) (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags, group=SAMP)
+warning: [AGS-HEAD-002] one or more numeric headings have no unit declared (file=/home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags)
+
+summary: 0 error, 10 warning, 0 info
+

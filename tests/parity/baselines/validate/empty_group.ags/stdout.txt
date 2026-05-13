@@ -1,0 +1,4 @@
+warning: [AGS-STRUCT-005] LOCA: group has no DATA rows (file=/home/samotron/dev/geoflow/tests/fixtures/ags/empty_group.ags, group=LOCA)
+
+summary: 0 error, 1 warning, 0 info
+

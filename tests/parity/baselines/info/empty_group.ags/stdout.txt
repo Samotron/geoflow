@@ -1,0 +1,5 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/empty_group.ags
+ags version: 4.1
+groups: 3
+rows: 2
+locations: 0

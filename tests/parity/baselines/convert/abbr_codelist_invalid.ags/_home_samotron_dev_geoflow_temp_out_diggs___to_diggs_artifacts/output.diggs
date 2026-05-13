@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+    <gml:description>ABBR codelist invalid</gml:description>
+  </Project>
+  <SamplingLocation>
+    <gml:name>BH01</gml:name>
+  </SamplingLocation>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>0</topDepth>
+    <baseDepth>1.5</baseDepth>
+    <description>Sandy clay</description>
+    <legendCode>CL</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>1.5</topDepth>
+    <baseDepth>5</baseDepth>
+    <description>Mystery material</description>
+    <legendCode>UNKNOWN_CODE</legendCode>
+  </Lithology>
+  <MetadataGroup name="ABBR">
+    <heading name="ABBR_HDNG" unit="" type="X"/>
+    <heading name="ABBR_CODE" unit="" type="X"/>
+    <heading name="ABBR_DESC" unit="" type="X"/>
+    <row>
+      <field name="ABBR_HDNG">GEOL_LEG</field>
+      <field name="ABBR_CODE">CL</field>
+      <field name="ABBR_DESC">Clay</field>
+    </row>
+    <row>
+      <field name="ABBR_HDNG">GEOL_LEG</field>
+      <field name="ABBR_CODE">SA</field>
+      <field name="ABBR_DESC">Sand</field>
+    </row>
+  </MetadataGroup>
+  <DataGroup name="TRAN">
+    <heading name="TRAN_AGS" unit="" type="X"/>
+    <row>
+      <field name="TRAN_AGS">4.1</field>
+    </row>
+  </DataGroup>
+</Diggs>

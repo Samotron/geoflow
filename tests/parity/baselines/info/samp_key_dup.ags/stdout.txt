@@ -1,0 +1,5 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/samp_key_dup.ags
+ags version: 4.1
+groups: 4
+rows: 5
+locations: 1

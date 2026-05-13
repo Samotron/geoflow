@@ -1,0 +1,3 @@
+fix log written to /home/samotron/dev/geoflow/temp_diff.json
+applied fixes to /home/samotron/dev/geoflow/temp_fixed.ags: ["normalize-line-endings"]
+changes written to disk.

@@ -1,0 +1,8 @@
+error: [AGS-DICT-001] ISPT is missing required heading ISPT_TESN (file=/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags, group=ISPT)
+error: [AGS-XREF-LOCA] ISPT: LOCA_ID "GHOST_ISPT" does not exist in LOCA (file=/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags, group=ISPT)
+error: [AGS-XREF-LOCA] WSTK: LOCA_ID "GHOST_WSTK" does not exist in LOCA (file=/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags, group=WSTK)
+error: [AGS-XREF-LOCA] HOLE: LOCA_ID "GHOST_HOLE" does not exist in LOCA (file=/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags, group=HOLE)
+warning: [AGS-HEAD-002] one or more numeric headings have no unit declared (file=/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags)
+
+summary: 4 error, 1 warning, 0 info
+

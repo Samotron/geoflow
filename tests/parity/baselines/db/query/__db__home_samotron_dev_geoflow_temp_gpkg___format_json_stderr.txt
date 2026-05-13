@@ -1,0 +1,7 @@
+error: unexpected argument '--db' found
+
+  tip: to pass '--db' as a value, use '-- --db'
+
+Usage: geoflow db query [OPTIONS] <DB>
+
+For more information, try '--help'.

@@ -1,0 +1,30 @@
+{
+  "identical": false,
+  "only_in_a": [],
+  "only_in_b": [
+    "SAMP"
+  ],
+  "groups": [
+    {
+      "group": "ABBR",
+      "rows_added": 3,
+      "rows_removed": 0,
+      "rows_modified": 0,
+      "rows_unchanged": 2
+    },
+    {
+      "group": "GEOL",
+      "rows_added": 0,
+      "rows_removed": 0,
+      "rows_modified": 1,
+      "rows_unchanged": 1
+    },
+    {
+      "group": "PROJ",
+      "rows_added": 0,
+      "rows_removed": 0,
+      "rows_modified": 1,
+      "rows_unchanged": 0
+    }
+  ]
+}

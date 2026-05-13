@@ -1,0 +1,62 @@
+[
+  {
+    "rule_id": "AGS-DICT-001",
+    "severity": "error",
+    "message": "ISPT is missing required heading ISPT_TESN",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "ISPT",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-XREF-LOCA",
+    "severity": "error",
+    "message": "ISPT: LOCA_ID \"GHOST_ISPT\" does not exist in LOCA",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "ISPT",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-XREF-LOCA",
+    "severity": "error",
+    "message": "WSTK: LOCA_ID \"GHOST_WSTK\" does not exist in LOCA",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "WSTK",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-XREF-LOCA",
+    "severity": "error",
+    "message": "HOLE: LOCA_ID \"GHOST_HOLE\" does not exist in LOCA",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "HOLE",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-HEAD-002",
+    "severity": "warning",
+    "message": "one or more numeric headings have no unit declared",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/xref_multi_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": null,
+      "row_index": null
+    }
+  }
+]

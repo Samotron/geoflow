@@ -5,13 +5,9 @@ on:
     branches: [main]
   pull_request:
 
-env:
-  CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
-
 jobs:
-  rust:
-    name: rust (${{ matrix.os }})
+  test:
+    name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,61 +16,46 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Install toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
 
-      - name: Format check
-        run: cargo fmt --all -- --check
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --exclude geoflow-wasm -- -D warnings
-      - name: Tests
-        run: cargo test --workspace --all-targets --exclude geoflow-wasm
-      - name: Doc tests
-        run: cargo test --workspace --doc --exclude geoflow-wasm
+      - uses: pnpm/action-setup@v4
 
-  wasm:
-    name: wasm build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: Build WASM
-        run: wasm-pack build crates/geoflow-wasm --target web --dev --out-dir $(pwd)/web/pkg
-
-  browser:
-    name: browser e2e
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - name: Install npm dependencies
-        run: npm ci
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-      - name: Run browser tests
-        run: npm run test:browser
+          cache: pnpm
 
-  msrv:
-    name: msrv (1.85)
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check (core)
+        run: npx tsc -p packages/core/tsconfig.json --noEmit
+
+      - name: Type-check (cli)
+        run: npx tsc -p packages/cli/tsconfig.json --noEmit
+
+      - name: Type-check (web)
+        run: npx tsc -p apps/web/tsconfig.json --noEmit
+
+      - name: Run tests
+        run: pnpm test
+
+  build-web:
+    name: build web app
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo build --workspace --exclude geoflow-wasm
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter @geoflow/web build

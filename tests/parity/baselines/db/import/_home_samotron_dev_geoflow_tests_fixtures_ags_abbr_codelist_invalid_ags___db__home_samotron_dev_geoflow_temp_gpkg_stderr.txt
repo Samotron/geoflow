@@ -1,0 +1,1 @@
+error: opening /home/samotron/dev/geoflow/temp.gpkg: /home/samotron/dev/geoflow/temp.gpkg not found — run `geoflow db init` to create it

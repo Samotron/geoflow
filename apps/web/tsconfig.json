@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "noEmit": true,
+    "paths": {
+      "@geoflow/core": ["../../packages/core/src/index.ts"],
+      "@geoflow/rules-engine": ["../../packages/rules-engine/src/index.ts"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

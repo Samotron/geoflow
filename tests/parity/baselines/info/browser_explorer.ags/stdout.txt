@@ -1,0 +1,7 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/browser_explorer.ags
+ags version: 4.1
+groups: 7
+rows: 16
+locations: 3
+project: Browser Explorer Fixture
+depth range: 0..4.5 m

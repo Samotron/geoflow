@@ -1,0 +1,6 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/tran_version_warn.ags
+ags version: 4.99
+groups: 3
+rows: 3
+locations: 1
+project: Unknown AGS version

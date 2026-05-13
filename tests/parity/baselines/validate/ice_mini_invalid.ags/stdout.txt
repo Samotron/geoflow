@@ -1,0 +1,13 @@
+error: [AGS-DICT-001] LOCA is missing required heading LOCA_TYPE (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=LOCA)
+error: [AGS-DICT-001] GEOL is missing required heading GEOL_DESC (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=GEOL)
+error: [AGS-DICT-001] SAMP is missing required heading SAMP_TOP (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=SAMP)
+error: [AGS-DICT-001] SAMP is missing required heading SAMP_REF (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=SAMP)
+error: [AGS-XREF-LOCA] SAMP: LOCA_ID "BHX" does not exist in LOCA (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=SAMP)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATE" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATN" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=LOCA)
+warning: [AGS-DICT-004] SAMP: heading "SAMP_ID" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=SAMP)
+warning: [AGS-DICT-005] file contains non-standard headings but has no DICT group to define them (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags)
+error: [AGS-VAL-002] GEOL layers for LOCA_ID BH1 are not in ascending depth order (file=/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags, group=GEOL)
+
+summary: 6 error, 4 warning, 0 info
+

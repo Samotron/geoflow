@@ -1,0 +1,6 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/key_dup_loca.ags
+ags version: 4.1
+groups: 3
+rows: 5
+locations: 3
+project: Key duplicate test

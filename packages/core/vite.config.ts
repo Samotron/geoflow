@@ -1,0 +1,17 @@
+import { defineConfig } from "vite";
+import { resolve } from "node:path";
+
+export default defineConfig({
+  build: {
+    lib: {
+      entry: resolve(__dirname, "src/index.ts"),
+      formats: ["es"],
+      fileName: "index",
+    },
+    sourcemap: true,
+    target: "es2022",
+    rollupOptions: {
+      external: ["effect", "iconv-lite", "yaml", /^node:/],
+    },
+  },
+});

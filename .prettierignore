@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+target
+crates
+web/pkg
+**/*.lock
+pnpm-lock.yaml
+package-lock.json
+tests/parity/baselines

@@ -1,0 +1,1 @@
+converted /home/samotron/dev/geoflow/tests/fixtures/diggs/minimal_subset.diggs to /home/samotron/dev/geoflow/temp_out.ags

@@ -1,0 +1,7 @@
+warning: [AGS-STRUCT-004] TRAN_AGS value '4.1  ' is not a recognised AGS 4 version (file=/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags, group=TRAN)
+warning: [AGS-FMT-001] row in PROJ contains a value with trailing whitespace (file=/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags, group=PROJ) [auto-fixable: normalize-whitespace]
+warning: [AGS-FMT-001] row in TRAN contains a value with trailing whitespace (file=/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags, group=TRAN) [auto-fixable: normalize-whitespace]
+warning: [AGS-FMT-001] row in LOCA contains a value with trailing whitespace (file=/home/samotron/dev/geoflow/tests/fixtures/ags/fixable.ags, group=LOCA) [auto-fixable: normalize-whitespace]
+
+summary: 0 error, 4 warning, 0 info
+

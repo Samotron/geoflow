@@ -1,0 +1,7 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/abbr_codelist_valid.ags
+ags version: 4.1
+groups: 6
+rows: 12
+locations: 1
+project: ABBR codelist valid
+depth range: 0..5 m

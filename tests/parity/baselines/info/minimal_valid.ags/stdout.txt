@@ -1,0 +1,7 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags
+ags version: 4.1
+groups: 4
+rows: 8
+locations: 2
+project: Synthetic minimal AGS file
+depth range: 0..6.4 m

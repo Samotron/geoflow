@@ -1,0 +1,122 @@
+[
+  {
+    "rule_id": "AGS-DICT-001",
+    "severity": "error",
+    "message": "GEOL is missing required heading GEOL_DESC",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "GEOL",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-001",
+    "severity": "error",
+    "message": "SAMP is missing required heading SAMP_TOP",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "SAMP",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-001",
+    "severity": "error",
+    "message": "SAMP is missing required heading SAMP_REF",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "SAMP",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-001",
+    "severity": "error",
+    "message": "LOCA is missing required heading LOCA_TYPE",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "LOCA",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-XREF-LOCA",
+    "severity": "error",
+    "message": "SAMP: LOCA_ID \"BHX\" does not exist in LOCA",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "SAMP",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-004",
+    "severity": "warning",
+    "message": "LOCA: heading \"LOCA_NATE\" is not in the standard AGS dictionary",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "LOCA",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-004",
+    "severity": "warning",
+    "message": "LOCA: heading \"LOCA_NATN\" is not in the standard AGS dictionary",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "LOCA",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-004",
+    "severity": "warning",
+    "message": "SAMP: heading \"SAMP_ID\" is not in the standard AGS dictionary",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "SAMP",
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-DICT-005",
+    "severity": "warning",
+    "message": "file contains non-standard headings but has no DICT group to define them",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": null,
+      "row_index": null
+    }
+  },
+  {
+    "rule_id": "AGS-VAL-002",
+    "severity": "error",
+    "message": "GEOL layers for LOCA_ID BH1 are not in ascending depth order",
+    "location": {
+      "file": "/home/samotron/dev/geoflow/tests/fixtures/ags/ice_mini_invalid.ags",
+      "line": null,
+      "column": null,
+      "group": "GEOL",
+      "row_index": null
+    }
+  }
+]

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+    <gml:description>ABBR codelist valid</gml:description>
+  </Project>
+  <SamplingLocation>
+    <gml:name>BH01</gml:name>
+  </SamplingLocation>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>0</topDepth>
+    <baseDepth>1.5</baseDepth>
+    <description>Sandy clay</description>
+    <legendCode>CL</legendCode>
+  </Lithology>
+  <Lithology>
+    <locationId>BH01</locationId>
+    <topDepth>1.5</topDepth>
+    <baseDepth>5</baseDepth>
+    <description>Gravel</description>
+    <legendCode>GR</legendCode>
+  </Lithology>
+  <Sample>
+    <locationId>BH01</locationId>
+    <sampleType>U</sampleType>
+  </Sample>
+  <Sample>
+    <locationId>BH01</locationId>
+    <sampleType>B</sampleType>
+  </Sample>
+  <MetadataGroup name="ABBR">
+    <heading name="ABBR_HDNG" unit="" type="X"/>
+    <heading name="ABBR_CODE" unit="" type="X"/>
+    <heading name="ABBR_DESC" unit="" type="X"/>
+    <row>
+      <field name="ABBR_HDNG">GEOL_LEG</field>
+      <field name="ABBR_CODE">CL</field>
+      <field name="ABBR_DESC">Clay</field>
+    </row>
+    <row>
+      <field name="ABBR_HDNG">GEOL_LEG</field>
+      <field name="ABBR_CODE">SA</field>
+      <field name="ABBR_DESC">Sand</field>
+    </row>
+    <row>
+      <field name="ABBR_HDNG">GEOL_LEG</field>
+      <field name="ABBR_CODE">GR</field>
+      <field name="ABBR_DESC">Gravel</field>
+    </row>
+    <row>
+      <field name="ABBR_HDNG">SAMP_TYPE</field>
+      <field name="ABBR_CODE">U</field>
+      <field name="ABBR_DESC">Undisturbed</field>
+    </row>
+    <row>
+      <field name="ABBR_HDNG">SAMP_TYPE</field>
+      <field name="ABBR_CODE">B</field>
+      <field name="ABBR_DESC">Bulk</field>
+    </row>
+  </MetadataGroup>
+  <DataGroup name="TRAN">
+    <heading name="TRAN_AGS" unit="" type="X"/>
+    <row>
+      <field name="TRAN_AGS">4.1</field>
+    </row>
+  </DataGroup>
+</Diggs>

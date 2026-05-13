@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+    <gml:description>Unknown AGS version</gml:description>
+  </Project>
+  <SamplingLocation>
+    <gml:name>BH01</gml:name>
+  </SamplingLocation>
+  <DataGroup name="TRAN">
+    <heading name="TRAN_AGS" unit="" type="X"/>
+    <heading name="TRAN_DATE" unit="yyyy-mm-dd" type="DT"/>
+    <row>
+      <field name="TRAN_AGS">4.99</field>
+      <field name="TRAN_DATE">2026-05-06</field>
+    </row>
+  </DataGroup>
+</Diggs>

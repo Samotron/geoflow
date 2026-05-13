@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+    <gml:description>ICE Mini Valid</gml:description>
+  </Project>
+  <SamplingLocation>
+    <gml:name>BH1</gml:name>
+    <easting>100</easting>
+    <northing>200</northing>
+  </SamplingLocation>
+  <Lithology>
+    <locationId>BH1</locationId>
+    <topDepth>0</topDepth>
+    <baseDepth>1</baseDepth>
+  </Lithology>
+  <Lithology>
+    <locationId>BH1</locationId>
+    <topDepth>1</topDepth>
+    <baseDepth>2</baseDepth>
+  </Lithology>
+  <Sample>
+    <locationId>BH1</locationId>
+    <sampleId>S1</sampleId>
+    <sampleType>B</sampleType>
+  </Sample>
+  <DataGroup name="TRAN">
+    <heading name="TRAN_AGS" unit="" type="X"/>
+    <row>
+      <field name="TRAN_AGS">4.1</field>
+    </row>
+  </DataGroup>
+</Diggs>

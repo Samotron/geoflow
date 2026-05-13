@@ -1,0 +1,7 @@
+error: unexpected argument '--path' found
+
+  tip: to pass '--path' as a value, use '-- --path'
+
+Usage: geoflow db init [OPTIONS] <PATH>
+
+For more information, try '--help'.

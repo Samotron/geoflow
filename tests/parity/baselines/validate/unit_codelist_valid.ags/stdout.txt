@@ -1,0 +1,9 @@
+error: [AGS-DICT-001] LLPL is missing required heading SAMP_TOP (file=/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags, group=LLPL)
+error: [AGS-DICT-001] LLPL is missing required heading SAMP_REF (file=/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags, group=LLPL)
+error: [AGS-DICT-001] LLPL is missing required heading SPEC_DPTH (file=/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags, group=LLPL)
+warning: [AGS-DICT-004] LLPL: heading "LLPL_LL" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags, group=LLPL)
+warning: [AGS-DICT-004] LLPL: heading "LLPL_UNIT" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags, group=LLPL)
+warning: [AGS-DICT-005] file contains non-standard headings but has no DICT group to define them (file=/home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_valid.ags)
+
+summary: 3 error, 3 warning, 0 info
+

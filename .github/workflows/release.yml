@@ -2,7 +2,6 @@ name: Release
 
 on:
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -23,8 +22,6 @@ jobs:
             VER="${{ github.ref_name }}"
             VER="${VER#v}"
           else
-            # CalVer: YYYY.MMDD.N  — %-m/%-d strips leading zeros on Linux.
-            # GITHUB_RUN_NUMBER gives a unique N for same-day builds.
             YEAR=$(date -u +%Y)
             MONTH=$(date -u +%-m)
             DAY=$(date -u +%-d)
@@ -33,122 +30,52 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "tag=v$VER" >> "$GITHUB_OUTPUT"
 
-  binaries:
-    name: cli (${{ matrix.target }})
+  npm-publish:
+    name: Publish npm packages
     needs: [version]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            archive: tar.gz
-            use_cross: false
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            archive: tar.gz
-            use_cross: true
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            archive: tar.gz
-            use_cross: false
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            archive: tar.gz
-            use_cross: false
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            archive: zip
-            use_cross: false
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install cross
-        if: matrix.use_cross == true
-        uses: taiki-e/install-action@cross
-
-      - name: Build
-        run: ${{ matrix.use_cross == true && 'cross' || 'cargo' }} build --release --target ${{ matrix.target }} -p geoflow-cli
-
-      - name: Package (unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/geoflow dist/
-          cp README.md LICENSE dist/
-          tar -C dist -czf geoflow-${{ needs.version.outputs.version }}-${{ matrix.target }}.tar.gz .
-
-      - name: Package (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force dist
-          Copy-Item target\${{ matrix.target }}\release\geoflow.exe dist\
-          Copy-Item README.md dist\
-          Copy-Item LICENSE dist\
-          Compress-Archive -Path dist\* -DestinationPath geoflow-${{ needs.version.outputs.version }}-${{ matrix.target }}.zip
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-${{ needs.version.outputs.version }}-${{ matrix.target }}
-          path: geoflow-${{ needs.version.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
-
-  wheels:
-    name: wheel (${{ matrix.target }})
-    needs: [version]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64
-            manylinux: auto
-          - os: ubuntu-latest
-            target: aarch64
-            manylinux: auto
-          - os: macos-latest
-            target: universal2-apple-darwin
-            manylinux: ''
-          - os: windows-latest
-            target: x86_64
-            manylinux: ''
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build wheel
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          manylinux: ${{ matrix.manylinux }}
-          args: --release --strip --manifest-path crates/geoflow-py/Cargo.toml --out dist
-      - name: Upload wheel
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheel-${{ matrix.target }}
-          path: dist/*.whl
-
-  publish:
-    needs: [version, binaries, wheels]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - uses: actions/checkout@v4
 
-      - name: Generate checksums
-        working-directory: artifacts
-        run: |
-          find . -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "*.whl" \) \
-            | sort | xargs sha256sum | sed 's|.*/||' \
-            > geoflow-${{ needs.version.outputs.version }}-checksums.txt
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build packages
+        run: pnpm run -r build
+
+      - name: Publish @geoflow/core
+        run: pnpm --filter @geoflow/core publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @geoflow/rules-engine
+        run: pnpm --filter @geoflow/rules-engine publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @geoflow/cli
+        run: pnpm --filter @geoflow/cli publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  github-release:
+    name: Create GitHub Release
+    needs: [version, npm-publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -156,9 +83,4 @@ jobs:
           tag_name: ${{ needs.version.outputs.tag }}
           name: ${{ needs.version.outputs.version }}
           prerelease: ${{ github.ref_type != 'tag' }}
-          files: |
-            artifacts/**/*.tar.gz
-            artifacts/**/*.zip
-            artifacts/**/*.whl
-            artifacts/geoflow-${{ needs.version.outputs.version }}-checksums.txt
           generate_release_notes: true

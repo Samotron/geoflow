@@ -1,0 +1,8 @@
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATE" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_NATN" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags, group=LOCA)
+warning: [AGS-DICT-004] LOCA: heading "LOCA_GL" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags, group=LOCA)
+warning: [AGS-DICT-004] GEOL: heading "GEOL_LEG" is not in the standard AGS dictionary (file=/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags, group=GEOL)
+warning: [AGS-DICT-005] file contains non-standard headings but has no DICT group to define them (file=/home/samotron/dev/geoflow/tests/fixtures/ags/minimal_valid.ags)
+
+summary: 0 error, 5 warning, 0 info
+

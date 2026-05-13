@@ -1,0 +1,5 @@
+file: /home/samotron/dev/geoflow/tests/fixtures/ags/unit_codelist_invalid.ags
+ags version: 4.1
+groups: 5
+rows: 5
+locations: 1

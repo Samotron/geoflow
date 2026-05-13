@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diggs xmlns="http://diggsml.org/schemas/2.6" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml">
+  <Project>
+    <gml:name>P1</gml:name>
+    <gml:description>Multi-group xref test</gml:description>
+  </Project>
+  <SamplingLocation>
+    <gml:name>BH01</gml:name>
+  </SamplingLocation>
+  <SPTTest>
+    <locationId>BH01</locationId>
+    <testDepth>1</testDepth>
+    <blowCount>15</blowCount>
+  </SPTTest>
+  <SPTTest>
+    <locationId>GHOST_ISPT</locationId>
+    <testDepth>2</testDepth>
+    <blowCount>20</blowCount>
+  </SPTTest>
+  <WaterStrike>
+    <locationId>BH01</locationId>
+    <strikeDepth>3.5</strikeDepth>
+  </WaterStrike>
+  <WaterStrike>
+    <locationId>GHOST_WSTK</locationId>
+    <strikeDepth>4</strikeDepth>
+  </WaterStrike>
+  <MetadataGroup name="HOLE">
+    <heading name="LOCA_ID" unit="" type="ID"/>
+    <heading name="HOLE_DPTH" unit="m" type="2DP"/>
+    <row>
+      <field name="LOCA_ID">BH01</field>
+      <field name="HOLE_DPTH">10</field>
+    </row>
+    <row>
+      <field name="LOCA_ID">GHOST_HOLE</field>
+      <field name="HOLE_DPTH">5</field>
+    </row>
+  </MetadataGroup>
+  <DataGroup name="TRAN">
+    <heading name="TRAN_AGS" unit="" type="X"/>
+    <row>
+      <field name="TRAN_AGS">4.1</field>
+    </row>
+  </DataGroup>
+</Diggs>

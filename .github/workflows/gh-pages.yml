@@ -20,18 +20,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          targets: wasm32-unknown-unknown
+          node-version: 20
+          cache: pnpm
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-      - name: Build WASM
-        run: wasm-pack build crates/geoflow-wasm --target web --out-dir $(pwd)/web/pkg --release
+      - name: Build web app
+        run: pnpm --filter @geoflow/web build
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -39,7 +40,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./web
+          path: ./apps/web/dist
 
   deploy:
     environment:
