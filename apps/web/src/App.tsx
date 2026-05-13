@@ -4,6 +4,7 @@ import { InspectTab } from './tabs/InspectTab.js';
 import { ConvertTab } from './tabs/ConvertTab.js';
 import { DataTab } from './tabs/DataTab.js';
 import { DiffTab } from './tabs/DiffTab.js';
+import { MapTab } from './tabs/MapTab.js';
 import { RulesTab } from './tabs/RulesTab.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
@@ -214,6 +215,7 @@ function formatBytes(n: number): string {
 const TABS: { id: TabId; label: string }[] = [
   { id: 'inspect', label: 'Inspect' },
   { id: 'data', label: 'Data' },
+  { id: 'map', label: 'Map' },
   { id: 'diff', label: 'Diff' },
   { id: 'convert', label: 'Convert' },
   { id: 'rules', label: 'Rules' },
@@ -228,6 +230,7 @@ export default function App() {
   const [tab, setTab] = useState<TabId>(hashTab);
   const [fileName, setFileName] = useState<string | undefined>();
   const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
+  const pendingHoleRef = useRef<string | null>(null);
 
   useEffect(() => {
     const onHash = () => setTab(hashTab());
@@ -283,7 +286,14 @@ export default function App() {
 
         {/* Tab content */}
         {tab === 'inspect' && <InspectTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} />}
+        {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
+        {tab === 'map' && (
+          <MapTab
+            fileBytes={fileBytes}
+            fileName={fileName}
+            onLocaClick={(id) => { pendingHoleRef.current = id; switchTab('data'); }}
+          />
+        )}
         {tab === 'diff' && <DiffTab />}
         {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
         {tab === 'rules' && <RulesTab fileBytes={fileBytes} />}

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type MutableRefObject } from 'react';
 import { decodeBytes, parseStr } from '../core.js';
 import type { AgsFile, AgsGroup, AgsRow } from '../core.js';
 
 interface Props {
   fileBytes: Uint8Array | null;
   fileName?: string | undefined;
+  pendingHoleRef?: MutableRefObject<string | null>;
 }
 
 // ── CSV export helpers ────────────────────────────────────────────────────────
@@ -277,11 +278,19 @@ function GroupTable({
 
 // ── Main DataTab ──────────────────────────────────────────────────────────────
 
-export function DataTab({ fileBytes, fileName }: Props) {
+export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
   const [agsFile, setAgsFile] = useState<AgsFile | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [holeView, setHoleView] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = pendingHoleRef?.current ?? null;
+    if (id) {
+      pendingHoleRef!.current = null;
+      setHoleView(id);
+    }
+  }, []);
 
   useEffect(() => {
     if (!fileBytes) {
