@@ -16,7 +16,9 @@ function normalizeConvertStdout(text: string): string {
 }
 
 function normalizeTextOutput(text: string): string {
-  const masked = maskCosmetic(text).trimEnd();
+  // Normalise Windows backslash path separators before masking so the masked
+  // relative path (e.g. tests/fixtures/...) uses forward slashes on all platforms.
+  const masked = maskCosmetic(text.replace(/\\/g, "/")).trimEnd();
   const lines = masked.split("\n");
   const summaryIndex = lines.findIndex((line) => line.startsWith("summary:"));
   if (summaryIndex === -1) {
@@ -29,7 +31,9 @@ function normalizeTextOutput(text: string): string {
 }
 
 function normalizeJsonOutput(text: string): string {
-  const parsed = JSON.parse(maskCosmetic(text)) as Array<{
+  // Parse first (without masking) so JSON escape sequences are decoded to
+  // real chars; then normalize path separators and mask at the field level.
+  const parsed = JSON.parse(text) as Array<{
     rule_id: string;
     severity: string;
     message: string;
@@ -42,6 +46,12 @@ function normalizeJsonOutput(text: string): string {
     };
     fix_id?: string;
   }>;
+
+  for (const item of parsed) {
+    if (item.location.file !== null) {
+      item.location.file = maskCosmetic(item.location.file.replace(/\\/g, "/"));
+    }
+  }
 
   parsed.sort((left, right) => {
     const leftKey = [
