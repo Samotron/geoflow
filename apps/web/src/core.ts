@@ -27,6 +27,7 @@ export type {
   FixResult,
   InfoSummary,
   DiffResult,
+  GroupDiff,
   AgsFile,
   AgsGroup,
   AgsRow,

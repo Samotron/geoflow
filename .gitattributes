@@ -2,4 +2,6 @@
 # Windows git autocrlf would otherwise convert them to CRLF on checkout,
 # breaking the normalize-line-endings fixer detection in fix.test.ts.
 tests/fixtures/** text eol=lf
-tests/parity/baselines/** text eol=lf
+# Parity baselines are compared byte-for-byte against serializer output
+# (which uses CRLF). Treat them as binary to prevent eol conversion.
+tests/parity/baselines/** -text

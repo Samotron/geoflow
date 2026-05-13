@@ -205,8 +205,9 @@ function rowPreview(row: AgsRow, maxLen: number): string {
     .slice(0, 4)
     .map(([k, v]) => `${k}=${valueDisplay(v)}`);
   const s = parts.join(", ");
-  if (s.length > maxLen) {
-    return s.slice(0, maxLen - 1) + "…";
+  const codePoints = [...s];
+  if (codePoints.length > maxLen) {
+    return codePoints.slice(0, maxLen - 1).join("") + "…";
   }
   return s;
 }
