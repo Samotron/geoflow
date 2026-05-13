@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import YAML from "yaml";
 import { describe, expect, it } from "vitest";
 import { BUILTIN_AGS_DICT } from "./dict.data.js";
-import { activateCustomDict, currentDict, deactivateCustomDict } from "./dict.js";
+import { activateCustomDict, currentDict, deactivateCustomDict, type GroupDef } from "./dict.js";
 
 describe("dictionary bundle", () => {
   it("includes every group defined in rules/specs/ags/dict/ags4.yml", () => {
@@ -11,7 +11,7 @@ describe("dictionary bundle", () => {
     const parsed = YAML.parse(readFileSync(path, "utf8")) as { groups: Record<string, GroupDef> };
 
     for (const [groupName, definition] of Object.entries(parsed.groups)) {
-      const builtin = BUILTIN_AGS_DICT[groupName as keyof typeof BUILTIN_AGS_DICT];
+      const builtin = BUILTIN_AGS_DICT[groupName as keyof typeof BUILTIN_AGS_DICT] as GroupDef;
       expect(builtin.required_headings).toEqual(definition.required_headings);
       expect(builtin.depth_headings).toEqual(definition.depth_headings);
       expect(builtin.key_headings).toEqual(definition.key_headings);

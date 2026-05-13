@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { Option } from "effect";
 import { describe, expect, it } from "vitest";
 import { decodeBytes, parseStr } from "./ags/parser.js";
 import { Registry, validate } from "./validate.js";
@@ -123,7 +124,7 @@ describe("built-in validation rules", () => {
     const mismatch = diagnostics.find((diag) => diag.rule_id === "AGS-TYPE-002");
     expect(mismatch).toBeDefined();
     expect(mismatch?.fix_id._tag).toBe("Some");
-    expect(mismatch?.fix_id.value).toBe("coerce-numeric-fields");
+    expect(Option.getOrNull(mismatch!.fix_id)).toBe("coerce-numeric-fields");
   });
 
   it("flags invalid Y/N values and marks common synonyms as fixable", () => {
@@ -134,7 +135,7 @@ describe("built-in validation rules", () => {
     expect(diagnostics).toHaveLength(2);
     expect(diagnostics[0]?.fix_id._tag).toBe("None");
     expect(diagnostics[1]?.fix_id._tag).toBe("Some");
-    expect(diagnostics[1]?.fix_id.value).toBe("normalize-yn-values");
+    expect(Option.getOrNull(diagnostics[1]!.fix_id)).toBe("normalize-yn-values");
   });
 
   it("flags invalid date, time, DMS, and U values", () => {
@@ -149,7 +150,7 @@ describe("built-in validation rules", () => {
     expect(diagnostics.some((diag) => diag.message.includes("U type requires a number"))).toBe(true);
     const dateDiagnostic = diagnostics.find((diag) => diag.message.includes("date format YYYY-MM-DD"));
     expect(dateDiagnostic?.fix_id._tag).toBe("Some");
-    expect(dateDiagnostic?.fix_id.value).toBe("normalize-date-fields");
+    expect(Option.getOrNull(dateDiagnostic!.fix_id)).toBe("normalize-date-fields");
   });
 
   it("flags numeric headings with missing units", () => {
