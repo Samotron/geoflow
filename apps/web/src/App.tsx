@@ -1,9 +1,7 @@
 import { useState, useCallback, useEffect, useRef, type DragEvent } from 'react';
 import type { TabId, PackDiagnostic } from './types.js';
-import { ValidateTab } from './tabs/ValidateTab.js';
-import { FixTab } from './tabs/FixTab.js';
+import { InspectTab } from './tabs/InspectTab.js';
 import { ConvertTab } from './tabs/ConvertTab.js';
-import { InfoTab } from './tabs/InfoTab.js';
 import { DataTab } from './tabs/DataTab.js';
 import { DiffTab } from './tabs/DiffTab.js';
 import { RulesTab } from './tabs/RulesTab.js';
@@ -214,18 +212,16 @@ function formatBytes(n: number): string {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'validate', label: 'Validate' },
-  { id: 'fix', label: 'Fix' },
-  { id: 'convert', label: 'Convert' },
-  { id: 'info', label: 'Info' },
+  { id: 'inspect', label: 'Inspect' },
   { id: 'data', label: 'Data' },
   { id: 'diff', label: 'Diff' },
+  { id: 'convert', label: 'Convert' },
   { id: 'rules', label: 'Rules' },
 ];
 
 function hashTab(): TabId {
   const hash = window.location.hash.replace('#', '') as TabId;
-  return TABS.some((t) => t.id === hash) ? hash : 'validate';
+  return TABS.some((t) => t.id === hash) ? hash : 'inspect';
 }
 
 export default function App() {
@@ -286,12 +282,10 @@ export default function App() {
         </div>
 
         {/* Tab content */}
-        {tab === 'validate' && <ValidateTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'fix' && <FixTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'info' && <InfoTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'data' && <DataTab fileBytes={fileBytes} />}
+        {tab === 'inspect' && <InspectTab fileBytes={fileBytes} fileName={fileName} />}
+        {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} />}
         {tab === 'diff' && <DiffTab />}
+        {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
         {tab === 'rules' && <RulesTab fileBytes={fileBytes} />}
       </main>
     </>
