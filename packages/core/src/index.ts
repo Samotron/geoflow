@@ -15,3 +15,4 @@ export * from "./ags/serializer.js";
 export * from "./ags3.js";
 export * from "./diff.js";
 export * from "./diggs.js";
+export * from "./explorer.js";

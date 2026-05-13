@@ -1,7 +1,11 @@
 {
   "name": "@geoflow/cli",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "GeoFlow CLI — AGS 4.x geotechnical data tools",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/samotron/geoflow" },
+  "publishConfig": { "access": "public" },
+  "files": ["dist", "bin", "README.md", "LICENSE"],
   "type": "module",
   "bin": {
     "geoflow": "./bin/geoflow.mjs"

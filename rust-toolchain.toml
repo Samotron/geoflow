@@ -1,5 +1,0 @@
-[toolchain]
-# MSRV is 1.85 (required for `edition2024`-using deps such as clap 4.6+).
-# Pin to a stable channel so contributors can use the latest stable rustc.
-channel = "stable"
-components = ["rustfmt", "clippy"]

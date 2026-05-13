@@ -1,7 +1,11 @@
 {
   "name": "@geoflow/rules-engine",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "GeoFlow JEXL-based rule pack evaluator for AGS validation",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/samotron/geoflow" },
+  "publishConfig": { "access": "public" },
+  "files": ["dist", "README.md", "LICENSE"],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

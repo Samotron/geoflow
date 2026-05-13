@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { Option } from "effect";
 import {
   Format,
   Registry,
@@ -12,12 +13,18 @@ import {
   parseStr,
   readDiggs,
   renderDiffText,
+  renderExplorerFromBytes,
   renderInfo,
+  render,
   serialize,
   summarizeInfoBytes,
   validateFileBytes,
   writeDiggs,
 } from "../../core/src/index.js";
+import { evaluatePackYaml } from "../../rules-engine/src/index.js";
+import * as dbModule from "../../db/src/index.js";
+import type { GeoflowDb } from "../../db/src/index.js";
+import type { Diagnostic } from "../../core/src/index.js";
 
 export const PACKAGE_NAME = "@geoflow/cli";
 
@@ -57,6 +64,10 @@ export function runCli(argv: readonly string[]): RunResult {
       return runDiff(argv.slice(1));
     case "rules":
       return runRules(argv.slice(1));
+    case "explore":
+      return runExplore(argv.slice(1));
+    case "db":
+      return runDb(argv.slice(1));
     case "--help":
     case "-h":
     case "help":
@@ -166,6 +177,7 @@ function runValidate(argv: readonly string[]): RunResult {
   const file = argv[0]!;
   let format = Format.Text;
   let failOn = Severity.Error;
+  const rulesPaths: string[] = [];
 
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -195,6 +207,15 @@ function runValidate(argv: readonly string[]): RunResult {
       continue;
     }
 
+    if (arg === "--rules") {
+      const value = argv[++i];
+      if (!value) {
+        return usageError("--rules requires a path to a YAML rule pack");
+      }
+      rulesPaths.push(value);
+      continue;
+    }
+
     return usageError(`unknown validate option: ${arg}`);
   }
 
@@ -202,6 +223,45 @@ function runValidate(argv: readonly string[]): RunResult {
     const resolved = resolve(file);
     const bytes = readFileSync(resolved);
     const result = validateFileBytes(bytes, resolved, { format, failOn });
+
+    // If --rules packs were supplied, evaluate them and merge diagnostics
+    if (rulesPaths.length > 0) {
+      const text = decodeBytes(bytes);
+      const { file: agsFile } = parseStr(text);
+      const packDiags: Diagnostic[] = [];
+
+      for (const rulesPath of rulesPaths) {
+        const yaml = readFileSync(resolve(rulesPath), "utf8");
+        const pd = evaluatePackYaml(yaml, agsFile);
+        for (const d of pd) {
+          packDiags.push({
+            rule_id: d.rule_id,
+            severity: d.severity as Severity,
+            message: d.message,
+            location: {
+              file: Option.some(resolved),
+              line: Option.none(),
+              column: Option.none(),
+              group: d.location.group !== null ? Option.some(d.location.group) : Option.none(),
+              row_index: d.location.row_index !== null ? Option.some(d.location.row_index) : Option.none(),
+            },
+            fix_id: Option.none(),
+          });
+        }
+      }
+
+      if (packDiags.length > 0) {
+        const allDiags = [...result.diagnostics, ...packDiags];
+        const threshold = severityRank(failOn);
+        const exitCode = allDiags.some((d) => severityRank(d.severity) >= threshold) ? 1 : 0;
+        return {
+          exitCode,
+          stdout: render(allDiags, format),
+          stderr: "",
+        };
+      }
+    }
+
     return {
       exitCode: result.exitCode,
       stdout: result.output,
@@ -214,6 +274,14 @@ function runValidate(argv: readonly string[]): RunResult {
       stdout: "",
       stderr: `${message}\n`,
     };
+  }
+}
+
+function severityRank(severity: Severity): number {
+  switch (severity) {
+    case Severity.Info: return 1;
+    case Severity.Warning: return 2;
+    case Severity.Error: return 3;
   }
 }
 
@@ -362,6 +430,156 @@ function runRulesShow(id: string): RunResult {
   return { exitCode: 0, stdout, stderr: "" };
 }
 
+function runExplore(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("explore requires a file path");
+  }
+
+  const file = argv[0]!;
+  let outPath: string | null = null;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--out") {
+      const value = argv[++i];
+      if (!value) return usageError("--out requires a path");
+      outPath = value;
+      continue;
+    }
+    return usageError(`unknown explore option: ${arg}`);
+  }
+
+  try {
+    const resolved = resolve(file);
+    const bytes = readFileSync(resolved);
+    const html = renderExplorerFromBytes(bytes, resolved);
+
+    if (outPath !== null) {
+      const resolvedOut = resolve(outPath);
+      writeFileSync(resolvedOut, html);
+      return { exitCode: 0, stdout: `explorer written to ${resolvedOut}\n`, stderr: "" };
+    }
+    return { exitCode: 0, stdout: html, stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function runDb(argv: readonly string[]): RunResult {
+  const subcommand = argv[0];
+  if (!subcommand || subcommand === "help") {
+    return usageError("db requires a subcommand: ingest | query | list");
+  }
+  if (subcommand === "ingest") {
+    return runDbIngest(argv.slice(1));
+  }
+  if (subcommand === "query") {
+    return runDbQuery(argv.slice(1));
+  }
+  if (subcommand === "list") {
+    return runDbList(argv.slice(1));
+  }
+  return usageError(`unknown db subcommand: ${subcommand}`);
+}
+
+function runDbIngest(argv: readonly string[]): RunResult {
+  if (argv.length < 2) {
+    return usageError("db ingest requires: <ags-file> <db-file>");
+  }
+  const [agsFile, dbFile] = [argv[0]!, argv[1]!];
+  try {
+    const { openDb } = await_import_db();
+    const { decodeBytes: dec, parseStr: pStr } = { decodeBytes, parseStr };
+    const bytes = readFileSync(resolve(agsFile));
+    const { file } = pStr(dec(bytes));
+    const db = openDb(resolve(dbFile));
+    try {
+      const report = db.ingest(file, resolve(agsFile));
+      let stdout = `ingested ${report.groupsImported.length} group(s) from ${resolve(agsFile)} into ${resolve(dbFile)}\n`;
+      stdout += `  LOCA rows: ${report.locaCount}\n`;
+      stdout += `  Groups: ${report.groupsImported.join(", ")}\n`;
+      return { exitCode: 0, stdout, stderr: "" };
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function runDbQuery(argv: readonly string[]): RunResult {
+  let dbFile: string | null = null;
+  let groupName: string | null = null;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--db") {
+      dbFile = argv[++i] ?? null;
+      if (!dbFile) return usageError("--db requires a path");
+    } else if (arg === "--group") {
+      groupName = argv[++i] ?? null;
+      if (!groupName) return usageError("--group requires a name");
+    } else {
+      return usageError(`unknown db query option: ${arg}`);
+    }
+  }
+
+  if (!dbFile) return usageError("db query requires --db <path>");
+  if (!groupName) return usageError("db query requires --group <name>");
+
+  try {
+    const { openDb } = await_import_db();
+    const db = openDb(resolve(dbFile));
+    try {
+      const result = db.queryGroup(groupName);
+      if (result.columns.length === 0) {
+        return { exitCode: 0, stdout: `(no rows in ${groupName})\n`, stderr: "" };
+      }
+      let stdout = result.columns.join("\t") + "\n";
+      for (const row of result.rows) {
+        stdout += row.map((v) => v ?? "").join("\t") + "\n";
+      }
+      return { exitCode: 0, stdout, stderr: "" };
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function runDbList(argv: readonly string[]): RunResult {
+  const dbFile = argv[0];
+  if (!dbFile) return usageError("db list requires <db-file>");
+  try {
+    const { openDb } = await_import_db();
+    const db = openDb(resolve(dbFile));
+    try {
+      const imports = db.listImports();
+      if (imports.length === 0) {
+        return { exitCode: 0, stdout: "(no imports)\n", stderr: "" };
+      }
+      let stdout = "";
+      for (const imp of imports) {
+        stdout += `#${imp.id} ${imp.sourceFile} — ${imp.locaCount} LOCA — ${imp.importedAt}\n`;
+      }
+      return { exitCode: 0, stdout, stderr: "" };
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function await_import_db(): { openDb: (path: string) => GeoflowDb } {
+  return dbModule;
+}
+
 function parseSeverity(value: string): Severity | null {
   switch (value) {
     case Severity.Info:
@@ -388,11 +606,15 @@ function usageText(): string {
     "Usage:",
     "  geoflow info <file>",
     "  geoflow fix <file> [--write] [--diff-file <path>]",
-    "  geoflow validate <file> [--format text|json|junit] [--fail-on error|warning|info]",
+    "  geoflow validate <file> [--format text|json|junit] [--fail-on error|warning|info] [--rules <pack.yml>]",
     "  geoflow convert <in> <out> [--to ags|diggs]",
     "  geoflow diff <file-a> <file-b> [--format text|json]",
+    "  geoflow explore <file> [--out <path>]",
     "  geoflow rules list",
     "  geoflow rules show <id>",
+    "  geoflow db ingest <ags-file> <db-file>",
+    "  geoflow db query --db <db-file> --group <name>",
+    "  geoflow db list <db-file>",
     "",
   ].join("\n");
 }
