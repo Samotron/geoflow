@@ -33,4 +33,5 @@ export type {
   AgsRow,
   AgsValue,
   ConversionReport,
+  Diagnostic,
 } from '@geoflow/core';

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { validateFileBytes, fixBytes, summarizeInfoBytes, renderInfo, Format, Severity } from '../core.js';
+import { useState, useEffect, useRef } from 'react';
+import { validateFileBytes, fixBytes, summarizeInfoBytes, renderInfo, decodeBytes, Format, Severity } from '../core.js';
+import type { Diagnostic } from '../core.js';
 import { DiagnosticsPanel } from '../App.js';
 
 interface Props {
@@ -7,83 +8,145 @@ interface Props {
   fileName: string | undefined;
 }
 
-interface ParsedDiag {
-  severity: string;
-  rule_id: string;
-  message: string;
-  group: string | null;
-  row_index: number | null;
+type ValidateView = 'diagnostics' | 'source';
+
+// ── Source editor ─────────────────────────────────────────────────────────────
+
+function sevColor(sev: string) {
+  if (sev === 'error') return { bg: '#fef2f2', border: '#fecaca', text: 'var(--red)', gutter: '#fee2e2' };
+  if (sev === 'warning') return { bg: '#fff7ed', border: '#fed7aa', text: 'var(--orange)', gutter: '#ffedd5' };
+  return { bg: '#eff6ff', border: '#bfdbfe', text: '#2563eb', gutter: '#dbeafe' };
 }
 
-function parseDiagnostics(output: string): ParsedDiag[] {
-  const diags: ParsedDiag[] = [];
-  const lineRe = /^(error|warning|info): \[([^\]]+)\] (.+?)(?:\s+\(([^)]+)\))?(?:\s+\[auto-fixable:[^\]]+\])?$/;
-  for (const line of output.split('\n')) {
-    const m = lineRe.exec(line.trim());
-    if (!m) continue;
-    const [, severity, rule_id, message, loc] = m;
-    let group: string | null = null;
-    let row_index: number | null = null;
-    if (loc) {
-      const gm = /group=([^,)]+)/.exec(loc);
-      if (gm?.[1]) group = gm[1];
-      const rm = /row_index=(\d+)/.exec(loc);
-      if (rm?.[1]) row_index = parseInt(rm[1], 10);
+function SourceEditor({ sourceText, diagnostics }: { sourceText: string; diagnostics: Diagnostic[] }) {
+  const lineRef = useRef<HTMLDivElement>(null);
+
+  // Build a map from 1-based line number → list of diagnostics on that line
+  const lineMap = new Map<number, Diagnostic[]>();
+  for (const d of diagnostics) {
+    const opt = d.location.line;
+    if (opt._tag === 'Some') {
+      const n = (opt as { _tag: 'Some'; value: number }).value;
+      if (!lineMap.has(n)) lineMap.set(n, []);
+      lineMap.get(n)!.push(d);
     }
-    diags.push({ severity: severity ?? '', rule_id: rule_id ?? '', message: message ?? '', group, row_index });
   }
-  return diags;
+
+  const lines = sourceText.split(/\r?\n/);
+  // Strip trailing empty line from split
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+
+  const lineNumWidth = String(lines.length).length;
+
+  return (
+    <div
+      ref={lineRef}
+      style={{ background: '#0f172a', borderRadius: 'var(--radius)', overflow: 'auto', maxHeight: 'calc(100vh - 260px)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, lineHeight: '1.6' }}
+    >
+      {lines.map((line, i) => {
+        const lineNo = i + 1;
+        const diags = lineMap.get(lineNo) ?? [];
+        const worstSev = diags.some(d => d.severity === 'error') ? 'error'
+          : diags.some(d => d.severity === 'warning') ? 'warning'
+          : diags.length > 0 ? 'info' : null;
+        const colors = worstSev ? sevColor(worstSev) : null;
+
+        return (
+          <div key={i} style={{ background: colors ? 'rgba(239,68,68,0.08)' : undefined }}>
+            {/* Code line */}
+            <div style={{ display: 'flex', minHeight: '1.6em' }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  minWidth: `${lineNumWidth + 2}ch`,
+                  padding: '0 10px',
+                  textAlign: 'right',
+                  userSelect: 'none',
+                  color: worstSev === 'error' ? '#fca5a5' : worstSev === 'warning' ? '#fcd34d' : '#475569',
+                  background: worstSev === 'error' ? 'rgba(239,68,68,0.15)' : worstSev === 'warning' ? 'rgba(234,179,8,0.12)' : '#0f172a',
+                  borderRight: `2px solid ${worstSev === 'error' ? '#ef4444' : worstSev === 'warning' ? '#f59e0b' : '#1e293b'}`,
+                  flexShrink: 0,
+                }}
+              >
+                {lineNo}
+              </span>
+              <span style={{ padding: '0 16px', color: '#e2e8f0', whiteSpace: 'pre', flexGrow: 1 }}>
+                {line || ' '}
+              </span>
+            </div>
+            {/* Inline diagnostics */}
+            {diags.map((d, j) => {
+              const c = sevColor(d.severity);
+              return (
+                <div key={j} style={{ display: 'flex', gap: 0 }}>
+                  <span style={{ minWidth: `${lineNumWidth + 2}ch`, background: c.gutter + '22', borderRight: `2px solid ${worstSev === 'error' ? '#ef4444' : '#f59e0b'}`, flexShrink: 0 }} />
+                  <div style={{ padding: '2px 16px 4px', color: c.text, fontSize: 11, background: c.bg + '15', flexGrow: 1 }}>
+                    <span style={{ fontWeight: 700 }}>{d.severity.toUpperCase()}</span>
+                    {' '}
+                    <span style={{ opacity: 0.7 }}>[{d.rule_id}]</span>
+                    {' '}
+                    {d.message}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
+
+// ── InspectTab ────────────────────────────────────────────────────────────────
 
 export function InspectTab({ fileBytes, fileName }: Props) {
   const [infoText, setInfoText] = useState<string | null>(null);
-  const [validateOutput, setValidateOutput] = useState<string | null>(null);
+  const [infoError, setInfoError] = useState<string | null>(null);
+
+  const [validateDiags, setValidateDiags] = useState<Diagnostic[] | null>(null);
   const [validateExitCode, setValidateExitCode] = useState<number | null>(null);
   const [validateRunning, setValidateRunning] = useState(false);
+  const [validateView, setValidateView] = useState<ValidateView>('diagnostics');
+  const [sourceText, setSourceText] = useState<string | null>(null);
+
   const [fixApplied, setFixApplied] = useState<string[] | null>(null);
   const [fixedOutput, setFixedOutput] = useState<string | null>(null);
   const [fixRunning, setFixRunning] = useState(false);
   const [fixError, setFixError] = useState<string | null>(null);
-  const [infoError, setInfoError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!fileBytes) {
-      setInfoText(null);
-      setValidateOutput(null);
-      setValidateExitCode(null);
-      setFixApplied(null);
-      setFixedOutput(null);
-      setInfoError(null);
-      setFixError(null);
+      setInfoText(null); setInfoError(null);
+      setValidateDiags(null); setValidateExitCode(null);
+      setFixApplied(null); setFixedOutput(null); setFixError(null);
+      setSourceText(null);
       return;
     }
     try {
-      const summary = summarizeInfoBytes(fileBytes, fileName ?? 'file.ags');
-      setInfoText(renderInfo(summary));
+      setInfoText(renderInfo(summarizeInfoBytes(fileBytes, fileName ?? 'file.ags')));
       setInfoError(null);
     } catch (e) {
       setInfoError(String(e));
       setInfoText(null);
     }
-    setValidateOutput(null);
-    setValidateExitCode(null);
-    setFixApplied(null);
-    setFixedOutput(null);
-    setFixError(null);
+    setValidateDiags(null); setValidateExitCode(null);
+    setFixApplied(null); setFixedOutput(null); setFixError(null);
   }, [fileBytes, fileName]);
 
   const runValidate = () => {
     if (!fileBytes) return;
     setValidateRunning(true);
     try {
+      const text = decodeBytes(fileBytes);
+      setSourceText(text);
       const result = validateFileBytes(fileBytes, fileName ?? 'file.ags', {
         format: Format.Text,
         failOn: Severity.Info,
       });
-      setValidateOutput(result.output);
+      setValidateDiags(result.diagnostics);
       setValidateExitCode(result.exitCode);
     } catch (e) {
-      setValidateOutput(String(e));
+      setValidateDiags([]);
       setValidateExitCode(2);
     } finally {
       setValidateRunning(false);
@@ -92,8 +155,7 @@ export function InspectTab({ fileBytes, fileName }: Props) {
 
   const runFix = () => {
     if (!fileBytes) return;
-    setFixRunning(true);
-    setFixError(null);
+    setFixRunning(true); setFixError(null);
     try {
       const result = fixBytes(fileBytes);
       setFixApplied(result.applied);
@@ -111,8 +173,7 @@ export function InspectTab({ fileBytes, fileName }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const baseName = fileName?.replace(/\.[^.]+$/, '') ?? 'file';
-    a.download = `${baseName}.fixed.ags`;
+    a.download = `${(fileName ?? 'file').replace(/\.[^.]+$/, '')}.fixed.ags`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -125,32 +186,32 @@ export function InspectTab({ fileBytes, fileName }: Props) {
     );
   }
 
-  const diags = validateOutput ? parseDiagnostics(validateOutput) : [];
-  const counts = {
-    error: diags.filter((d) => d.severity === 'error').length,
-    warning: diags.filter((d) => d.severity === 'warning').length,
-    info: diags.filter((d) => d.severity === 'info').length,
-  };
+  const counts = validateDiags ? {
+    error: validateDiags.filter(d => d.severity === 'error').length,
+    warning: validateDiags.filter(d => d.severity === 'warning').length,
+    info: validateDiags.filter(d => d.severity === 'info').length,
+  } : null;
 
   const sectionLabel: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    color: 'var(--muted)',
-    marginBottom: 10,
+    fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: 10,
   };
+
+  const pillStyle = (active: boolean): React.CSSProperties => ({
+    padding: '4px 12px', fontSize: 11, fontWeight: 600, borderRadius: 6,
+    border: '1px solid var(--border)',
+    background: active ? 'var(--navy)' : 'var(--card)',
+    color: active ? '#fff' : 'var(--muted)',
+    cursor: 'pointer',
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* Info section */}
+      {/* ── Info ── */}
       <div>
         <div style={sectionLabel}>File Info</div>
         {infoError ? (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)' }}>
-            {infoError}
-          </div>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)' }}>{infoError}</div>
         ) : (
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <pre style={{ padding: 16, fontSize: 13, lineHeight: 1.7, fontFamily: 'monospace', background: 'var(--card)', color: 'var(--text)', margin: 0 }}>
@@ -160,10 +221,10 @@ export function InspectTab({ fileBytes, fileName }: Props) {
         )}
       </div>
 
-      {/* Validate section */}
+      {/* ── Validate ── */}
       <div>
         <div style={sectionLabel}>Validate</div>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={runValidate}
             disabled={validateRunning}
@@ -171,15 +232,26 @@ export function InspectTab({ fileBytes, fileName }: Props) {
           >
             {validateRunning ? 'Validating…' : 'Run Validation'}
           </button>
+
+          {validateDiags !== null && (
+            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+              <button style={pillStyle(validateView === 'diagnostics')} onClick={() => setValidateView('diagnostics')}>
+                Diagnostics
+              </button>
+              <button style={pillStyle(validateView === 'source')} onClick={() => setValidateView('source')}>
+                Source
+              </button>
+            </div>
+          )}
         </div>
 
-        {validateOutput !== null && validateExitCode === 0 && (
+        {validateDiags !== null && validateExitCode === 0 && validateView === 'diagnostics' && (
           <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius)', padding: '14px 18px', color: 'var(--green)', fontWeight: 600, marginBottom: 12 }}>
             ✓ No issues found
           </div>
         )}
 
-        {validateOutput !== null && (
+        {validateDiags !== null && counts && validateView === 'diagnostics' && (
           <>
             {(counts.error > 0 || counts.warning > 0 || counts.info > 0) && (
               <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -200,20 +272,26 @@ export function InspectTab({ fileBytes, fileName }: Props) {
                 )}
               </div>
             )}
-            {diags.length > 0 && (
+            {validateDiags.length > 0 && (
               <DiagnosticsPanel
-                items={diags.map((d) => ({ rule_id: d.rule_id, severity: d.severity, message: d.message, group: d.group, row_index: d.row_index }))}
+                items={validateDiags.map(d => ({
+                  rule_id: d.rule_id,
+                  severity: d.severity,
+                  message: d.message,
+                  group: d.location.group._tag === 'Some' ? (d.location.group as { _tag: 'Some'; value: string }).value : null,
+                  row_index: d.location.row_index._tag === 'Some' ? (d.location.row_index as { _tag: 'Some'; value: number }).value : null,
+                }))}
               />
             )}
-            <details style={{ marginTop: 12 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)', userSelect: 'none', marginBottom: 8 }}>Raw output</summary>
-              <pre style={{ background: '#0f172a', color: '#e2e8f0', padding: 16, borderRadius: 'var(--radius)', fontSize: 12, lineHeight: 1.5, overflowX: 'auto', marginTop: 8 }}>{validateOutput}</pre>
-            </details>
           </>
+        )}
+
+        {validateDiags !== null && validateView === 'source' && sourceText && (
+          <SourceEditor sourceText={sourceText} diagnostics={validateDiags} />
         )}
       </div>
 
-      {/* Fix section */}
+      {/* ── Auto-Fix ── */}
       <div>
         <div style={sectionLabel}>Auto-Fix</div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
@@ -232,9 +310,7 @@ export function InspectTab({ fileBytes, fileName }: Props) {
         </div>
 
         {fixError && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)', marginBottom: 12 }}>
-            {fixError}
-          </div>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)', marginBottom: 12 }}>{fixError}</div>
         )}
 
         {fixApplied !== null && (
