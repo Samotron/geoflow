@@ -13,3 +13,5 @@ export * from "./ags/lexer.js";
 export * from "./ags/parser.js";
 export * from "./ags/serializer.js";
 export * from "./ags3.js";
+export * from "./diff.js";
+export * from "./diggs.js";

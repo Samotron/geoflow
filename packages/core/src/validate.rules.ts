@@ -962,30 +962,227 @@ export class TrailingWhitespaceRule implements Rule {
   }
 }
 
+// ── AGS-STRUCT-001: exactly one PROJ group with one row ──────────────────────
+
+export class ProjGroupRule implements Rule {
+  readonly id = "AGS-STRUCT-001";
+  readonly description = "AGS files must contain exactly one PROJ group with one row.";
+  readonly default_severity = Severity.Error;
+
+  check(file: AgsFile, diagnostics: Diagnostic[]): void {
+    const proj = file.groups["PROJ"];
+    if (!proj || proj.rows.length !== 1) {
+      diagnostics.push(
+        new DiagnosticBuilder(
+          this.id,
+          this.default_severity,
+          "PROJ group missing or does not have exactly one DATA row"
+        ).build()
+      );
+    }
+  }
+}
+
+// ── AGS-STRUCT-002: TRAN group with TRAN_AGS heading ─────────────────────────
+
+export class TranGroupRule implements Rule {
+  readonly id = "AGS-STRUCT-002";
+  readonly description = "AGS 4 files must contain a TRAN group with a TRAN_AGS heading.";
+  readonly default_severity = Severity.Error;
+
+  check(file: AgsFile, diagnostics: Diagnostic[]): void {
+    const tran = file.groups["TRAN"];
+    const hasAgsHeading = tran?.headings.some((h) => h.name === "TRAN_AGS") ?? false;
+    if (!tran || !hasAgsHeading) {
+      diagnostics.push(
+        new DiagnosticBuilder(
+          this.id,
+          this.default_severity,
+          "missing TRAN group or TRAN_AGS heading"
+        ).build()
+      );
+    }
+  }
+}
+
+// ── AGS-STRUCT-003: every LOCA row must have a non-empty LOCA_ID ─────────────
+
+export class LocaIdRule implements Rule {
+  readonly id = "AGS-STRUCT-003";
+  readonly description = "Every LOCA row must have a non-empty LOCA_ID.";
+  readonly default_severity = Severity.Error;
+
+  check(file: AgsFile, diagnostics: Diagnostic[]): void {
+    const loca = file.groups["LOCA"];
+    if (!loca) return;
+    for (const row of loca.rows) {
+      const id = row["LOCA_ID"];
+      if (id === null || id === undefined || id === "") {
+        diagnostics.push(
+          new DiagnosticBuilder(
+            this.id,
+            this.default_severity,
+            "LOCA row has empty or missing LOCA_ID"
+          )
+            .atGroup("LOCA")
+            .build()
+        );
+      }
+    }
+  }
+}
+
+// ── AGS-HEAD-001: every group must declare a HEADING row ─────────────────────
+
+export class HeadingRowPresentRule implements Rule {
+  readonly id = "AGS-HEAD-001";
+  readonly description = "Every group must declare a HEADING row.";
+  readonly default_severity = Severity.Error;
+
+  check(file: AgsFile, diagnostics: Diagnostic[]): void {
+    for (const [groupName, group] of Object.entries(file.groups)) {
+      if (group.headings.length === 0) {
+        diagnostics.push(
+          new DiagnosticBuilder(
+            this.id,
+            this.default_severity,
+            `${groupName} is missing a HEADING row`
+          )
+            .atGroup(groupName)
+            .build()
+        );
+      }
+    }
+  }
+}
+
+// ── AGS-HEAD-003: every heading must have a declared TYPE ─────────────────────
+
+export class HeadingTypeDeclaredRule implements Rule {
+  readonly id = "AGS-HEAD-003";
+  readonly description = "Every heading must have a declared TYPE.";
+  readonly default_severity = Severity.Error;
+
+  check(file: AgsFile, diagnostics: Diagnostic[]): void {
+    for (const [groupName, group] of Object.entries(file.groups)) {
+      for (const heading of group.headings) {
+        const typeStr = AgsTypeFunctions.toString(heading.data_type);
+        if (typeStr === "" || typeStr === "Other") {
+          diagnostics.push(
+            new DiagnosticBuilder(
+              this.id,
+              this.default_severity,
+              `${groupName}.${heading.name} is missing a TYPE declaration`
+            )
+              .atGroup(groupName)
+              .build()
+          );
+        }
+      }
+    }
+  }
+}
+
+// ── AGS-TYPE-001: TYPE codes must be recognised AGS 4.x codes ────────────────
+
+const VALID_AGS_TYPE_STRINGS = new Set([
+  "X", "XN", "MC", "ID", "PA", "PT", "PU", "T", "DT", "YN", "RL", "U", "RECORD_LINK", "DMS",
+]);
+
+function isValidAgsType(t: import("./model.js").AgsType): boolean {
+  if (typeof t === "string") return VALID_AGS_TYPE_STRINGS.has(t);
+  return t._tag === "DP" || t._tag === "SF" || t._tag === "SCI";
+}
+
+export class ValidAgsTypeCodeRule implements Rule {
+  readonly id = "AGS-TYPE-001";
+  readonly description = "TYPE codes must be one of the AGS 4.x defined codes.";
+  readonly default_severity = Severity.Warning;
+
+  check(file: AgsFile, diagnostics: Diagnostic[]): void {
+    for (const [groupName, group] of Object.entries(file.groups)) {
+      for (const heading of group.headings) {
+        if (!isValidAgsType(heading.data_type)) {
+          diagnostics.push(
+            new DiagnosticBuilder(
+              this.id,
+              this.default_severity,
+              `${groupName}.${heading.name} carries an unrecognised TYPE code: ${AgsTypeFunctions.toString(heading.data_type)}`
+            )
+              .atGroup(groupName)
+              .build()
+          );
+        }
+      }
+    }
+  }
+}
+
+// ── AGS-VAL-001: GEOL_BASE must be greater than GEOL_TOP ─────────────────────
+
+export class GeolBaseTopRule implements Rule {
+  readonly id = "AGS-VAL-001";
+  readonly description = "GEOL_BASE must be greater than GEOL_TOP for every layer.";
+  readonly default_severity = Severity.Error;
+
+  check(file: AgsFile, diagnostics: Diagnostic[]): void {
+    const geol = file.groups["GEOL"];
+    if (!geol) return;
+    for (const row of geol.rows) {
+      const top = row["GEOL_TOP"];
+      const base = row["GEOL_BASE"];
+      if (top === null || top === undefined || base === null || base === undefined) continue;
+      const topN = typeof top === "number" ? top : parseFloat(String(top));
+      const baseN = typeof base === "number" ? base : parseFloat(String(base));
+      if (!isNaN(topN) && !isNaN(baseN) && baseN <= topN) {
+        diagnostics.push(
+          new DiagnosticBuilder(
+            this.id,
+            this.default_severity,
+            `GEOL row has GEOL_BASE (${baseN}) not greater than GEOL_TOP (${topN})`
+          )
+            .atGroup("GEOL")
+            .build()
+        );
+      }
+    }
+  }
+}
+
 export function standardRules(): Rule[] {
   return [
+    // Built-in Rust-equivalent rules (matched to Rust standard_rules() order)
     new DictRequiredHeadingsRule(),
     new DictDepthUnitsRule(),
-    new RequiredNonEmptyRule(),
+    new TypeValueRule(),
     new AbbrCodelistRule(),
     new UnitCodelistRule(),
     new XrefLocaRule(),
     new IdColumnUniquenessRule(),
     new SampCompositeKeyRule(),
+    new RequiredNonEmptyRule(),
+    new HeadingNameFormatRule(),
+    new EmptyGroupRule(),
+    new NonStandardHeadingRule(),
+    new HeadingOrderRule(),
     new CompositeKeyRule(),
     new ParentGroupXrefRule(),
     new TranDlimRule(),
     new RlXrefRule(),
     new TypeGroupCoverageRule(),
-    new TypeValueRule(),
+    // DSL-pack rules implemented as built-in TS rules (Milestone 3 not yet done)
+    new ProjGroupRule(),
+    new TranGroupRule(),
+    new LocaIdRule(),
+    new HeadingRowPresentRule(),
     new NumericHeadingsUnitRule(),
+    new HeadingTypeDeclaredRule(),
+    new ValidAgsTypeCodeRule(),
+    new GeolBaseTopRule(),
     new GeolMonotonicityRule(),
     new TranAgsVersionRule(),
     new TrailingWhitespaceRule(),
-    new HeadingNameFormatRule(),
-    new HeadingOrderRule(),
-    new EmptyGroupRule(),
-    new NonStandardHeadingRule(),
+    // Extra TS rule (no Rust equivalent, tracked separately)
     new MissingDictDefinitionsRule(),
   ];
 }

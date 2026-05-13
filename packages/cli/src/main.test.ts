@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -8,6 +8,12 @@ import { maskCosmetic } from "../../../tests/parity/whitelist.js";
 import { PACKAGE_NAME, runCli } from "./main.js";
 
 const AGS_FIXTURE_DIR = resolve(import.meta.dirname, "../../../tests/fixtures/ags");
+const DIGGS_FIXTURE_DIR = resolve(import.meta.dirname, "../../../tests/fixtures/diggs");
+const CONVERT_BASELINE_DIR = resolve(import.meta.dirname, "../../../tests/parity/baselines/convert");
+
+function normalizeConvertStdout(text: string): string {
+  return maskCosmetic(text).replace(/ to .+$/m, " to <OUTFILE>");
+}
 
 function normalizeTextOutput(text: string): string {
   const masked = maskCosmetic(text).trimEnd();
@@ -262,4 +268,74 @@ describe("@geoflow/cli", () => {
       expect(result.stderr).toBe("");
     });
   }
+
+  for (const fixture of [
+    "abbr_codelist_invalid.ags",
+    "abbr_codelist_valid.ags",
+    "browser_explorer.ags",
+    "empty_group.ags",
+    "encoding_win1252.ags",
+    "fixable.ags",
+    "geol_overlap.ags",
+    "ice_mini_invalid.ags",
+    "ice_mini_valid.ags",
+    "key_dup_loca.ags",
+    "minimal_valid.ags",
+    "nonstandard_heading.ags",
+    "samp_key_dup.ags",
+    "sample_v3.ags",
+    "short_row.ags",
+    "tran_ags_4_1_1.ags",
+    "tran_ags_4_2.ags",
+    "tran_version_warn.ags",
+    "unit_codelist_invalid.ags",
+    "unit_codelist_valid.ags",
+    "xref_multi_invalid.ags",
+  ]) {
+    it(`convert: matches Rust DIGGS output baseline for ${fixture}`, () => {
+      const file = resolve(AGS_FIXTURE_DIR, fixture);
+      const baseKey = "_home_samotron_dev_geoflow_temp_out_diggs___to_diggs";
+      const baseDir = join(CONVERT_BASELINE_DIR, fixture);
+      const baselineStdout = readFileSync(join(baseDir, `${baseKey}_stdout.txt`), "utf8");
+      const baselineExit = Number(readFileSync(join(baseDir, `${baseKey}_exit.txt`), "utf8").trim());
+      const baselineOutput = readFileSync(join(baseDir, `${baseKey}_artifacts`, "output.diggs"), "utf8");
+
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-convert-"));
+      const outFile = join(tmpDir, "output.diggs");
+      try {
+        const result = runCli(["convert", file, outFile, "--to", "diggs"]);
+        expect(result.exitCode).toBe(baselineExit);
+        expect(normalizeConvertStdout(result.stdout).trimEnd()).toBe(normalizeConvertStdout(baselineStdout).trimEnd());
+        expect(result.stderr).toBe("");
+        if (baselineExit === 0) {
+          expect(readFileSync(outFile, "utf8")).toBe(baselineOutput);
+        }
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it("convert: matches Rust AGS output baseline for minimal_subset.diggs", () => {
+    const file = resolve(DIGGS_FIXTURE_DIR, "minimal_subset.diggs");
+    const baseKey = "_home_samotron_dev_geoflow_temp_out_ags___to_ags";
+    const baseDir = join(CONVERT_BASELINE_DIR, "minimal_subset.diggs");
+    const baselineStdout = readFileSync(join(baseDir, `${baseKey}_stdout.txt`), "utf8");
+    const baselineExit = Number(readFileSync(join(baseDir, `${baseKey}_exit.txt`), "utf8").trim());
+    const baselineOutput = readFileSync(join(baseDir, `${baseKey}_artifacts`, "output.ags"), "utf8");
+
+    const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-convert-"));
+    const outFile = join(tmpDir, "output.ags");
+    try {
+      const result = runCli(["convert", file, outFile, "--to", "ags"]);
+      expect(result.exitCode).toBe(baselineExit);
+      expect(normalizeConvertStdout(result.stdout).trimEnd()).toBe(normalizeConvertStdout(baselineStdout).trimEnd());
+      expect(result.stderr).toBe("");
+      if (baselineExit === 0) {
+        expect(readFileSync(outFile, "utf8")).toBe(baselineOutput);
+      }
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

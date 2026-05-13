@@ -6,7 +6,20 @@ import { validateText, validateTextWithSource } from "./validate-runner.js";
 describe("validate runner", () => {
   it("returns exit code 0 for clean input", () => {
     const result = validateText(
-      `"GROUP","PROJ"\n"HEADING","PROJ_ID"\n"UNIT",""\n"TYPE","ID"\n"DATA","P1"\n`
+      [
+        `"GROUP","PROJ"`,
+        `"HEADING","PROJ_ID"`,
+        `"UNIT",""`,
+        `"TYPE","ID"`,
+        `"DATA","P1"`,
+        ``,
+        `"GROUP","TRAN"`,
+        `"HEADING","TRAN_AGS","TRAN_RCON"`,
+        `"UNIT","",""`,
+        `"TYPE","X","X"`,
+        `"DATA","4.1","+"`,
+        ``,
+      ].join("\n")
     );
 
     expect(result.exitCode).toBe(0);
@@ -33,8 +46,28 @@ describe("validate runner", () => {
   });
 
   it("does not fail on warnings when fail-on is error", () => {
+    // Complete file with PROJ+TRAN to satisfy structural rules; LOCA has no DATA rows
+    // triggering a warning (AGS-STRUCT-005) but no errors.
     const result = validateText(
-      `"GROUP","LOCA"\n"HEADING","LOCA_ID","LOCA_TYPE"\n"UNIT","",""\n"TYPE","ID","X"\n`,
+      [
+        `"GROUP","PROJ"`,
+        `"HEADING","PROJ_ID"`,
+        `"UNIT",""`,
+        `"TYPE","ID"`,
+        `"DATA","P1"`,
+        ``,
+        `"GROUP","TRAN"`,
+        `"HEADING","TRAN_AGS"`,
+        `"UNIT",""`,
+        `"TYPE","X"`,
+        `"DATA","4.1"`,
+        ``,
+        `"GROUP","LOCA"`,
+        `"HEADING","LOCA_ID","LOCA_TYPE"`,
+        `"UNIT","",""`,
+        `"TYPE","ID","X"`,
+        ``,
+      ].join("\n"),
       { failOn: Severity.Error }
     );
 

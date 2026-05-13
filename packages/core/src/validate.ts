@@ -54,6 +54,12 @@ export class Registry {
   getRules(): readonly Rule[] {
     return this.rules;
   }
+
+  find(id: string): RuleInfo | undefined {
+    const rule = this.rules.find((r) => r.id === id);
+    if (!rule) return undefined;
+    return { id: rule.id, description: rule.description, severity: rule.default_severity };
+  }
 }
 
 /**
