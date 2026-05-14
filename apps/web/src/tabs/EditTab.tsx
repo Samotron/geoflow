@@ -324,6 +324,7 @@ interface EditableTableProps {
   rowIssueMap: Map<string, Diagnostic[]>;
   editingCell: EditingCell | null;
   focusedRowKey: string | null;
+  focusedCellHeading: string | null;
   rowRefs: React.MutableRefObject<Map<string, HTMLTableRowElement>>;
   onCellClick: (rowIndex: number, heading: string, currentVal: AgsValue) => void;
   onDraftChange: (draft: string) => void;
@@ -337,6 +338,7 @@ function EditableTable({
   rowIssueMap,
   editingCell,
   focusedRowKey,
+  focusedCellHeading,
   rowRefs,
   onCellClick,
   onDraftChange,
@@ -400,6 +402,7 @@ function EditableTable({
                   // Highlight cell if a rule maps directly to this heading
                   const cellDiags = rowDiags.filter((d) => RULE_TO_HEADING[d.rule_id] === h.name);
                   const cellWorst = worstSev(cellDiags);
+                  const isFocusedCell = isFocused && focusedCellHeading === h.name && !isEditing;
 
                   return (
                     <td
@@ -413,9 +416,10 @@ function EditableTable({
                         borderBottom: '1px solid #f1f5f9',
                         cursor: 'text',
                         maxWidth: 220,
-                        background: cellWorst ? sevBg(cellWorst) : undefined,
-                        outline: cellWorst ? `1px solid ${sevColor(cellWorst)}55` : undefined,
-                        outlineOffset: -1,
+                        background: isFocusedCell ? '#dbeafe' : cellWorst ? sevBg(cellWorst) : undefined,
+                        outline: isFocusedCell ? '2px solid #2563eb' : cellWorst ? `1px solid ${sevColor(cellWorst)}55` : undefined,
+                        outlineOffset: isFocusedCell ? -2 : -1,
+                        boxShadow: isFocusedCell ? '0 0 0 3px rgba(37,99,235,0.2)' : undefined,
                         position: 'relative',
                       }}
                     >
@@ -522,6 +526,7 @@ export function EditTab({ fileBytes, fileName }: Props) {
   const [activeGroup, setActiveGroup] = useState<string>('');
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [focusedRowKey, setFocusedRowKey] = useState<string | null>(null);
+  const [focusedCellHeading, setFocusedCellHeading] = useState<string | null>(null);
   const [fixNotice, setFixNotice] = useState<FixNotice | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
@@ -674,17 +679,22 @@ export function EditTab({ fileBytes, fileName }: Props) {
     (d: Diagnostic) => {
       const group = optVal(d.location.group);
       const rowIdx = optVal(d.location.row_index);
-      if (!group) return;
+      if (!group) {
+        setFocusedCellHeading(null);
+        return;
+      }
       setActiveGroup(group);
       setEditingCell(null);
       if (rowIdx !== null) {
         const key = `${group}:${rowIdx}`;
         setFocusedRowKey(key);
+        setFocusedCellHeading(RULE_TO_HEADING[d.rule_id] ?? null);
         setTimeout(() => {
           rowRefs.current.get(key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 60);
       } else {
         setFocusedRowKey(null);
+        setFocusedCellHeading(null);
       }
     },
     []
@@ -865,7 +875,7 @@ export function EditTab({ fileBytes, fileName }: Props) {
               return (
                 <button
                   key={g}
-                  onClick={() => { setActiveGroup(g); setEditingCell(null); setFocusedRowKey(null); }}
+                  onClick={() => { setActiveGroup(g); setEditingCell(null); setFocusedRowKey(null); setFocusedCellHeading(null); }}
                   style={{
                     padding: '5px 12px',
                     fontSize: 12,
@@ -912,6 +922,7 @@ export function EditTab({ fileBytes, fileName }: Props) {
               rowIssueMap={rowIssueMap}
               editingCell={editingCell}
               focusedRowKey={focusedRowKey}
+              focusedCellHeading={focusedCellHeading}
               rowRefs={rowRefs}
               onCellClick={(rowIndex, heading, currentVal) => {
                 setEditingCell({ group: activeGroup, rowIndex, heading, draft: displayVal(currentVal) });
