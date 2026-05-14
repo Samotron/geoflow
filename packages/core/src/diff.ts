@@ -19,6 +19,13 @@ function groupKeyHeadings(groupName: string): string[] {
   }
 }
 
+function rowContentKey(row: AgsRow): string {
+  return Object.keys(row)
+    .sort()
+    .map((k) => `${k}\x01${valueStr(row[k] ?? null)}`)
+    .join("\x00");
+}
+
 function valueStr(v: AgsValue): string {
   if (v === null) return "";
   if (typeof v === "number") return String(v);
@@ -64,6 +71,7 @@ export interface GroupDiff {
   rows_removed: AgsRow[];
   rows_changed: RowChange[];
   rows_unchanged: number;
+  rows_moved: number;
 }
 
 export interface DiffResult {
@@ -102,6 +110,18 @@ function diffGroup(groupName: string, rowsA: AgsRow[], rowsB: AgsRow[]): GroupDi
   const keysA = new Set(mapA.keys());
   const keysB = new Set(mapB.keys());
 
+  // Build position-by-key for move detection
+  const indexA = new Map<string, number>();
+  for (let i = 0; i < rowsA.length; i++) {
+    const k = rowKey(rowsA[i]!, keyHeadings);
+    if (k !== null) indexA.set(k, i);
+  }
+  const indexB = new Map<string, number>();
+  for (let i = 0; i < rowsB.length; i++) {
+    const k = rowKey(rowsB[i]!, keyHeadings);
+    if (k !== null) indexB.set(k, i);
+  }
+
   const rows_removed: AgsRow[] = [...keysA]
     .filter((k) => !keysB.has(k))
     .map((k) => mapA.get(k)!)
@@ -114,6 +134,7 @@ function diffGroup(groupName: string, rowsA: AgsRow[], rowsB: AgsRow[]): GroupDi
 
   const rows_changed: RowChange[] = [];
   let rows_unchanged = 0;
+  let rows_moved = 0;
 
   for (const key of keysA) {
     if (!keysB.has(key)) continue;
@@ -121,7 +142,11 @@ function diffGroup(groupName: string, rowsA: AgsRow[], rowsB: AgsRow[]): GroupDi
     const rb = mapB.get(key)!;
     const changes = rowFieldDiff(ra, rb);
     if (changes.length === 0) {
-      rows_unchanged++;
+      if (indexA.get(key) !== indexB.get(key)) {
+        rows_moved++;
+      } else {
+        rows_unchanged++;
+      }
     } else {
       rows_changed.push({ key: key.replace(/\x00/g, " / "), changes });
     }
@@ -134,31 +159,48 @@ function diffGroup(groupName: string, rowsA: AgsRow[], rowsB: AgsRow[]): GroupDi
     rows_removed,
     rows_changed,
     rows_unchanged,
+    rows_moved,
   };
 }
 
 function diffPositional(groupName: string, rowsA: AgsRow[], rowsB: AgsRow[]): GroupDiff {
-  const len = Math.max(rowsA.length, rowsB.length);
-  const rows_added: AgsRow[] = [];
-  const rows_removed: AgsRow[] = [];
-  const rows_changed: RowChange[] = [];
-  let rows_unchanged = 0;
+  // Content-based matching: pair identical rows regardless of position so
+  // a reordered-but-unchanged row is counted as moved, not as removed+added.
+  const contentMapA = new Map<string, number[]>();
+  for (let i = 0; i < rowsA.length; i++) {
+    const key = rowContentKey(rowsA[i]!);
+    if (!contentMapA.has(key)) contentMapA.set(key, []);
+    contentMapA.get(key)!.push(i);
+  }
 
-  for (let i = 0; i < len; i++) {
-    const ra = rowsA[i];
-    const rb = rowsB[i];
-    if (ra !== undefined && rb !== undefined) {
-      const changes = rowFieldDiff(ra, rb);
-      if (changes.length === 0) {
+  const matchedA = new Set<number>();
+  const matchedB = new Set<number>();
+  let rows_unchanged = 0;
+  let rows_moved = 0;
+
+  for (let j = 0; j < rowsB.length; j++) {
+    const key = rowContentKey(rowsB[j]!);
+    const candidates = contentMapA.get(key);
+    if (candidates && candidates.length > 0) {
+      const i = candidates.shift()!;
+      matchedA.add(i);
+      matchedB.add(j);
+      if (i === j) {
         rows_unchanged++;
       } else {
-        rows_changed.push({ key: `row ${i + 1}`, changes });
+        rows_moved++;
       }
-    } else if (rb !== undefined) {
-      rows_added.push(rb);
-    } else if (ra !== undefined) {
-      rows_removed.push(ra);
     }
+  }
+
+  const rows_removed: AgsRow[] = [];
+  for (let i = 0; i < rowsA.length; i++) {
+    if (!matchedA.has(i)) rows_removed.push(rowsA[i]!);
+  }
+
+  const rows_added: AgsRow[] = [];
+  for (let j = 0; j < rowsB.length; j++) {
+    if (!matchedB.has(j)) rows_added.push(rowsB[j]!);
   }
 
   return {
@@ -166,8 +208,9 @@ function diffPositional(groupName: string, rowsA: AgsRow[], rowsB: AgsRow[]): Gr
     key_headings: [],
     rows_added,
     rows_removed,
-    rows_changed,
+    rows_changed: [],
     rows_unchanged,
+    rows_moved,
   };
 }
 
@@ -217,7 +260,11 @@ export function isIdentical(result: DiffResult): boolean {
     result.only_in_a.length === 0 &&
     result.only_in_b.length === 0 &&
     result.group_diffs.every(
-      (g) => g.rows_added.length === 0 && g.rows_removed.length === 0 && g.rows_changed.length === 0
+      (g) =>
+        g.rows_added.length === 0 &&
+        g.rows_removed.length === 0 &&
+        g.rows_changed.length === 0 &&
+        g.rows_moved === 0
     )
   );
 }
@@ -239,13 +286,15 @@ export function renderDiffText(result: DiffResult): string {
     if (
       gd.rows_added.length === 0 &&
       gd.rows_removed.length === 0 &&
-      gd.rows_changed.length === 0
+      gd.rows_changed.length === 0 &&
+      gd.rows_moved === 0
     ) {
       continue;
     }
     out += "\n";
     const parts: string[] = [];
     if (gd.rows_unchanged > 0) parts.push(`${gd.rows_unchanged} unchanged`);
+    if (gd.rows_moved > 0) parts.push(`${gd.rows_moved} reordered`);
     if (gd.rows_added.length > 0) parts.push(`${gd.rows_added.length} added`);
     if (gd.rows_removed.length > 0) parts.push(`${gd.rows_removed.length} removed`);
     if (gd.rows_changed.length > 0) parts.push(`${gd.rows_changed.length} modified`);
@@ -280,6 +329,7 @@ export interface DiffSummary {
     rows_removed: number;
     rows_modified: number;
     rows_unchanged: number;
+    rows_moved: number;
   }>;
 }
 
@@ -294,7 +344,8 @@ export function diffToSummary(result: DiffResult): DiffSummary {
           g.rows_added.length > 0 ||
           g.rows_removed.length > 0 ||
           g.rows_changed.length > 0 ||
-          g.rows_unchanged > 0
+          g.rows_unchanged > 0 ||
+          g.rows_moved > 0
       )
       .map((g) => ({
         group: g.group,
@@ -302,6 +353,7 @@ export function diffToSummary(result: DiffResult): DiffSummary {
         rows_removed: g.rows_removed.length,
         rows_modified: g.rows_changed.length,
         rows_unchanged: g.rows_unchanged,
+        rows_moved: g.rows_moved,
       })),
   };
 }
