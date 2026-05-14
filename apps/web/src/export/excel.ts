@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { Option } from 'effect';
 import type { AgsFile } from '../core.js';
 import { downloadBlob, exportBaseName, exportDatePrefix } from './utils.js';
 
@@ -14,7 +15,7 @@ export async function exportExcel(agsFile: AgsFile, fileName: string | undefined
     [],
     ['Source file', fileName ?? 'unknown'],
     ['Export date', date],
-    ['AGS version', agsFile.ags_version ?? 'unknown'],
+    ['AGS version', Option.getOrElse(agsFile.ags_version, () => 'unknown')],
     ['Groups', groups.length],
     [],
     ['Group', 'Rows', 'Columns'],

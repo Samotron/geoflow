@@ -11,6 +11,7 @@
  * Uses sql.js (SQLite compiled to WASM) with WASM loaded from jsDelivr CDN.
  */
 
+import { Option } from 'effect';
 import type { AgsFile, AgsRow } from '../core.js';
 import { downloadBlob, exportBaseName, exportDatePrefix } from './utils.js';
 
@@ -536,7 +537,7 @@ export async function exportGeopackage(
   // ── Import provenance ─────────────────────────────────────────────────────
   db.run(
     `INSERT INTO geoflow_import (source_file, ags_version, loca_count) VALUES (?, ?, ?)`,
-    [fileName ?? 'unknown', agsFile.ags_version ?? null, locaCount],
+    [fileName ?? 'unknown', Option.getOrNull(agsFile.ags_version), locaCount],
   );
 
   // ── Export and download ───────────────────────────────────────────────────
