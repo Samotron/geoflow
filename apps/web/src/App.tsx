@@ -4,6 +4,7 @@ import { InspectTab } from './tabs/InspectTab.js';
 import { ConvertTab } from './tabs/ConvertTab.js';
 import { DataTab } from './tabs/DataTab.js';
 import { DiffTab } from './tabs/DiffTab.js';
+import { EditTab } from './tabs/EditTab.js';
 import { MapTab } from './tabs/MapTab.js';
 import { RulesTab } from './tabs/RulesTab.js';
 
@@ -215,6 +216,7 @@ function formatBytes(n: number): string {
 const TABS: { id: TabId; label: string }[] = [
   { id: 'inspect', label: 'Inspect' },
   { id: 'data', label: 'Data' },
+  { id: 'edit', label: 'Edit' },
   { id: 'map', label: 'Map' },
   { id: 'diff', label: 'Diff' },
   { id: 'convert', label: 'Convert' },
@@ -287,6 +289,10 @@ export default function App() {
         {/* Tab content */}
         {tab === 'inspect' && <InspectTab fileBytes={fileBytes} fileName={fileName} />}
         {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
+        {/* EditTab stays mounted to preserve edit session state across tab switches */}
+        <div style={{ display: tab === 'edit' ? 'block' : 'none' }}>
+          <EditTab fileBytes={fileBytes} fileName={fileName} />
+        </div>
         {tab === 'map' && (
           <MapTab
             fileBytes={fileBytes}

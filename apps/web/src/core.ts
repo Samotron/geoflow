@@ -6,6 +6,8 @@
 export {
   decodeBytes,
   parseStr,
+  validate,
+  Registry,
   validateFileBytes,
   fixBytes,
   summarizeInfoBytes,
@@ -17,6 +19,8 @@ export {
   serialize,
   writeDiggs,
   readDiggs,
+  assessQuality,
+  AgsTypeFunctions,
   Format,
   Severity,
 } from '@geoflow/core';
@@ -30,8 +34,12 @@ export type {
   GroupDiff,
   AgsFile,
   AgsGroup,
+  AgsHeading,
   AgsRow,
   AgsValue,
+  AgsType,
   ConversionReport,
   Diagnostic,
+  QualityReport,
+  QualityDimension,
 } from '@geoflow/core';
