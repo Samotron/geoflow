@@ -8,6 +8,7 @@ import { EditTab } from './tabs/EditTab.js';
 import { MapTab } from './tabs/MapTab.js';
 import { RulesTab } from './tabs/RulesTab.js';
 import { QueryTab } from './tabs/QueryTab.js';
+import { ThreeDTab } from './tabs/ThreeDTab.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 
@@ -219,6 +220,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'data', label: 'Data' },
   { id: 'edit', label: 'Edit' },
   { id: 'map', label: 'Map' },
+  { id: '3d', label: '3D View' },
   { id: 'diff', label: 'Diff' },
   { id: 'convert', label: 'Convert' },
   { id: 'query', label: 'Query' },
@@ -302,6 +304,7 @@ export default function App() {
             onLocaClick={(id) => { pendingHoleRef.current = id; switchTab('data'); }}
           />
         )}
+        {tab === '3d' && <ThreeDTab fileBytes={fileBytes} fileName={fileName} />}
         {tab === 'diff' && <DiffTab />}
         {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
         {tab === 'query' && <QueryTab fileBytes={fileBytes} />}
