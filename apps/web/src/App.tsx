@@ -7,6 +7,7 @@ import { DiffTab } from './tabs/DiffTab.js';
 import { EditTab } from './tabs/EditTab.js';
 import { MapTab } from './tabs/MapTab.js';
 import { RulesTab } from './tabs/RulesTab.js';
+import { QueryTab } from './tabs/QueryTab.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 
@@ -220,6 +221,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'map', label: 'Map' },
   { id: 'diff', label: 'Diff' },
   { id: 'convert', label: 'Convert' },
+  { id: 'query', label: 'Query' },
   { id: 'rules', label: 'Rules' },
 ];
 
@@ -302,6 +304,7 @@ export default function App() {
         )}
         {tab === 'diff' && <DiffTab />}
         {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
+        {tab === 'query' && <QueryTab fileBytes={fileBytes} />}
         {tab === 'rules' && <RulesTab fileBytes={fileBytes} />}
       </main>
     </>
