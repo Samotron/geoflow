@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/geoflow/',
   build: { outDir: 'dist', sourcemap: true },
-  optimizeDeps: { exclude: ['better-sqlite3'] },
+  optimizeDeps: { exclude: ['better-sqlite3', 'sql.js'] },
   resolve: {
     alias: {
       '@geoflow/core': resolve(__dirname, '../../packages/core/src/index.ts'),

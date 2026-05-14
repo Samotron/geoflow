@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, type MutableRefObject } from 'react';
 import { decodeBytes, parseStr } from '../core.js';
 import type { AgsFile, AgsGroup, AgsRow } from '../core.js';
+import { exportExcel } from '../export/excel.js';
+import { exportGeopackage } from '../export/geopackage.js';
+import { exportAsDuckDb } from '../query/duckdb.js';
+import { downloadBlob, exportBaseName, exportDatePrefix, toCsvRow } from '../export/utils.js';
 
 interface Props {
   fileBytes: Uint8Array | null;
@@ -10,42 +14,22 @@ interface Props {
 
 // ── CSV export helpers ────────────────────────────────────────────────────────
 
-function toCsvRow(headings: string[], row: AgsRow): string {
-  return headings.map((h) => {
-    const v = row[h];
-    if (v === null || v === undefined) return '';
-    const s = String(v);
-    return s.includes(',') || s.includes('"') || s.includes('\n')
-      ? `"${s.replace(/"/g, '""')}"` : s;
-  }).join(',');
-}
-
-function downloadCsv(content: string, name: string) {
-  const blob = new Blob([content], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function exportGroupCsv(group: AgsGroup, groupName: string, fileName: string | undefined) {
-  const date = new Date().toISOString().slice(0, 10);
-  const base = fileName?.replace(/\.[^.]+$/, '') ?? 'file';
+  const date = exportDatePrefix();
+  const base = exportBaseName(fileName);
   const headings = group.headings.map((h) => h.name);
   const rows = group.rows.map((row) => toCsvRow(headings, row));
-  downloadCsv([headings.join(','), ...rows].join('\n'), `${date}-${base}-${groupName}.csv`);
+  downloadBlob([headings.join(','), ...rows].join('\n'), `${date}-${base}-${groupName}.csv`, 'text/csv');
 }
 
 function exportAllCsv(agsFile: AgsFile, fileName: string | undefined) {
-  const date = new Date().toISOString().slice(0, 10);
-  const base = fileName?.replace(/\.[^.]+$/, '') ?? 'file';
+  const date = exportDatePrefix();
+  const base = exportBaseName(fileName);
   for (const [groupName, group] of Object.entries(agsFile.groups)) {
     if (!group) continue;
     const headings = group.headings.map((h) => h.name);
     const rows = group.rows.map((row) => toCsvRow(headings, row));
-    downloadCsv([headings.join(','), ...rows].join('\n'), `${date}-${base}-${groupName}.csv`);
+    downloadBlob([headings.join(','), ...rows].join('\n'), `${date}-${base}-${groupName}.csv`, 'text/csv');
   }
 }
 
@@ -83,14 +67,14 @@ function HoleDetailView({
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>{groups.length} group{groups.length !== 1 ? 's' : ''}</span>
         <button
           onClick={() => {
-            const date = new Date().toISOString().slice(0, 10);
-            const base = fileName?.replace(/\.[^.]+$/, '') ?? 'file';
+            const date = exportDatePrefix();
+            const base = exportBaseName(fileName);
             for (const [name, g] of groups) {
               if (!g) continue;
               const rows = g.rows.filter((r) => String(r['LOCA_ID'] ?? '') === locaId);
               const headings = g.headings.map((h) => h.name);
               const csvRows = rows.map((r) => toCsvRow(headings, r));
-              downloadCsv([headings.join(','), ...csvRows].join('\n'), `${date}-${base}-${locaId}-${name}.csv`);
+              downloadBlob([headings.join(','), ...csvRows].join('\n'), `${date}-${base}-${locaId}-${name}.csv`, 'text/csv');
             }
           }}
           style={{ marginLeft: 'auto', background: 'var(--navy)', color: '#fff', fontSize: 12, padding: '7px 14px' }}
@@ -116,11 +100,11 @@ function HoleDetailView({
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>{rows.length} row{rows.length !== 1 ? 's' : ''}</span>
                 <button
                   onClick={() => {
-                    const date = new Date().toISOString().slice(0, 10);
-                    const base = fileName?.replace(/\.[^.]+$/, '') ?? 'file';
+                    const date = exportDatePrefix();
+                    const base = exportBaseName(fileName);
                     const headings = group.headings.map((h) => h.name);
                     const csvRows = rows.map((r) => toCsvRow(headings, r));
-                    downloadCsv([headings.join(','), ...csvRows].join('\n'), `${date}-${base}-${locaId}-${groupName}.csv`);
+                    downloadBlob([headings.join(','), ...csvRows].join('\n'), `${date}-${base}-${locaId}-${groupName}.csv`, 'text/csv');
                   }}
                   style={{ marginLeft: 'auto', background: '#e2e8f0', color: 'var(--text)', fontSize: 11, padding: '4px 10px' }}
                 >
@@ -370,12 +354,30 @@ export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
             );
           })}
         </div>
-        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', background: '#f8fafc' }}>
+        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button
             onClick={() => exportAllCsv(agsFile, fileName)}
-            style={{ width: '100%', background: 'var(--navy)', color: '#fff', fontSize: 12, padding: '7px 10px' }}
+            style={{ width: '100%', background: '#0f766e', color: '#fff', fontSize: 12, padding: '7px 10px' }}
           >
-            Export All CSV
+            All CSV
+          </button>
+          <button
+            onClick={() => exportExcel(agsFile, fileName)}
+            style={{ width: '100%', background: '#15803d', color: '#fff', fontSize: 12, padding: '7px 10px' }}
+          >
+            Excel (.xlsx)
+          </button>
+          <button
+            onClick={() => exportGeopackage(agsFile, fileName)}
+            style={{ width: '100%', background: '#b45309', color: '#fff', fontSize: 12, padding: '7px 10px' }}
+          >
+            GeoPackage (.gpkg)
+          </button>
+          <button
+            onClick={() => exportAsDuckDb(agsFile, fileName)}
+            style={{ width: '100%', background: '#7c3aed', color: '#fff', fontSize: 12, padding: '7px 10px' }}
+          >
+            DuckDB (.duckdb)
           </button>
         </div>
       </div>
