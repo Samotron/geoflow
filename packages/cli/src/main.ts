@@ -5,6 +5,7 @@ import {
   Format,
   Registry,
   Severity,
+  assessQuality,
   decodeBytes,
   diffFiles,
   diffToSummary,
@@ -15,6 +16,8 @@ import {
   renderDiffText,
   renderExplorerFromBytes,
   renderInfo,
+  renderQualityJson,
+  renderQualityText,
   render,
   serialize,
   summarizeInfoBytes,
@@ -66,6 +69,8 @@ export function runCli(argv: readonly string[]): RunResult {
       return runRules(argv.slice(1));
     case "explore":
       return runExplore(argv.slice(1));
+    case "quality":
+      return runQualityCmd(argv.slice(1));
     case "db":
       return runDb(argv.slice(1));
     case "--help":
@@ -466,6 +471,59 @@ function runExplore(argv: readonly string[]): RunResult {
   }
 }
 
+function runQualityCmd(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("quality requires a file path");
+  }
+
+  const file = argv[0]!;
+  let format: "text" | "json" = "text";
+  let failOn: Severity | null = null;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--format") {
+      const value = argv[++i];
+      if (!value) return usageError("--format requires a value");
+      if (value !== "text" && value !== "json") return usageError(`unsupported format: ${value}`);
+      format = value;
+      continue;
+    }
+    if (arg === "--fail-on") {
+      const value = argv[++i];
+      if (!value) return usageError("--fail-on requires a value");
+      const parsed = parseSeverity(value);
+      if (parsed === null) return usageError(`unsupported fail-on severity: ${value}`);
+      failOn = parsed;
+      continue;
+    }
+    return usageError(`unknown quality option: ${arg}`);
+  }
+
+  try {
+    const resolved = resolve(file);
+    const bytes = readFileSync(resolved);
+    const text = decodeBytes(bytes);
+    const { file: agsFile } = parseStr(text);
+    const report = assessQuality(agsFile);
+
+    const stdout = format === "json" ? renderQualityJson(report) : renderQualityText(report, resolved);
+
+    let exitCode = 0;
+    if (failOn !== null) {
+      const threshold = severityRank(failOn);
+      if (report.all_diagnostics.some((d) => severityRank(d.severity) >= threshold)) {
+        exitCode = 1;
+      }
+    }
+
+    return { exitCode, stdout, stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
 function runDb(argv: readonly string[]): RunResult {
   const subcommand = argv[0];
   if (!subcommand || subcommand === "help") {
@@ -609,6 +667,7 @@ function usageText(): string {
     "  geoflow validate <file> [--format text|json|junit] [--fail-on error|warning|info] [--rules <pack.yml>]",
     "  geoflow convert <in> <out> [--to ags|diggs]",
     "  geoflow diff <file-a> <file-b> [--format text|json]",
+    "  geoflow quality <file> [--format text|json] [--fail-on error|warning|info]",
     "  geoflow explore <file> [--out <path>]",
     "  geoflow rules list",
     "  geoflow rules show <id>",
