@@ -294,3 +294,55 @@ export function buildGeo3DModel(file: AgsFile): Geo3DModel | null {
     centroid: { x: cx, y: cy },
   };
 }
+
+// ── Borehole strip log SVG ────────────────────────────────────────────────────
+
+/** Generate a compact SVG strip log for a single Borehole3D (for side-panel display). */
+export function renderBoreholeStripSvg(bh: Borehole3D): string {
+  const PX_PER_M = 14;
+  const maxDepth = Math.max(10, ...bh.layers.map(l => l.baseDepth)) + 1;
+  const bodyH = Math.ceil(maxDepth) * PX_PER_M;
+  const totalH = bodyH + 36;
+  const W = 300;
+
+  const lines: string[] = [];
+  lines.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${totalH}" font-family="system-ui,sans-serif">`);
+
+  // Header
+  lines.push(`<rect x="0" y="0" width="${W}" height="30" fill="#1e3a5f"/>`);
+  lines.push(`<text x="12" y="20" font-size="12" font-weight="700" fill="#fff">${bh.id}</text>`);
+  lines.push(`<text x="${W - 8}" y="20" font-size="10" fill="#94a3b8" text-anchor="end">GL: ${bh.elev.toFixed(1)} m OD</text>`);
+
+  // Column headers
+  lines.push(`<rect x="0" y="30" width="${W}" height="${totalH - 30}" fill="#f8fafc"/>`);
+  lines.push(`<text x="26" y="44" font-size="8" fill="#64748b" text-anchor="middle">m</text>`);
+  lines.push(`<text x="88" y="44" font-size="8" fill="#64748b" text-anchor="middle">Lithology</text>`);
+  lines.push(`<text x="200" y="44" font-size="8" fill="#64748b" text-anchor="middle">Description</text>`);
+
+  const Y0 = 48;
+
+  // Depth ticks
+  for (let d = 0; d <= Math.ceil(maxDepth); d += 5) {
+    const y = Y0 + d * PX_PER_M;
+    lines.push(`<line x1="10" y1="${y}" x2="44" y2="${y}" stroke="#94a3b8" stroke-width="0.6"/>`);
+    lines.push(`<text x="26" y="${y + 3}" font-size="8" fill="#64748b" text-anchor="middle">${d}</text>`);
+  }
+
+  // Geological layers
+  for (const layer of bh.layers) {
+    const y1 = Y0 + layer.topDepth  * PX_PER_M;
+    const h  = Math.max(2, (layer.baseDepth - layer.topDepth) * PX_PER_M);
+    lines.push(`<rect x="50" y="${y1.toFixed(1)}" width="70" height="${h.toFixed(1)}" fill="${layer.color}" stroke="#475569" stroke-width="0.5"/>`);
+    if (h > 8) {
+      const midY = y1 + h / 2 + 3;
+      const label = layer.desc.length > 22 ? layer.desc.slice(0, 20) + '…' : layer.desc;
+      lines.push(`<text x="128" y="${midY.toFixed(1)}" font-size="7.5" fill="#0f172a">${label}</text>`);
+    }
+  }
+
+  // Borehole outline
+  lines.push(`<line x1="85" y1="${Y0}" x2="85" y2="${(Y0 + maxDepth * PX_PER_M).toFixed(1)}" stroke="#334155" stroke-width="1.5"/>`);
+
+  lines.push('</svg>');
+  return lines.join('\n');
+}
