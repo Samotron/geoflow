@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { decodeBytes, parseStr, writeDiggs, readDiggs, serialize } from '../core.js';
 import { exportExcel } from '../export/excel.js';
 import { exportGeopackage } from '../export/geopackage.js';
+import { exportAsDuckDb } from '../query/duckdb.js';
 import { downloadBlob, exportBaseName, exportDatePrefix, toCsvRow } from '../export/utils.js';
 import type { AgsFile } from '../core.js';
 
@@ -182,6 +183,10 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
     await exportGeopackage(getAgsFile(), fileName, (msg) => setProgress(msg));
   });
 
+  const handleDuckDb = () => withStatus(async () => {
+    await exportAsDuckDb(getAgsFile(), fileName, (msg) => setProgress(msg));
+  });
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (!hasFile) {
@@ -254,6 +259,14 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
               onClick={handleGeopackage}
               disabled={running}
             />
+            <ExportButton
+              label="DuckDB"
+              ext=".duckdb"
+              description="Queryable analytics file"
+              color="#7c3aed"
+              onClick={handleDuckDb}
+              disabled={running}
+            />
           </div>
 
           {/* Format notes */}
@@ -267,6 +280,7 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
               { label: 'CSV', detail: 'Heading + unit rows, one file per group. Named YYYY-MM-DD-{file}-{GROUP}.csv.' },
               { label: 'Excel', detail: 'Multi-sheet workbook. Header bold, units row, frozen panes, auto column widths.' },
               { label: 'GeoPackage', detail: 'LOCA as spatial point layer (WGS 84). All groups as attribute tables. LOCA↔group relationships via Related Tables Extension. QGIS point style included.' },
+              { label: 'DuckDB', detail: 'Native DuckDB database file. Open directly in DuckDB CLI, DuckDB Desktop, or any DuckDB client. All groups as tables with full SQL support.' },
             ].map(({ label, detail }) => (
               <div key={label} style={{
                 background: '#f8fafc',

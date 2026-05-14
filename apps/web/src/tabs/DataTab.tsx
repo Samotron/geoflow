@@ -3,6 +3,7 @@ import { decodeBytes, parseStr } from '../core.js';
 import type { AgsFile, AgsGroup, AgsRow } from '../core.js';
 import { exportExcel } from '../export/excel.js';
 import { exportGeopackage } from '../export/geopackage.js';
+import { exportAsDuckDb } from '../query/duckdb.js';
 import { downloadBlob, exportBaseName, exportDatePrefix, toCsvRow } from '../export/utils.js';
 
 interface Props {
@@ -371,6 +372,12 @@ export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
             style={{ width: '100%', background: '#b45309', color: '#fff', fontSize: 12, padding: '7px 10px' }}
           >
             GeoPackage (.gpkg)
+          </button>
+          <button
+            onClick={() => exportAsDuckDb(agsFile, fileName)}
+            style={{ width: '100%', background: '#7c3aed', color: '#fff', fontSize: 12, padding: '7px 10px' }}
+          >
+            DuckDB (.duckdb)
           </button>
         </div>
       </div>

@@ -8,6 +8,7 @@
 
 import * as duckdb from '@duckdb/duckdb-wasm';
 import type { AgsFile } from '../core.js';
+import { downloadBlob, exportBaseName, exportDatePrefix } from '../export/utils.js';
 
 export interface DbHandle {
   db: duckdb.AsyncDuckDB;
@@ -29,6 +30,9 @@ export interface QueryResult {
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
 
+// Named path so the database is backed by a VFS file — required for export.
+const DB_PATH = 'geoflow.duckdb';
+
 let handle: DbHandle | null = null;
 
 async function getHandle(): Promise<DbHandle> {
@@ -46,6 +50,9 @@ async function getHandle(): Promise<DbHandle> {
   const db = new duckdb.AsyncDuckDB(logger, worker);
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
   URL.revokeObjectURL(workerUrl);
+
+  // Open with a named path so the database can be copied out later.
+  await db.open({ path: DB_PATH, accessMode: duckdb.DuckDBAccessMode.READ_WRITE });
 
   const conn = await db.connect();
   handle = { db, conn };
@@ -135,4 +142,28 @@ export async function runQuery(sql: string): Promise<QueryResult> {
   }
 
   return { columns, rows, rowCount: rows.length, durationMs };
+}
+
+// ── DuckDB file export ────────────────────────────────────────────────────────
+
+export async function exportAsDuckDb(
+  agsFile: AgsFile,
+  fileName: string | undefined,
+  onProgress?: (msg: string) => void,
+): Promise<void> {
+  // Ensure tables are registered (idempotent if already loaded).
+  await registerAgsFile(agsFile, onProgress);
+
+  const { db, conn } = await getHandle();
+
+  // Flush WAL so all committed data lands in the main database file.
+  onProgress?.('Checkpointing…');
+  await conn.query('CHECKPOINT');
+
+  onProgress?.('Reading database bytes…');
+  const bytes = await db.copyFileToBuffer(DB_PATH);
+
+  const date = exportDatePrefix();
+  const base = exportBaseName(fileName);
+  downloadBlob(bytes, `${date}-${base}.duckdb`, 'application/octet-stream');
 }
