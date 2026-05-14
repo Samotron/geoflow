@@ -6,6 +6,7 @@ import {
   Registry,
   assessQuality,
   serialize,
+  fixBytes,
   AgsTypeFunctions,
 } from '../core.js';
 import type {
@@ -227,6 +228,11 @@ function IssuesSidebar({ diagnostics, focusedKey, onSelect }: IssuesSidebarProps
                 {group && (
                   <span style={{ fontSize: 9, color: 'var(--muted)', background: '#f1f5f9', padding: '1px 5px', borderRadius: 99, fontFamily: 'ui-monospace, monospace' }}>
                     {group}{rowIdx !== null ? ` ·${rowIdx}` : ''}
+                  </span>
+                )}
+                {d.fix_id._tag === 'Some' && (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--green)', background: '#f0fdf4', padding: '1px 5px', borderRadius: 99, border: '1px solid #bbf7d0' }}>
+                    ⚡ auto-fixable
                   </span>
                 )}
               </div>
@@ -472,6 +478,41 @@ const thStyle: React.CSSProperties = {
   verticalAlign: 'bottom',
 };
 
+// ── Auto-fix helpers ──────────────────────────────────────────────────────────
+
+interface FixNotice {
+  applied: string[];
+  editCount: number;
+}
+
+// Diffs two AgsFiles cell-by-cell and returns EditEntry records for each change.
+function diffAgsFilesForHistory(before: AgsFile, after: AgsFile): EditEntry[] {
+  const edits: EditEntry[] = [];
+  const now = new Date().toISOString();
+  for (const [groupName, afterGroup] of Object.entries(after.groups)) {
+    const beforeGroup = before.groups[groupName];
+    if (!beforeGroup) {
+      // Group added by a fixer (e.g. populate-tran-group)
+      edits.push({ id: crypto.randomUUID(), timestamp: now, group: groupName, heading: '[group created]', rowIndex: -1, oldValue: null, newValue: `${afterGroup.rows.length} row(s)` });
+      continue;
+    }
+    const rowCount = Math.min(beforeGroup.rows.length, afterGroup.rows.length);
+    for (let i = 0; i < rowCount; i++) {
+      const br = beforeGroup.rows[i] as Record<string, AgsValue>;
+      const ar = afterGroup.rows[i] as Record<string, AgsValue>;
+      if (!br || !ar) continue;
+      for (const h of afterGroup.headings) {
+        const bv: AgsValue = br[h.name] ?? null;
+        const av: AgsValue = ar[h.name] ?? null;
+        if (displayVal(bv) !== displayVal(av)) {
+          edits.push({ id: crypto.randomUUID(), timestamp: now, group: groupName, heading: h.name, rowIndex: i, oldValue: bv, newValue: av });
+        }
+      }
+    }
+  }
+  return edits;
+}
+
 // ── Main EditTab ───────────────────────────────────────────────────────────────
 
 export function EditTab({ fileBytes, fileName }: Props) {
@@ -481,6 +522,7 @@ export function EditTab({ fileBytes, fileName }: Props) {
   const [activeGroup, setActiveGroup] = useState<string>('');
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [focusedRowKey, setFocusedRowKey] = useState<string | null>(null);
+  const [fixNotice, setFixNotice] = useState<FixNotice | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
   // Parse on file change
@@ -601,6 +643,31 @@ export function EditTab({ fileBytes, fileName }: Props) {
     setAgsFile(newFile);
     setEditHistory((prev) => prev.slice(0, -1));
   }, [agsFile, editHistory]);
+
+  // Auto-dismiss fix notice after 5 s
+  useEffect(() => {
+    if (!fixNotice) return;
+    const t = setTimeout(() => setFixNotice(null), 5000);
+    return () => clearTimeout(t);
+  }, [fixNotice]);
+
+  // Apply all standard fixers to the current agsFile state
+  const applyAutoFixes = useCallback(() => {
+    if (!agsFile) return;
+    setEditingCell(null);
+    const text = serialize(agsFile);
+    const bytes = new TextEncoder().encode(text);
+    const result = fixBytes(bytes);
+    if (result.applied.length === 0) {
+      setFixNotice({ applied: [], editCount: 0 });
+      return;
+    }
+    const { file: fixedFile } = parseStr(result.output);
+    const newEdits = diffAgsFilesForHistory(agsFile, fixedFile);
+    setAgsFile(fixedFile);
+    setEditHistory((prev) => [...prev, ...newEdits]);
+    setFixNotice({ applied: result.applied, editCount: newEdits.length });
+  }, [agsFile]);
 
   // Jump to a row from the issue sidebar
   const handleIssueSelect = useCallback(
@@ -725,8 +792,24 @@ export function EditTab({ fileBytes, fileName }: Props) {
           <span style={{ fontSize: 16, fontWeight: 700, color: editHistory.length > 0 ? 'var(--blue)' : 'var(--muted)' }}>{editHistory.length}</span>
         </div>
 
-        {/* Downloads */}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        {/* Auto-fix + Downloads */}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Fix notice toast */}
+          {fixNotice && (
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 6, border: '1px solid', ...(fixNotice.applied.length === 0 ? { color: 'var(--green)', background: '#f0fdf4', borderColor: '#bbf7d0' } : { color: '#1e40af', background: '#eff6ff', borderColor: '#bfdbfe' }) }}>
+              {fixNotice.applied.length === 0
+                ? '✓ Nothing to auto-fix'
+                : `⚡ ${fixNotice.editCount} cell${fixNotice.editCount !== 1 ? 's' : ''} fixed (${fixNotice.applied.join(', ')})`}
+            </span>
+          )}
+          <button
+            onClick={applyAutoFixes}
+            title="Apply all standard auto-fixes: whitespace, units, Y/N values, date formats, numeric coercion…"
+            style={{ background: '#f0fdf4', color: 'var(--green)', border: '1px solid #bbf7d0', fontSize: 12, padding: '8px 14px', fontWeight: 700 }}
+          >
+            ⚡ Auto-Fix All
+          </button>
+          <div style={{ width: 1, height: 24, background: 'var(--border)' }} />
           <button onClick={downloadAgs} style={{ background: 'var(--navy)', color: '#fff', fontSize: 12, padding: '8px 14px' }}>
             ↓ Download Fixed AGS
           </button>
