@@ -10,21 +10,24 @@
       "rows_added": 3,
       "rows_removed": 0,
       "rows_modified": 0,
-      "rows_unchanged": 2
+      "rows_unchanged": 2,
+      "rows_moved": 0
     },
     {
       "group": "GEOL",
       "rows_added": 0,
       "rows_removed": 0,
       "rows_modified": 1,
-      "rows_unchanged": 1
+      "rows_unchanged": 1,
+      "rows_moved": 0
     },
     {
       "group": "PROJ",
       "rows_added": 0,
       "rows_removed": 0,
       "rows_modified": 1,
-      "rows_unchanged": 0
+      "rows_unchanged": 0,
+      "rows_moved": 0
     }
   ]
 }
