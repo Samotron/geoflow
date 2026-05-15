@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { decodeBytes, parseStr } from '../core.js';
 import type { AgsFile, AgsRow } from '../core.js';
 import {
@@ -309,19 +309,24 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function ReportTab({ fileBytes, fileName }: Props) {
   const reportRef = useRef<HTMLDivElement>(null);
+  const [colorField, setColorField] = useState<ColorField>('GEOL_GEOL');
 
   const agsFile = useMemo<AgsFile | null>(() => {
     if (!fileBytes) return null;
     try { return parseStr(decodeBytes(fileBytes)).file; } catch { return null; }
   }, [fileBytes]);
 
-  // Choose the best available geology colour field: GEOL_GEOL > GEOL_LEG > LOCA_ID
-  const colorField = useMemo<ColorField>(() => {
-    if (!agsFile) return 'LOCA_ID';
+  const geolFields = useMemo(() => agsFile ? getGeolFields(agsFile) : ['LOCA_ID' as ColorField], [agsFile]);
+
+  // When a new file is loaded, default to the best available geology field
+  useEffect(() => {
+    if (!agsFile) return;
     const fields = getGeolFields(agsFile);
-    return fields.includes('GEOL_GEOL') ? 'GEOL_GEOL'
-      : fields.includes('GEOL_LEG')     ? 'GEOL_LEG'
-      : 'LOCA_ID';
+    setColorField(
+      fields.includes('GEOL_GEOL') ? 'GEOL_GEOL'
+        : fields.includes('GEOL_LEG') ? 'GEOL_LEG'
+        : 'LOCA_ID'
+    );
   }, [agsFile]);
 
   const EMPTY_BH = useMemo(() => new Set<string>(), []);
@@ -390,10 +395,6 @@ export function ReportTab({ fileBytes, fileName }: Props) {
   const baseName = (fileName ?? 'report').replace(/\.[^.]+$/, '');
   const today = new Date().toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  const colorLabel = colorField === 'GEOL_GEOL' ? 'geology code (GEOL_GEOL)'
-    : colorField === 'GEOL_LEG' ? 'legend code (GEOL_LEG)'
-    : 'borehole (LOCA_ID)';
-
   if (!fileBytes) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--muted)' }}>
@@ -414,11 +415,23 @@ export function ReportTab({ fileBytes, fileName }: Props) {
       <style>{PRINT_CSS}</style>
 
       {/* ── Actions bar ── */}
-      <div className="report-actions" style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: 'var(--muted)', marginRight: 'auto' }}>
+      <div className="report-actions" style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: 'var(--muted)' }}>
           Factual Ground Investigation Report &mdash; {baseName}
-          {' '}<span style={{ fontSize: 11, background: '#e2e8f0', borderRadius: 4, padding: '2px 6px' }}>coloured by {colorLabel}</span>
         </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>Colour plots by</label>
+          <select
+            value={colorField}
+            onChange={e => setColorField(e.target.value as ColorField)}
+            style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff', fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}
+          >
+            <option value="LOCA_ID">Borehole (LOCA_ID)</option>
+            {geolFields.includes('GEOL_GEOL') && <option value="GEOL_GEOL">Geology code (GEOL_GEOL)</option>}
+            {geolFields.includes('GEOL_DESC') && <option value="GEOL_DESC">Description (GEOL_DESC)</option>}
+            {geolFields.includes('GEOL_LEG')  && <option value="GEOL_LEG">Legend (GEOL_LEG)</option>}
+          </select>
+        </div>
         <button onClick={() => window.print()} style={{ background: 'var(--navy)', color: '#fff', padding: '8px 16px' }}>
           Print / Save PDF
         </button>
@@ -630,7 +643,7 @@ export function ReportTab({ fileBytes, fileName }: Props) {
           <div style={S.section} className="report-section">
             <h2 style={S.h2}>5. Engineering Plots</h2>
             <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
-              Coloured by {colorLabel}. Geology colours follow BS 5930.
+              Coloured by {colorField === 'LOCA_ID' ? 'borehole (LOCA_ID)' : colorField}. Geology colours follow BS 5930.
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: 18 }}>
