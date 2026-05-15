@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { Option } from 'effect';
 import { decodeBytes, parseStr } from '../core.js';
 import type { AgsFile, AgsRow } from '../core.js';
 import {
@@ -16,7 +17,7 @@ import {
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
-interface Props { fileBytes: Uint8Array | null; fileName?: string; }
+interface Props { fileBytes: Uint8Array | null; fileName?: string | undefined; }
 
 // ── Statistics ────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ function extractProjectInfo(file: AgsFile): ProjectInfo {
     projClnt:   str(p, 'PROJ_CLNT'),
     projCont:   str(p, 'PROJ_CONT'),
     projEng:    str(p, 'PROJ_ENG'),
-    agsVersion: str(t, 'TRAN_AGS') || str(t, 'TRAN_RELE') || file.ags_version || '',
+    agsVersion: str(t, 'TRAN_AGS') || str(t, 'TRAN_RELE') || Option.getOrElse(file.ags_version, () => ''),
     tranDate:   str(t, 'TRAN_DATE'),
     tranIssu:   str(t, 'TRAN_ISSU'),
   };
