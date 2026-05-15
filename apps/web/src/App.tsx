@@ -262,7 +262,7 @@ export default function App() {
         <span style={{ fontSize: 12, opacity: 0.55, marginLeft: 'auto' }}>AGS Validator &amp; Converter</span>
       </header>
 
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px 60px' }}>
+      <main style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 24px 60px' }}>
         {/* Drop zone */}
         <DropZone onFile={onFile} fileName={fileName} fileSize={fileBytes?.length} />
 

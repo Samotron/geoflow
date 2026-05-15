@@ -267,14 +267,7 @@ export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [holeView, setHoleView] = useState<string | null>(null);
-
-  useEffect(() => {
-    const id = pendingHoleRef?.current ?? null;
-    if (id) {
-      pendingHoleRef!.current = null;
-      setHoleView(id);
-    }
-  }, []);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!fileBytes) {
@@ -288,8 +281,15 @@ export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
       const parsed = parseStr(text);
       setAgsFile(parsed.file);
       setSelectedGroup(Object.keys(parsed.file.groups)[0] ?? null);
-      setHoleView(null);
       setError(null);
+      // Check for pending borehole navigation (e.g. from Map tab "View Data" click)
+      const pendingId = pendingHoleRef?.current ?? null;
+      if (pendingId) {
+        pendingHoleRef!.current = null;
+        setHoleView(pendingId);
+      } else {
+        setHoleView(null);
+      }
     } catch (e) {
       setError(String(e));
       setAgsFile(null);
@@ -362,23 +362,29 @@ export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
             All CSV
           </button>
           <button
-            onClick={() => exportExcel(agsFile, fileName)}
+            onClick={() => { void exportExcel(agsFile, fileName).catch(e => setExportError(`Excel export failed: ${String(e)}`)); }}
             style={{ width: '100%', background: '#15803d', color: '#fff', fontSize: 12, padding: '7px 10px' }}
           >
             Excel (.xlsx)
           </button>
           <button
-            onClick={() => exportGeopackage(agsFile, fileName)}
+            onClick={() => { void exportGeopackage(agsFile, fileName).catch(e => setExportError(`GeoPackage export failed: ${String(e)}`)); }}
             style={{ width: '100%', background: '#b45309', color: '#fff', fontSize: 12, padding: '7px 10px' }}
           >
             GeoPackage (.gpkg)
           </button>
           <button
-            onClick={() => exportAsDuckDb(agsFile, fileName)}
+            onClick={() => { void exportAsDuckDb(agsFile, fileName).catch(e => setExportError(`DuckDB export failed: ${String(e)}`)); }}
             style={{ width: '100%', background: '#7c3aed', color: '#fff', fontSize: 12, padding: '7px 10px' }}
           >
             DuckDB (.duckdb)
           </button>
+          {exportError && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, padding: '6px 10px', fontSize: 11, color: 'var(--red)', marginTop: 4 }}>
+              {exportError}
+              <button onClick={() => setExportError(null)} style={{ float: 'right', background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', padding: 0, fontSize: 13 }}>×</button>
+            </div>
+          )}
         </div>
       </div>
 

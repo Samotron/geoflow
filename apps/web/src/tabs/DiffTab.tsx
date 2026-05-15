@@ -206,10 +206,21 @@ interface GroupDiffCardProps {
   groupDetail: GroupDiff | undefined;
 }
 
+type GroupView = 'list' | 'table';
+
 function GroupDiffCard({ group, added, removed, modified, unchanged, groupDetail }: GroupDiffCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [groupView, setGroupView] = useState<GroupView>('list');
 
   const totalChanged = added + removed + modified;
+
+  const pillStyle = (active: boolean): React.CSSProperties => ({
+    padding: '2px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4,
+    border: '1px solid var(--border)',
+    background: active ? 'var(--navy)' : '#f1f5f9',
+    color: active ? '#fff' : 'var(--muted)',
+    cursor: 'pointer',
+  });
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
@@ -224,10 +235,22 @@ function GroupDiffCard({ group, added, removed, modified, unchanged, groupDetail
           {modified > 0 && <span style={{ color: 'var(--amber)', fontWeight: 600 }}>~{modified}</span>}
           {unchanged > 0 && <span style={{ color: 'var(--muted)' }}>{unchanged} unchanged</span>}
         </div>
-        <span style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: 12 }}>{expanded ? '▲' : '▼'}</span>
+        {expanded && (
+          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
+            <button
+              style={{ ...pillStyle(groupView === 'list'), padding: '2px 8px', fontSize: 10 }}
+              onClick={() => setGroupView('list')}
+            >List</button>
+            <button
+              style={{ ...pillStyle(groupView === 'table'), padding: '2px 8px', fontSize: 10 }}
+              onClick={() => setGroupView('table')}
+            >Table</button>
+          </div>
+        )}
+        <span style={{ marginLeft: expanded ? 0 : 'auto', color: 'var(--muted)', fontSize: 12 }}>{expanded ? '▲' : '▼'}</span>
       </div>
 
-      {expanded && groupDetail && (
+      {expanded && groupDetail && groupView === 'list' && (
         <div style={{ fontSize: 12, fontFamily: 'monospace' }}>
           {groupDetail.rows_added.map((row, i) => (
             <div key={`add-${i}`} style={{ padding: '6px 16px', background: '#f0fdf4', borderBottom: '1px solid #dcfce7', color: 'var(--green)' }}>
@@ -258,6 +281,79 @@ function GroupDiffCard({ group, added, removed, modified, unchanged, groupDetail
           ))}
           {totalChanged === 0 && (
             <div style={{ padding: '12px 16px', color: 'var(--muted)', textAlign: 'center' }}>No row-level changes</div>
+          )}
+        </div>
+      )}
+
+      {expanded && groupDetail && groupView === 'table' && (
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {groupDetail.rows_changed.map((change, i) => (
+            <div key={`tbl-chg-${i}`} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ padding: '5px 12px', background: '#fffbeb', fontSize: 11, fontWeight: 700, color: 'var(--amber)', borderBottom: '1px solid var(--border)' }}>
+                ~ {change.key}
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '5px 12px', textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600 }}>Field</th>
+                    <th style={{ padding: '5px 12px', textAlign: 'left', background: '#fef2f2', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600, color: 'var(--red)' }}>File A</th>
+                    <th style={{ padding: '5px 12px', textAlign: 'left', background: '#f0fdf4', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600, color: 'var(--green)' }}>File B</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {change.changes.map((fc, j) => (
+                    <tr key={j}>
+                      <td style={{ padding: '4px 12px', borderBottom: '1px solid #f1f5f9', color: 'var(--muted)' }}>{fc.heading}</td>
+                      <td style={{ padding: '4px 12px', borderBottom: '1px solid #f1f5f9', background: '#fef9f9', color: 'var(--red)' }}>{fc.before}</td>
+                      <td style={{ padding: '4px 12px', borderBottom: '1px solid #f1f5f9', background: '#f7fef9', color: 'var(--green)' }}>{fc.after}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          {groupDetail.rows_added.map((row, i) => (
+            <div key={`tbl-add-${i}`} style={{ border: '1px solid #bbf7d0', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ padding: '5px 12px', background: '#f0fdf4', fontSize: 11, fontWeight: 700, color: 'var(--green)', borderBottom: '1px solid #bbf7d0' }}>
+                + Added row
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '4px 12px', textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #dcfce7', width: '40%' }}>Field</th>
+                    <th style={{ padding: '4px 12px', textAlign: 'left', background: '#f0fdf4', borderBottom: '1px solid #dcfce7', color: 'var(--green)' }}>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(row).map(([k, v], j) => (
+                    <tr key={j}><td style={{ padding: '3px 12px', borderBottom: '1px solid #f0fdf4', color: 'var(--muted)' }}>{k}</td><td style={{ padding: '3px 12px', borderBottom: '1px solid #f0fdf4', color: 'var(--green)' }}>{String(v ?? '')}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          {groupDetail.rows_removed.map((row, i) => (
+            <div key={`tbl-rem-${i}`} style={{ border: '1px solid #fecaca', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ padding: '5px 12px', background: '#fef2f2', fontSize: 11, fontWeight: 700, color: 'var(--red)', borderBottom: '1px solid #fecaca' }}>
+                − Removed row
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '4px 12px', textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #fecaca', width: '40%' }}>Field</th>
+                    <th style={{ padding: '4px 12px', textAlign: 'left', background: '#fef2f2', borderBottom: '1px solid #fecaca', color: 'var(--red)' }}>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(row).map(([k, v], j) => (
+                    <tr key={j}><td style={{ padding: '3px 12px', borderBottom: '1px solid #fef2f2', color: 'var(--muted)' }}>{k}</td><td style={{ padding: '3px 12px', borderBottom: '1px solid #fef2f2', color: 'var(--red)' }}>{String(v ?? '')}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          {totalChanged === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12, padding: 12 }}>No row-level changes</div>
           )}
         </div>
       )}
