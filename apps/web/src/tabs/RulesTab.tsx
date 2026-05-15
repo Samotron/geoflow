@@ -54,9 +54,24 @@ type EvalStatus =
   | { kind: 'error'; message: string }
   | { kind: 'done'; diagnostics: PackDiagnostic[] };
 
+const COMMON_GROUPS = ['LOCA', 'GEOL', 'SAMP', 'CHEM', 'GRAT', 'ISPT', 'IVAN', 'MOND', 'HOLE', 'PROJ'];
+
+interface RuleForm {
+  id: string;
+  description: string;
+  severity: 'error' | 'warning' | 'info';
+  group: string;
+  expr: string;
+  message: string;
+}
+
+const BLANK_FORM: RuleForm = { id: '', description: '', severity: 'error', group: 'LOCA', expr: '', message: '' };
+
 export function RulesTab({ fileBytes }: Props) {
   const [yaml, setYaml] = useState(STARTER_YAML);
   const [status, setStatus] = useState<EvalStatus>({ kind: 'idle' });
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [form, setForm] = useState<RuleForm>(BLANK_FORM);
 
   const run = async () => {
     if (!fileBytes) return;
@@ -98,10 +113,142 @@ export function RulesTab({ fileBytes }: Props) {
     }
   };
 
+  const addRule = () => {
+    const id = form.id.trim() || 'RULE-001';
+    const snippet = [
+      `  - id: ${id}`,
+      `    description: "${form.description.replace(/"/g, '\\"')}"`,
+      `    severity: ${form.severity}`,
+      `    when: "group == '${form.group}'"`,
+      `    expr: "${form.expr.replace(/"/g, '\\"')}"`,
+      `    message: "${form.message.replace(/"/g, '\\"')}"`,
+    ].join('\n');
+    setYaml(prev => {
+      const rulesIdx = prev.indexOf('\nrules:');
+      if (rulesIdx !== -1) return prev + '\n' + snippet;
+      return prev + '\n\nrules:\n' + snippet;
+    });
+    setForm(BLANK_FORM);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    padding: '5px 8px', fontSize: 12, border: '1px solid var(--border)',
+    borderRadius: 4, background: '#fff', color: 'var(--text)', width: '100%',
+    fontFamily: 'inherit',
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
-        Write CEL-based validation rules in YAML and run them against the loaded file.
+        Write JEXL-based validation rules in YAML and run them against the loaded file.
+      </div>
+
+      {/* Rule builder */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: 12, overflow: 'hidden' }}>
+        <button
+          onClick={() => setBuilderOpen(o => !o)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '9px 14px', background: '#f8fafc', border: 'none', cursor: 'pointer',
+            fontSize: 12, fontWeight: 700, color: 'var(--text)', textAlign: 'left',
+          }}
+        >
+          <span style={{ fontSize: 10, opacity: 0.6 }}>{builderOpen ? '▾' : '▸'}</span>
+          Rule Builder
+          <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--muted)', marginLeft: 4 }}>
+            — fill in fields to append a new rule to the YAML
+          </span>
+        </button>
+        {builderOpen && (
+          <div style={{ padding: 14, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>Rule ID *</label>
+                <input
+                  value={form.id}
+                  onChange={e => setForm(f => ({ ...f, id: e.target.value }))}
+                  placeholder="e.g. LOCA-001"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>Severity</label>
+                <select
+                  value={form.severity}
+                  onChange={e => setForm(f => ({ ...f, severity: e.target.value as RuleForm['severity'] }))}
+                  style={inputStyle}
+                >
+                  <option value="error">error</option>
+                  <option value="warning">warning</option>
+                  <option value="info">info</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>Description</label>
+              <input
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Human-readable description"
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>Group (when)</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <select
+                    value={COMMON_GROUPS.includes(form.group) ? form.group : '__custom__'}
+                    onChange={e => { if (e.target.value !== '__custom__') setForm(f => ({ ...f, group: e.target.value })); }}
+                    style={{ ...inputStyle, width: 'auto', flex: 1 }}
+                  >
+                    {COMMON_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                    {!COMMON_GROUPS.includes(form.group) && <option value="__custom__">{form.group}</option>}
+                  </select>
+                  <input
+                    value={form.group}
+                    onChange={e => setForm(f => ({ ...f, group: e.target.value }))}
+                    placeholder="Custom"
+                    style={{ ...inputStyle, width: 80 }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>Expression (expr)</label>
+                <input
+                  value={form.expr}
+                  onChange={e => setForm(f => ({ ...f, expr: e.target.value }))}
+                  placeholder="e.g. row.LOCA_ID != null"
+                  style={{ ...inputStyle, fontFamily: 'monospace' }}
+                />
+              </div>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 3 }}>Message template</label>
+              <input
+                value={form.message}
+                onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
+                placeholder="e.g. Location {row.LOCA_ID} is missing data"
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={addRule}
+                disabled={!form.expr.trim()}
+                style={{ background: 'var(--navy)', color: '#fff', fontSize: 12, padding: '6px 14px', opacity: !form.expr.trim() ? 0.4 : 1 }}
+              >
+                + Append Rule to YAML
+              </button>
+              <button
+                onClick={() => setForm(BLANK_FORM)}
+                style={{ background: '#f1f5f9', color: 'var(--text)', fontSize: 12, padding: '6px 14px', border: '1px solid var(--border)' }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <textarea

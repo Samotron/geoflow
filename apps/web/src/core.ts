@@ -23,6 +23,8 @@ export {
   AgsTypeFunctions,
   Format,
   Severity,
+  buildGeo3DModel,
+  renderBoreholeStripSvg,
 } from '@geoflow/core';
 
 export type {
@@ -42,4 +44,8 @@ export type {
   Diagnostic,
   QualityReport,
   QualityDimension,
+  Geo3DModel,
+  Borehole3D,
+  GeoUnit,
+  GeoLayer,
 } from '@geoflow/core';

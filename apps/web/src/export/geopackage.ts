@@ -33,7 +33,7 @@ async function loadSql(): Promise<SqlJsStatic> {
   }) => Promise<SqlJsStatic>;
   return initSqlJs({
     locateFile: (f: string) =>
-      `https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/${f}`,
+      `https://cdn.jsdelivr.net/npm/sql.js@1.14.1/dist/${f}`,
   });
 }
 

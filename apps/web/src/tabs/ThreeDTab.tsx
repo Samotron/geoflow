@@ -447,11 +447,14 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
   useEffect(() => {
     const el = mountRef.current;
     if (!el) return;
-    const w = el.clientWidth || 600; const h = el.clientHeight || 540;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(w, h);
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch {
+      return;
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     el.appendChild(renderer.domElement);
     rendRef.current = renderer;
@@ -464,6 +467,10 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
     const dir = new THREE.DirectionalLight(0xffffff, 0.95);
     dir.position.set(100, 200, 80);
     scene.add(dir);
+
+    const w = Math.max(el.clientWidth, 300);
+    const h = Math.max(el.clientHeight, 400);
+    renderer.setSize(w, h);
 
     const cam = new THREE.PerspectiveCamera(45, w / h, 0.1, 100000);
     cam.position.set(0, 200, 400);
@@ -480,14 +487,19 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
     animate();
 
     const onResize = () => {
-      const nw = el.clientWidth; const nh = el.clientHeight || 540;
-      cam.aspect = nw / nh; cam.updateProjectionMatrix(); renderer.setSize(nw, nh);
+      const nw = Math.max(el.clientWidth, 1);
+      const nh = Math.max(el.clientHeight, 1);
+      cam.aspect = nw / nh;
+      cam.updateProjectionMatrix();
+      renderer.setSize(nw, nh);
     };
-    window.addEventListener('resize', onResize);
+
+    const ro = new ResizeObserver(onResize);
+    ro.observe(el);
 
     return () => {
       cancelAnimationFrame(rafRef.current);
-      window.removeEventListener('resize', onResize);
+      ro.disconnect();
       ctrl.dispose(); renderer.dispose();
       if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
     };
@@ -710,24 +722,27 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
-  const cs: CSSProperties = { boxSizing: 'border-box' };
   const noFile = !fileBytes;
-  const noModel = fileBytes && !model;
-
-  if (noFile || noModel) {
-    return (
-      <div style={{ ...cs, textAlign: 'center', padding: '64px 24px', color: noModel ? '#dc2626' : '#64748b',
-        background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8 }}>
-        {noFile ? 'Load an AGS file to enable 3-D view' : 'Could not build 3-D model — check that LOCA contains coordinate data'}
-      </div>
-    );
-  }
+  const noModel = !!(fileBytes && !model);
 
   return (
-    <div style={{ display: 'flex', height: 700, border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#edf2f7' }}>
+    <div style={{ display: 'flex', height: 'max(640px, calc(100vh - 260px))', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#edf2f7' }}>
 
       {/* ── LEFT: 3-D viewport ── */}
       <div style={{ flex: 1, position: 'relative', minWidth: 0 }} onClick={handleCanvasClick}>
+        {/* No-data overlays */}
+        {(noFile || noModel) && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 20, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(237,242,247,0.92)', color: noModel ? '#dc2626' : '#64748b',
+            textAlign: 'center', padding: 24, fontSize: 14, fontWeight: 500,
+          }}>
+            {noFile
+              ? 'Load an AGS file to enable 3-D view'
+              : 'Could not build 3-D model — check that LOCA contains coordinate data'}
+          </div>
+        )}
         {/* Floating toolbar */}
         <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 5 }}>
           <ToolBtn active={activeTool === 'select'}

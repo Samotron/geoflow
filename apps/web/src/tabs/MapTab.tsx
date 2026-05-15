@@ -7,7 +7,7 @@ import {
 import * as L from 'leaflet';
 import proj4 from 'proj4';
 import 'leaflet/dist/leaflet.css';
-import { decodeBytes, parseStr } from '../core.js';
+import { decodeBytes, parseStr, buildGeo3DModel, renderBoreholeStripSvg } from '../core.js';
 import type { AgsFile, AgsValue } from '../core.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -919,6 +919,8 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
   const importedCountRef = useRef(0);
   const [showLayerPanel, setShowLayerPanel] = useState(false);
 
+  const [selectedBhId, setSelectedBhId] = useState<string | null>(null);
+
   const [drawMode, setDrawMode] = useState(false);
   const [sectionLine, setSectionLine] = useState<LatLng[]>([]);
   const [sectionComplete, setSectionComplete] = useState(false);
@@ -935,6 +937,17 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
 
   const points = useMemo(() => (agsFile ? extractPoints(agsFile) : []), [agsFile]);
   const geolColumns = useMemo(() => (agsFile ? getGeolColumns(agsFile) : []), [agsFile]);
+
+  const geo3DModel = useMemo(() => {
+    if (!agsFile) return null;
+    try { return buildGeo3DModel(agsFile); } catch { return null; }
+  }, [agsFile]);
+
+  const stripLogSvg = useMemo(() => {
+    if (!geo3DModel || !selectedBhId) return null;
+    const bh = geo3DModel.boreholes.find((b: { id: string }) => b.id === selectedBhId);
+    return bh ? renderBoreholeStripSvg(bh) : null;
+  }, [geo3DModel, selectedBhId]);
 
   const sectionBoreholes = useMemo(() => {
     if (!agsFile || !sectionComplete || sectionLine.length < 2) return [];
@@ -1083,8 +1096,9 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
         </div>
       )}
 
-      {/* Map */}
-      <div style={{ position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', height: 520 }}>
+      {/* Map + optional strip log panel */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+      <div style={{ flex: 1, position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', height: 520, minWidth: 0 }}>
         <MapContainer
           center={[centerLat, centerLng]}
           zoom={13}
@@ -1119,17 +1133,19 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
           {points.map((pt) => {
             const typeStyle = getLocaTypeStyle(pt.type);
             const radius = getLocaRadius(pt.depth);
+            const isSelected = pt.id === selectedBhId;
             return (
             <CircleMarker
               key={pt.id}
               center={[pt.lat, pt.lng]}
               radius={radius}
               pathOptions={{
-                color: inSection.has(pt.id) ? '#16a34a' : typeStyle.stroke,
-                fillColor: inSection.has(pt.id) ? '#16a34a' : typeStyle.fill,
+                color: isSelected ? '#7c3aed' : inSection.has(pt.id) ? '#16a34a' : typeStyle.stroke,
+                fillColor: isSelected ? '#7c3aed' : inSection.has(pt.id) ? '#16a34a' : typeStyle.fill,
                 fillOpacity: 0.9,
-                weight: inSection.has(pt.id) ? 3 : 2,
+                weight: isSelected ? 3 : inSection.has(pt.id) ? 3 : 2,
               }}
+              eventHandlers={{ click: () => setSelectedBhId(prev => prev === pt.id ? null : pt.id) }}
             >
               <Popup>
                 <div style={{ minWidth: 140 }}>
@@ -1139,14 +1155,24 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
                   {inSection.has(pt.id) && (
                     <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, marginBottom: 4 }}>✓ In cross-section</div>
                   )}
-                  {onLocaClick && (
-                    <button
-                      onClick={() => onLocaClick(pt.id)}
-                      style={{ marginTop: 4, padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#0f2644', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                    >
-                      View Data
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    {geo3DModel && (
+                      <button
+                        onClick={() => setSelectedBhId(prev => prev === pt.id ? null : pt.id)}
+                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                      >
+                        {selectedBhId === pt.id ? 'Hide Log' : 'Strip Log'}
+                      </button>
+                    )}
+                    {onLocaClick && (
+                      <button
+                        onClick={() => onLocaClick(pt.id)}
+                        style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#0f2644', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                      >
+                        View Data
+                      </button>
+                    )}
+                  </div>
                 </div>
               </Popup>
             </CircleMarker>
@@ -1195,6 +1221,38 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
           />
         )}
       </div>
+
+      {/* Strip log side panel */}
+      {selectedBhId && (
+        <div style={{
+          width: 320, height: 520, flexShrink: 0,
+          border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+          background: 'var(--card)', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{
+            padding: '8px 12px', borderBottom: '1px solid var(--border)',
+            background: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', flex: 1 }}>
+              Strip Log: <span style={{ fontFamily: 'monospace', color: '#7c3aed' }}>{selectedBhId}</span>
+            </span>
+            <button
+              onClick={() => setSelectedBhId(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16, padding: '0 2px', lineHeight: 1 }}
+              title="Close"
+            >×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+            {stripLogSvg
+              ? <div dangerouslySetInnerHTML={{ __html: stripLogSvg }} />
+              : <div style={{ textAlign: 'center', padding: 24, color: 'var(--muted)', fontSize: 12 }}>
+                  No lithology data for this location
+                </div>
+            }
+          </div>
+        </div>
+      )}
+      </div>{/* end map+striplog flex row */}
 
       {/* Cross-section panel */}
       {sectionComplete && sectionLine.length >= 2 && (
