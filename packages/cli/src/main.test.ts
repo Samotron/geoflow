@@ -1,11 +1,25 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { maskCosmetic } from "../../../tests/parity/whitelist.js";
 import { PACKAGE_NAME, runCli } from "./main.js";
+
+// Probe whether better-sqlite3 native bindings are usable in this environment.
+const _sqliteAvailable = (() => {
+  try {
+    const req = createRequire(import.meta.url);
+    const Sqlite = req("better-sqlite3");
+    const probe = new Sqlite(":memory:");
+    probe.close();
+    return true;
+  } catch {
+    return false;
+  }
+})();
 
 const AGS_FIXTURE_DIR = resolve(import.meta.dirname, "../../../tests/fixtures/ags");
 const DIGGS_FIXTURE_DIR = resolve(import.meta.dirname, "../../../tests/fixtures/diggs");
@@ -351,5 +365,272 @@ describe("@geoflow/cli", () => {
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  // ── report command ──────────────────────────────────────────────────────────
+
+  describe("report command", () => {
+    const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+
+    it("succeeds with exit code 0 for valid file", () => {
+      const result = runCli(["report", fixture]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+    });
+
+    it("produces text output containing report header", () => {
+      const result = runCli(["report", fixture]);
+      expect(result.stdout).toContain("GI Factual Report");
+    });
+
+    it("includes project name in text output", () => {
+      const result = runCli(["report", fixture]);
+      expect(result.stdout).toContain("Synthetic minimal AGS file");
+    });
+
+    it("includes borehole count in text output", () => {
+      const result = runCli(["report", fixture]);
+      expect(result.stdout).toContain("Exploratory holes:");
+    });
+
+    it("includes LOCA schedule when boreholes present", () => {
+      const result = runCli(["report", fixture]);
+      expect(result.stdout).toContain("BH01");
+      expect(result.stdout).toContain("BH02");
+    });
+
+    it("includes geology summary when GEOL present", () => {
+      const result = runCli(["report", fixture]);
+      expect(result.stdout).toContain("Geological Units");
+    });
+
+    it("produces valid JSON with --format json", () => {
+      const result = runCli(["report", fixture, "--format", "json"]);
+      expect(result.exitCode).toBe(0);
+      expect(() => JSON.parse(result.stdout)).not.toThrow();
+      const parsed = JSON.parse(result.stdout);
+      expect(parsed).toHaveProperty("projName");
+      expect(parsed).toHaveProperty("totalHoles");
+      expect(parsed).toHaveProperty("loca");
+      expect(parsed).toHaveProperty("stats");
+    });
+
+    it("JSON output loca array has correct length", () => {
+      const result = runCli(["report", fixture, "--format", "json"]);
+      const parsed = JSON.parse(result.stdout);
+      expect(Array.isArray(parsed.loca)).toBe(true);
+      expect(parsed.loca.length).toBe(2);
+    });
+
+    it("writes report to file with --out", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-report-"));
+      const outFile = join(tmpDir, "report.txt");
+      try {
+        const result = runCli(["report", fixture, "--out", outFile]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain(outFile);
+        const content = readFileSync(outFile, "utf8");
+        expect(content).toContain("GI Factual Report");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("writes JSON report to file with --out and --format json", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-report-"));
+      const outFile = join(tmpDir, "report.json");
+      try {
+        const result = runCli(["report", fixture, "--format", "json", "--out", outFile]);
+        expect(result.exitCode).toBe(0);
+        const content = readFileSync(outFile, "utf8");
+        expect(() => JSON.parse(content)).not.toThrow();
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns exit code 2 for missing file", () => {
+      const result = runCli(["report", "/nonexistent/file.ags"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr.length).toBeGreaterThan(0);
+    });
+
+    it("returns exit code 2 with usage on missing argument", () => {
+      const result = runCli(["report"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("report requires");
+    });
+
+    it("returns exit code 2 for unknown flag", () => {
+      const result = runCli(["report", fixture, "--unknown"]);
+      expect(result.exitCode).toBe(2);
+    });
+  });
+
+  // ── export command ──────────────────────────────────────────────────────────
+
+  describe("export command", () => {
+    const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+
+    it("exports LOCA group as CSV to stdout", () => {
+      const result = runCli(["export", fixture, "--group", "LOCA"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+      const lines = result.stdout.split("\n").filter((l) => l.length > 0);
+      // First line is header
+      expect(lines[0]).toContain("LOCA_ID");
+      // At least one data row
+      expect(lines.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("CSV output contains correct borehole IDs", () => {
+      const result = runCli(["export", fixture, "--group", "LOCA"]);
+      expect(result.stdout).toContain("BH01");
+      expect(result.stdout).toContain("BH02");
+    });
+
+    it("exports GEOL group as CSV", () => {
+      const result = runCli(["export", fixture, "--group", "GEOL"]);
+      expect(result.exitCode).toBe(0);
+      const lines = result.stdout.split("\n").filter((l) => l.length > 0);
+      expect(lines[0]).toContain("LOCA_ID");
+      expect(lines[0]).toContain("GEOL_TOP");
+    });
+
+    it("exports PROJ group as CSV", () => {
+      const result = runCli(["export", fixture, "--group", "PROJ"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("PROJ_ID");
+      expect(result.stdout).toContain("Synthetic minimal AGS file");
+    });
+
+    it("accepts lowercase --group name and upcases it", () => {
+      const result = runCli(["export", fixture, "--group", "loca"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("LOCA_ID");
+    });
+
+    it("produces TSV output with --format tsv", () => {
+      const result = runCli(["export", fixture, "--group", "LOCA", "--format", "tsv"]);
+      expect(result.exitCode).toBe(0);
+      const header = result.stdout.split("\n")[0]!;
+      // TSV uses tabs, not commas
+      expect(header).toContain("\t");
+      expect(header).not.toContain(",");
+    });
+
+    it("writes CSV to file with --out", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-export-"));
+      const outFile = join(tmpDir, "loca.csv");
+      try {
+        const result = runCli(["export", fixture, "--group", "LOCA", "--out", outFile]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain(outFile);
+        const content = readFileSync(outFile, "utf8");
+        expect(content).toContain("LOCA_ID");
+        expect(content).toContain("BH01");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns exit code 2 for non-existent group", () => {
+      const result = runCli(["export", fixture, "--group", "NONEXISTENT"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("NONEXISTENT");
+    });
+
+    it("returns exit code 2 when --group not specified", () => {
+      const result = runCli(["export", fixture]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("--group");
+    });
+
+    it("returns exit code 2 for missing file", () => {
+      const result = runCli(["export", "/nonexistent/file.ags", "--group", "LOCA"]);
+      expect(result.exitCode).toBe(2);
+    });
+
+    it("returns exit code 2 for unsupported format", () => {
+      const result = runCli(["export", fixture, "--group", "LOCA", "--format", "xlsx"]);
+      expect(result.exitCode).toBe(2);
+    });
+  });
+
+  // ── db commands ─────────────────────────────────────────────────────────────
+
+  describe("db commands (conditional on better-sqlite3)", () => {
+    const sqliteAvailable = _sqliteAvailable;
+
+    it.skipIf(!sqliteAvailable)("db ingest creates database and reports groups", () => {
+      const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-db-cli-"));
+      const dbFile = join(tmpDir, "test.gpkg");
+      try {
+        const result = runCli(["db", "ingest", fixture, dbFile]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("ingested");
+        expect(result.stdout).toContain("LOCA");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it.skipIf(!sqliteAvailable)("db query returns LOCA data", () => {
+      const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-db-cli-"));
+      const dbFile = join(tmpDir, "test.gpkg");
+      try {
+        runCli(["db", "ingest", fixture, dbFile]);
+        const result = runCli(["db", "query", "--db", dbFile, "--group", "LOCA"]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("LOCA_ID");
+        expect(result.stdout).toContain("BH01");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it.skipIf(!sqliteAvailable)("db list shows import records", () => {
+      const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-db-cli-"));
+      const dbFile = join(tmpDir, "test.gpkg");
+      try {
+        runCli(["db", "ingest", fixture, dbFile]);
+        const result = runCli(["db", "list", dbFile]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("#1");
+        expect(result.stdout).toContain("LOCA");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("db ingest returns exit code 2 for missing file", () => {
+      const result = runCli(["db", "ingest", "/nonexistent.ags", "/tmp/out.gpkg"]);
+      expect(result.exitCode).toBe(2);
+    });
+
+    it("db query requires --db flag", () => {
+      const result = runCli(["db", "query", "--group", "LOCA"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("--db");
+    });
+
+    it("db query requires --group flag", () => {
+      const result = runCli(["db", "query", "--db", "/tmp/test.gpkg"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("--group");
+    });
+
+    it("db list requires a db file argument", () => {
+      const result = runCli(["db", "list"]);
+      expect(result.exitCode).toBe(2);
+    });
+
+    it("db unknown subcommand returns exit code 2", () => {
+      const result = runCli(["db", "frobnicate"]);
+      expect(result.exitCode).toBe(2);
+    });
   });
 });
