@@ -3,96 +3,113 @@
 [![CI](https://github.com/samotron/geoflow/actions/workflows/ci.yml/badge.svg)](https://github.com/samotron/geoflow/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-GeoFlow is a pure-Rust toolkit for geotechnical data interchange, focusing on AGS 4.x and DIGGS.
+GeoFlow is a TypeScript monorepo for geotechnical data interchange, focusing on AGS 4.x parsing, validation, DIGGS conversion, and borehole exploration.
 
-- **High-performance AGS 4.x parser** (lexes directly from bytes, handles BOM, custom encodings).
-- **Validation Engine**: Built-in AGS 4.x rules plus a CEL-based DSL for custom specifications.
-- **Auto-fixer**: Automatically repair safe structural and formatting issues in AGS files.
-- **DIGGS Support**: Round-trip conversion between AGS and DIGGS XML.
-- **Diff**: Compare two AGS files and report group/row-level differences.
-- **Web App**: Browser-based validator and converter compiled to WebAssembly — no server required.
-- **Multi-platform**: Rust library, thin CLI, Python bindings, and WASM for the browser.
+- **AGS 4.x parser** — lexes and parses AGS files, handles BOM and custom encodings.
+- **Validation engine** — built-in AGS 4.x rules plus a JEXL-based DSL for custom rule packs.
+- **Auto-fixer** — automatically repairs safe structural and formatting issues in AGS files.
+- **DIGGS support** — round-trip conversion between AGS and DIGGS 2.6 XML.
+- **Diff** — compare two AGS files and report group/row-level differences.
+- **Explorer** — self-contained HTML report with SVG borehole strip logs.
+- **Web app** — browser-based validator and explorer; no server required.
 
-Status: **v0.1 (Early Development)**. See [spec/003_locked_plan.md](spec/003_locked_plan.md) for the development roadmap.
+Status: **Early Development**.
 
 ## Workspace Layout
 
 ```
-crates/
-  geoflow-core/   # Core library: parsing, validation, conversion, rendering
-  geoflow-cli/    # `geoflow` CLI binary
-  geoflow-py/     # Python bindings via PyO3
-  geoflow-wasm/   # WebAssembly bindings (wasm-pack)
-web/              # Static GitHub Pages app (index.html + compiled WASM)
-rules/specs/      # Built-in rule packs (AGS standard, ICE mini)
-tests/fixtures/   # AGS + DIGGS fixtures for golden tests
-examples/rules/   # Sample rule packs for documentation
+packages/
+  core/          # @geoflow/core        — AGS parser, validator, DIGGS, explorer, etc.
+  cli/           # @geoflow/cli         — CLI wrapper around core
+  rules-engine/  # @geoflow/rules-engine — JEXL-based rule pack evaluator
+  db/            # @geoflow/db          — SQLite/GeoPackage ingest and query (Node only)
+  rules/         # @geoflow/rules       — built-in YAML rule packs (data only)
+
+apps/
+  web/           # @geoflow/web         — GitHub Pages SPA (Vite + React)
+
+rules/specs/     # Rule packs: ags/standard/4.x, ice/mini/0.1
+tests/
+  fixtures/      # AGS and DIGGS test files
+  parity/        # Golden comparison baselines
 ```
+
+## Requirements
+
+- Node.js >= 20
+- pnpm >= 10
 
 ## Installation
 
-### CLI (via Cargo)
 ```bash
-cargo install --path crates/geoflow-cli
+pnpm install
 ```
 
-### Python (via pip)
-*Note: v0.1 wheels pending. For development:*
+## CLI Quick Start
+
+Run the CLI directly with `tsx` (no build step required):
+
 ```bash
-pip install maturin
-maturin develop -m crates/geoflow-py/Cargo.toml
+npx tsx packages/cli/src/main.ts <subcommand> [args]
 ```
 
-## Quick Start
+| Subcommand | Description |
+|---|---|
+| `info <file>` | Print AGS file summary |
+| `validate <file> [--rules <pack.yml>]` | Run built-in + optional rule-pack checks |
+| `fix <file> [--write]` | Apply safe auto-fixes |
+| `convert <in> <out>` | AGS ↔ DIGGS round-trip |
+| `explore <file> [--out <path>]` | Generate HTML explorer with SVG strip logs |
+| `diff <a> <b>` | Diff two AGS files |
+| `rules list\|show <id>` | Inspect built-in and pack rules |
+| `db ingest\|query\|list` | SQLite/GeoPackage database operations |
 
-### CLI
+Exit codes: `0` = success, `1` = validation failure, `2` = usage/runtime error.
+
+### Examples
+
 ```bash
 # Validate an AGS file
-geoflow validate data.ags
+npx tsx packages/cli/src/main.ts validate data.ags
 
-# Apply auto-fixes
-geoflow fix data.ags --write
+# Apply auto-fixes in place
+npx tsx packages/cli/src/main.ts fix data.ags --write
 
 # Convert AGS to DIGGS
-geoflow convert data.ags output.xml --to diggs
+npx tsx packages/cli/src/main.ts convert data.ags output.xml
 
 # Compare two AGS files
-geoflow diff before.ags after.ags
+npx tsx packages/cli/src/main.ts diff before.ags after.ags
 
-# Explore interactively
-geoflow explore data.ags --serve
-```
-
-### Python
-```python
-import geoflow
-
-# Load and validate
-ags = geoflow.read_ags("boreholes.ags")
-print(f"AGS Version: {ags.ags_version}")
-
-errors = ags.validate()
-for err in errors:
-    print(f"[{err['severity']}] {err['rule_id']}: {err['message']}")
-
-# Convert to DIGGS
-xml, report = ags.to_diggs()
-with open("output.xml", "w") as f:
-    f.write(xml)
+# Generate an HTML borehole explorer
+npx tsx packages/cli/src/main.ts explore data.ags --out report.html
 ```
 
 ## Build & Test
 
 ```bash
-# Build all crates
-cargo build --workspace
+# Run all tests (unit + parity)
+pnpm test
 
-# Run Rust tests
-cargo test --workspace
+# Type-check all packages
+pnpm typecheck
 
-# Run Python tests (requires maturin develop)
-pytest crates/geoflow-py/tests
+# Type-check a specific package
+npx tsc -p packages/core/tsconfig.json --noEmit
+
+# Build the web app
+pnpm --filter @geoflow/web build
 ```
+
+## Custom Rule Packs
+
+Validation can be extended with YAML rule packs evaluated by `@geoflow/rules-engine` (JEXL expressions):
+
+```bash
+npx tsx packages/cli/src/main.ts validate data.ags --rules my-rules.yml
+```
+
+See `rules/specs/` for the built-in AGS standard and ICE mini packs as reference.
 
 ## License
 
