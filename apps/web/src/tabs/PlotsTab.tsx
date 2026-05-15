@@ -18,7 +18,8 @@ interface DepthDatum { locaId: string; depth: number; value: number; colorKey: s
 interface ElevDatum  { locaId: string; elev: number;  value: number; colorKey: string; }
 interface XYDatum    { locaId: string; x: number;     y: number;     colorKey: string; }
 interface PsdPoint   { size: number;  passing: number; curveId: string; colorKey: string; }
-interface CmpnPoint  { mc: number;   dden: number;    curveId: string; colorKey: string; }
+interface CmpnPoint      { mc: number;   dden: number;    curveId: string; colorKey: string; }
+interface LlplDepthDatum { locaId: string; depth: number; pl: number; ll: number; colorKey: string; }
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 
@@ -243,6 +244,17 @@ function extractCompaction(file: AgsFile, layers: GeolLayer[], cf: ColorField, b
     const sref = str(r, 'SAMP_REF') || str(r, 'CMPN_SREF');
     const depth = num(r, 'SAMP_TOP');
     return [{ mc, dden, curveId: `${locaId}/${sref || depth}`, colorKey: ckAtDepth(locaId, depth, layers, cf) }];
+  });
+}
+
+function extractLlplDepth(file: AgsFile, layers: GeolLayer[], cf: ColorField, bh: Set<string>): LlplDepthDatum[] {
+  return (file.groups['LLPL']?.rows ?? []).flatMap(r => {
+    const locaId = str(r, 'LOCA_ID');
+    if (!locaId || (bh.size > 0 && !bh.has(locaId))) return [];
+    const depth = num(r, 'SAMP_TOP');
+    const ll = num(r, 'LLPL_LL'), pl = num(r, 'LLPL_PL');
+    if (depth == null || ll == null || pl == null) return [];
+    return [{ locaId, depth, pl, ll, colorKey: ckAtDepth(locaId, depth, layers, cf) }];
   });
 }
 
@@ -495,6 +507,51 @@ function congSpec(data: XYDatum[]): PlotSpec {
   };
 }
 
+function atterbergDepthSpec(llpl: LlplDepthDatum[], mc: DepthDatum[]): PlotSpec {
+  const cs = colorScaleFor([...llpl, ...mc]);
+  const maxX = Math.max(100, ...llpl.map(d => d.ll), ...mc.map(d => d.value));
+  return {
+    ...DEPTH_GRID_STYLE,
+    x: { label: 'Water content / limit (%)', domain: [0, maxX + 5], grid: true },
+    color: { ...cs, legend: true },
+    marks: [
+      Plot.ruleY([0], { stroke: '#0f172a', strokeWidth: 1 }),
+      // PL–LL range bar (the "connection")
+      Plot.ruleY(llpl, {
+        x1: d => d.pl, x2: d => d.ll, y: d => d.depth,
+        stroke: d => d.colorKey, strokeWidth: 3, strokeOpacity: 0.45,
+      }),
+      // PL endpoint — open square
+      Plot.dot(llpl, {
+        x: d => d.pl, y: d => d.depth,
+        fill: 'white', stroke: d => d.colorKey, strokeWidth: 2,
+        symbol: 'square', r: 4.5,
+        tip: true, title: d => `${d.locaId} — PL\nPL = ${d.pl}%\nDepth = ${d.depth} m`,
+      }),
+      // LL endpoint — filled square
+      Plot.dot(llpl, {
+        x: d => d.ll, y: d => d.depth,
+        fill: d => d.colorKey, stroke: 'white', strokeWidth: 0.8,
+        symbol: 'square', r: 4.5,
+        tip: true, title: d => `${d.locaId} — LL\nLL = ${d.ll}%\nDepth = ${d.depth} m`,
+      }),
+      // MC — filled circle
+      Plot.dot(mc, {
+        x: d => d.value, y: d => d.depth,
+        fill: d => d.colorKey, stroke: 'white', strokeWidth: 0.8,
+        symbol: 'circle', r: 5,
+        tip: true, title: d => `${d.locaId} — MC\nMC = ${d.value}%\nDepth = ${d.depth} m`,
+      }),
+      // Symbol key annotation
+      Plot.text([
+        { x: maxX + 4, y: 0.5, t: '□ PL' },
+        { x: maxX + 4, y: 1.5, t: '■ LL' },
+        { x: maxX + 4, y: 2.5, t: '● MC' },
+      ], { x: 'x', y: 'y', text: 't', textAnchor: 'end', fontSize: 9, fill: '#64748b' }),
+    ],
+  };
+}
+
 // ── Plot id list ──────────────────────────────────────────────────────────────
 
 const ALL_PLOTS = [
@@ -502,6 +559,7 @@ const ALL_PLOTS = [
   { id: 'spt_elev',  label: 'SPT vs Elevation' },
   { id: 'plasticity', label: 'Plasticity Chart (A-line)' },
   { id: 'psd',       label: 'Grading / PSD' },
+  { id: 'limits_depth', label: 'PL / LL / MC vs Depth' },
   { id: 'moisture',  label: 'Moisture Content vs Depth' },
   { id: 'cu',        label: 'Undrained Strength vs Depth' },
   { id: 'density',   label: 'Density vs Depth' },
@@ -537,6 +595,7 @@ export function PlotsTab({ fileBytes }: Props) {
   const sptElev    = useMemo(() => agsFile ? extractSptElev(agsFile, locaMap, layers, colorField, bh) : [], [agsFile, locaMap, layers, colorField, bh]);
   const atterberg  = useMemo(() => agsFile ? extractAtterberg(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
   const psd        = useMemo(() => agsFile ? extractPsd(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
+  const llplDepth  = useMemo(() => agsFile ? extractLlplDepth(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
   const moisture   = useMemo(() => agsFile ? extractDepth(agsFile, 'LNMC', 'LNMC_MC', 'SAMP_TOP', layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
   const cu         = useMemo(() => agsFile ? extractUu(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
   const density    = useMemo(() => agsFile ? extractDensity(agsFile, layers, colorField, bh) : { bulk: [], dry: [] }, [agsFile, layers, colorField, bh]);
@@ -549,6 +608,7 @@ export function PlotsTab({ fileBytes }: Props) {
   const specSptElev    = useMemo(() => sptElev.length     ? sptElevSpec(sptElev)  : null,   [sptElev]);
   const specAtterberg  = useMemo(() => atterberg.length   ? plasticitySpec(atterberg) : null, [atterberg]);
   const specPsd        = useMemo(() => psd.length         ? psdSpec(psd) : null,            [psd]);
+  const specLimitsDepth = useMemo(() => llplDepth.length  ? atterbergDepthSpec(llplDepth, moisture) : null, [llplDepth, moisture]);
   const specMoisture   = useMemo(() => moisture.length    ? depthScatterSpec(moisture, 'Moisture content w (%)', [0, 100]) : null, [moisture]);
   const specCu         = useMemo(() => cu.length          ? depthScatterSpec(cu, 'Undrained shear strength Cu (kPa)') : null, [cu]);
   const specDensity    = useMemo(() => (density.bulk.length + density.dry.length) ? densitySpec(density.bulk, density.dry) : null, [density]);
@@ -558,13 +618,13 @@ export function PlotsTab({ fileBytes }: Props) {
 
   const specMap: Record<PlotId, PlotSpec | null> = {
     spt_depth: specSptDepth, spt_elev: specSptElev, plasticity: specAtterberg,
-    psd: specPsd, moisture: specMoisture, cu: specCu, density: specDensity,
-    shear: specShear, compaction: specCompaction, cong: specCong,
+    psd: specPsd, limits_depth: specLimitsDepth, moisture: specMoisture,
+    cu: specCu, density: specDensity, shear: specShear, compaction: specCompaction, cong: specCong,
   };
 
   const dataN: Record<PlotId, number> = {
     spt_depth: sptDepth.length, spt_elev: sptElev.length, plasticity: atterberg.length,
-    psd: psd.length, moisture: moisture.length, cu: cu.length,
+    psd: psd.length, limits_depth: llplDepth.length, moisture: moisture.length, cu: cu.length,
     density: density.bulk.length + density.dry.length,
     shear: shear.length, compaction: compaction.length, cong: cong.length,
   };
@@ -710,6 +770,12 @@ export function PlotsTab({ fileBytes }: Props) {
           {activePlots.has('psd') && (
             <Card title="Grading / Particle Size Distribution" n={dataN.psd}>
               {specPsd && <OPlot key="psd" spec={specPsd} />}
+            </Card>
+          )}
+
+          {activePlots.has('limits_depth') && (
+            <Card title="PL / LL / MC vs Depth  (□ PL — ■ LL  ● MC)" n={dataN.limits_depth}>
+              {specLimitsDepth && <OPlot key="limits_depth" spec={specLimitsDepth} />}
             </Card>
           )}
 
