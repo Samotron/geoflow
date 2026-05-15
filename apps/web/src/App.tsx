@@ -9,6 +9,7 @@ import { MapTab } from './tabs/MapTab.js';
 import { RulesTab } from './tabs/RulesTab.js';
 import { QueryTab } from './tabs/QueryTab.js';
 import { ThreeDTab } from './tabs/ThreeDTab.js';
+import { PlotsTab } from './tabs/PlotsTab.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 
@@ -221,6 +222,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'edit', label: 'Edit' },
   { id: 'map', label: 'Map' },
   { id: '3d', label: '3D View' },
+  { id: 'plots', label: 'Plots' },
   { id: 'diff', label: 'Diff' },
   { id: 'convert', label: 'Convert' },
   { id: 'query', label: 'Query' },
@@ -305,6 +307,7 @@ export default function App() {
           />
         )}
         {tab === '3d' && <ThreeDTab fileBytes={fileBytes} fileName={fileName} />}
+        {tab === 'plots' && <PlotsTab fileBytes={fileBytes} />}
         {tab === 'diff' && <DiffTab />}
         {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
         {tab === 'query' && <QueryTab fileBytes={fileBytes} />}
