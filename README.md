@@ -6,12 +6,15 @@
 GeoFlow is a TypeScript monorepo for geotechnical data interchange, focusing on AGS 4.x parsing, validation, DIGGS conversion, and borehole exploration.
 
 - **AGS 4.x parser** — lexes and parses AGS files, handles BOM and custom encodings.
+- **AGS 3 migration** — converts AGS 3 files to AGS 4 with human-readable migration notes.
 - **Validation engine** — built-in AGS 4.x rules plus a JEXL-based DSL for custom rule packs.
+- **Quality assessment** — dimensional scoring (A–F) with per-diagnostic breakdown.
 - **Auto-fixer** — automatically repairs safe structural and formatting issues in AGS files.
 - **DIGGS support** — round-trip conversion between AGS and DIGGS 2.6 XML.
 - **Diff** — compare two AGS files and report group/row-level differences.
 - **Explorer** — self-contained HTML report with SVG borehole strip logs.
-- **Web app** — browser-based validator and explorer; no server required.
+- **3D geological modeling** — thin-plate spline surface fitting for stratigraphic layers, rendered with Three.js in the web app.
+- **Web app** — browser-based validator, explorer, and 3D viewer; no server required.
 
 Status: **Early Development**.
 
@@ -60,6 +63,7 @@ npx tsx packages/cli/src/main.ts <subcommand> [args]
 | `fix <file> [--write]` | Apply safe auto-fixes |
 | `convert <in> <out>` | AGS ↔ DIGGS round-trip |
 | `explore <file> [--out <path>]` | Generate HTML explorer with SVG strip logs |
+| `quality <file> [--format text\|json] [--fail-on error\|warning\|info]` | Assess data quality; grades A–F |
 | `diff <a> <b>` | Diff two AGS files |
 | `rules list\|show <id>` | Inspect built-in and pack rules |
 | `db ingest\|query\|list` | SQLite/GeoPackage database operations |
@@ -77,6 +81,9 @@ npx tsx packages/cli/src/main.ts fix data.ags --write
 
 # Convert AGS to DIGGS
 npx tsx packages/cli/src/main.ts convert data.ags output.xml
+
+# Assess data quality (A–F grade)
+npx tsx packages/cli/src/main.ts quality data.ags
 
 # Compare two AGS files
 npx tsx packages/cli/src/main.ts diff before.ags after.ags
