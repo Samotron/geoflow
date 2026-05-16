@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv } from './voxel.js';
 import type { AgsFile } from './model.js';
 import type { Geo3DModel } from './geo3d.js';
+import type { TopoGrid } from './topo.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -410,6 +411,82 @@ describe('buildVoxelGrid', () => {
     const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
     expect(grid.stats!.mean).toBeGreaterThanOrEqual(10);
     expect(grid.stats!.mean).toBeLessThanOrEqual(20);
+  });
+
+  // ── topo surface alignment ───────────────────────────────────────────────────
+
+  /**
+   * Topo fixture: flat surface at 2 m OD, covering the model in absolute
+   * coordinates (model centroid = { x:150, y:200 }).
+   *
+   * With boreholes at elev=5 m and ISPT depths to 4 m, the model bounds
+   * span z = -6 to +6 m.  A 4×4×4 grid has dz = 3, so cell centres are
+   * at -4.5, -1.5, 1.5, 4.5 m OD.
+   *
+   * Topo at 2 m → clip threshold = 2 + dz*0.5 = 3.5 m.
+   *   iz=3 (cz=4.5):  4.5 > 3.5  → excluded by topo
+   *   iz=2 (cz=1.5):  1.5 ≤ 3.5  → included
+   *   iz=1 (cz=-1.5): -1.5 ≤ 3.5 → included (also within borehole range)
+   *   iz=0 (cz=-4.5): excluded by borehole depth range (no topo change)
+   */
+  function makeFlatTopo(elevOD: number): TopoGrid {
+    // Cover absolute x: 140–260 (local -10..110 + centroid 150)
+    //          absolute y: 190–310 (local -10..110 + centroid 200)
+    return {
+      x0: 130, y0: 180, dx: 140, dy: 140,
+      nx: 2, ny: 2,
+      zValues: new Float32Array([elevOD, elevOD, elevOD, elevOD]),
+      noData: -9999,
+      source: 'test',
+    };
+  }
+
+  it('RBF: cells above topo surface are excluded', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const topo  = makeFlatTopo(2);  // terrain at 2 m OD
+
+    const withTopo    = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf', topo });
+    const withoutTopo = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf' });
+
+    // Topo should remove the top z-slice (iz=3, cz=4.5 > 3.5)
+    expect(withTopo.cells.length).toBeLessThan(withoutTopo.cells.length);
+    // No cell centre should be above topo + half-cell tolerance
+    expect(withTopo.cells.every(c => c.cz <= 2 + 1.5 + 1e-6)).toBe(true);
+  });
+
+  it('IDW: cells above topo surface are excluded', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'GEOL_LEG')!;
+    const topo  = makeFlatTopo(2);
+
+    const withTopo    = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'idw', topo });
+    const withoutTopo = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'idw' });
+
+    expect(withTopo.cells.length).toBeLessThanOrEqual(withoutTopo.cells.length);
+    expect(withTopo.cells.every(c => c.cz <= 2 + 1.5 + 1e-6)).toBe(true);
+  });
+
+  it('topo outside grid extent falls back gracefully (no cells removed)', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    // Topo positioned far away — sampleTopoAt returns NaN for all cells
+    const distantTopo: TopoGrid = {
+      x0: 999000, y0: 999000, dx: 1, dy: 1, nx: 2, ny: 2,
+      zValues: new Float32Array([0, 0, 0, 0]), noData: -9999, source: 'test',
+    };
+
+    const withTopo    = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf', topo: distantTopo });
+    const withoutTopo = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf' });
+
+    // Out-of-extent topo returns NaN → no cells clipped → identical result
+    expect(withTopo.cells.length).toBe(withoutTopo.cells.length);
   });
 });
 
