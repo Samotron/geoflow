@@ -14,7 +14,7 @@ import {
   decodeBytes, parseStr, buildGeo3DModel,
   discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv,
 } from '../core.js';
-import type { AgsFile, VoxelProperty, VoxelGrid } from '../core.js';
+import type { AgsFile, VoxelProperty, VoxelGrid, Borehole3D } from '../core.js';
 
 // ── Colour helpers ─────────────────────────────────────────────────────────────
 
@@ -79,6 +79,31 @@ const ROW: React.CSSProperties = {
   fontSize: 12, borderBottom: '1px solid var(--border)', padding: '3px 0',
 };
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/** IDW elevation at (x, y) from borehole ground levels. */
+function topoElevAt(x: number, y: number, boreholes: Borehole3D[]): number {
+  let wSum = 0, zSum = 0;
+  for (const bh of boreholes) {
+    const d2 = (bh.x - x) ** 2 + (bh.y - y) ** 2;
+    if (d2 < 1e-6) return bh.elev;
+    const w = 1 / Math.sqrt(d2);
+    wSum += w;
+    zSum += w * bh.elev;
+  }
+  return wSum > 0 ? zSum / wSum : 0;
+}
+
+function disposeGroup(group: THREE.Group): void {
+  group.traverse(obj => {
+    if (obj instanceof THREE.Mesh || obj instanceof THREE.Line) {
+      obj.geometry.dispose();
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else (obj.material as THREE.Material).dispose();
+    }
+  });
+}
+
 // ── Props ──────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -98,6 +123,7 @@ export function VoxelTab({ fileBytes }: Props) {
   const meshRef     = useRef<THREE.InstancedMesh | null>(null);
   const frameRef    = useRef<number>(0);
   const opacityRef  = useRef<number>(0.8);
+  const bhGroupRef  = useRef<THREE.Group | null>(null);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [selectedPropId, setSelectedPropId] = useState<string>('');
@@ -266,6 +292,79 @@ export function VoxelTab({ fileBytes }: Props) {
       (meshRef.current.material as THREE.MeshLambertMaterial).opacity = opacity;
     }
   }, [opacity]);
+
+  // ── Borehole sticks + topo surface ─────────────────────────────────────────
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    if (bhGroupRef.current) {
+      scene.remove(bhGroupRef.current);
+      disposeGroup(bhGroupRef.current);
+      bhGroupRef.current = null;
+    }
+
+    if (!model || model.boreholes.length === 0) return;
+
+    const group = new THREE.Group();
+    const { xMin, xMax, yMin, yMax } = model.bounds;
+    const spanXY = Math.max(xMax - xMin, yMax - yMin, 1);
+
+    // ── Topo surface: IDW-interpolated ground levels ──
+    const TOPO_N = 28;
+    const tdx = (xMax - xMin) / (TOPO_N - 1);
+    const tdy = (yMax - yMin) / (TOPO_N - 1);
+    const topoVerts = new Float32Array(TOPO_N * TOPO_N * 3);
+    for (let iy = 0; iy < TOPO_N; iy++) {
+      for (let ix = 0; ix < TOPO_N; ix++) {
+        const wx = xMin + ix * tdx;
+        const wy = yMin + iy * tdy;
+        const wz = topoElevAt(wx, wy, model.boreholes) * vExag;
+        const i3 = (iy * TOPO_N + ix) * 3;
+        topoVerts[i3] = wx; topoVerts[i3 + 1] = wy; topoVerts[i3 + 2] = wz;
+      }
+    }
+    const topoIdx: number[] = [];
+    for (let iy = 0; iy < TOPO_N - 1; iy++) {
+      for (let ix = 0; ix < TOPO_N - 1; ix++) {
+        const a = iy * TOPO_N + ix, b = a + 1, c = a + TOPO_N, d = c + 1;
+        topoIdx.push(a, c, b, b, c, d);
+      }
+    }
+    const topoGeo = new THREE.BufferGeometry();
+    topoGeo.setAttribute('position', new THREE.BufferAttribute(topoVerts, 3));
+    topoGeo.setIndex(topoIdx);
+    topoGeo.computeVertexNormals();
+    group.add(new THREE.Mesh(topoGeo, new THREE.MeshPhongMaterial({
+      color: 0x6b8f5e, transparent: true, opacity: 0.35,
+      side: THREE.DoubleSide, depthWrite: false,
+    })));
+
+    // ── Borehole sticks ──
+    const stickColor = new THREE.Color(0xffcc00);
+    const sphereR = Math.max(spanXY * 0.008, 0.3);
+    for (const bh of model.boreholes) {
+      const maxLayerDepth = bh.layers.length > 0
+        ? Math.max(...bh.layers.map(l => l.baseDepth)) : 0;
+      const fd = Math.max(bh.finDepth, maxLayerDepth, 1);
+      const topZ = bh.elev * vExag;
+      const botZ = (bh.elev - fd) * vExag;
+
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(bh.x, bh.y, botZ),
+        new THREE.Vector3(bh.x, bh.y, topZ),
+      ]);
+      group.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: stickColor })));
+
+      const sphereGeo = new THREE.SphereGeometry(sphereR, 8, 6);
+      const sphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: stickColor }));
+      sphere.position.set(bh.x, bh.y, topZ);
+      group.add(sphere);
+    }
+
+    scene.add(group);
+    bhGroupRef.current = group;
+  }, [model, vExag]);
 
   // ── Build ──────────────────────────────────────────────────────────────────
   const buildGrid = useCallback(() => {
@@ -446,6 +545,12 @@ export function VoxelTab({ fileBytes }: Props) {
               ['Method', grid.method === 'rbf' ? '3-D RBF' : 'IDW'],
               ['Size', `${grid.nx} × ${grid.ny} × ${grid.nz}`],
               ['Populated', `${grid.cells.length.toLocaleString()} / ${totalCells.toLocaleString()} (${filledPct}%)`],
+              ['Elevation', `${grid.bounds.zMin.toFixed(1)} – ${grid.bounds.zMax.toFixed(1)} m OD`],
+              ...(model ? [['Boreholes', (() => {
+                const elevs = model.boreholes.map(b => b.elev);
+                const lo = Math.min(...elevs).toFixed(1), hi = Math.max(...elevs).toFixed(1);
+                return `${model.boreholes.length} (GL ${lo}–${hi} m OD)`;
+              })()] as [string, string]] : []),
               ...(grid.property.type === 'numeric'
                 ? [
                     ['Interp. min', grid.numericRange[0].toFixed(3) + (grid.property.unit ? ' ' + grid.property.unit : '')],

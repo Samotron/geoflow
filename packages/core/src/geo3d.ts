@@ -250,7 +250,7 @@ export function buildGeo3DModel(file: AgsFile): Geo3DModel | null {
     if (!id) continue;
     const xy = locaXY(row);
     if (!xy) continue;
-    const elev = numVal(row, 'LOCA_ELEV') ?? 0;
+    const elev = numVal(row, 'LOCA_ELEV') ?? numVal(row, 'LOCA_GL') ?? 0;
     const finDepth = numVal(row, 'LOCA_FDEP') ?? 0;
     locaMap.set(id, { id, ax: xy.x, ay: xy.y, elev, finDepth });
   }
@@ -378,9 +378,10 @@ export function buildGeo3DModel(file: AgsFile): Geo3DModel | null {
       zMax = Math.max(zMax, l.topElev);
     }
   }
-  // Ensure non-degenerate horizontal extent (single borehole edge case)
+  // Ensure non-degenerate extents (single borehole / flat site edge cases)
   if (xMin === xMax) { xMin -= 10; xMax += 10; }
   if (yMin === yMax) { yMin -= 10; yMax += 10; }
+  if (zMin >= zMax - 0.1) { zMin -= 10; zMax += 10; }
 
   return {
     boreholes,

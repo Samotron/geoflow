@@ -317,14 +317,15 @@ describe('buildVoxelGrid', () => {
     expect(grid.method).toBe('idw');
   });
 
-  it('RBF fills every cell in the grid (global interpolant)', () => {
+  it('RBF cells are clipped to borehole-sampled depth range', () => {
     const file  = makeFile();
     const model = makeModel();
     const props = discoverVoxelProperties(file);
     const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
     const grid  = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf' });
-    // RBF is a global interpolant — every cell gets a value
-    expect(grid.cells.length).toBe(4 * 4 * 4);
+    // Cells above ground or below the deepest observation are excluded
+    expect(grid.cells.length).toBeGreaterThan(0);
+    expect(grid.cells.length).toBeLessThan(4 * 4 * 4);
     expect(grid.cells.every(c => c.value !== null)).toBe(true);
   });
 
