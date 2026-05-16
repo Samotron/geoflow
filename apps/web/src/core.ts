@@ -28,6 +28,9 @@ export {
   discoverVoxelProperties,
   buildVoxelGrid,
   voxelGridToCsv,
+  parseAscGrid,
+  parseXyzPoints,
+  sampleTopoAt,
 } from '@geoflow/core';
 
 export type {
@@ -54,4 +57,5 @@ export type {
   VoxelProperty,
   VoxelCell,
   VoxelGrid,
+  TopoGrid,
 } from '@geoflow/core';

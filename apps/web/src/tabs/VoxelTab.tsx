@@ -13,8 +13,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
   decodeBytes, parseStr, buildGeo3DModel,
   discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv,
+  parseAscGrid, parseXyzPoints, sampleTopoAt,
 } from '../core.js';
-import type { AgsFile, VoxelProperty, VoxelGrid } from '../core.js';
+import type { AgsFile, VoxelProperty, VoxelGrid, Borehole3D, TopoGrid } from '../core.js';
+import { fetchTopoGrid } from '../topo-api.js';
+import type { FetchTopoProgress } from '../topo-api.js';
 
 // ── Colour helpers ─────────────────────────────────────────────────────────────
 
@@ -79,6 +82,31 @@ const ROW: React.CSSProperties = {
   fontSize: 12, borderBottom: '1px solid var(--border)', padding: '3px 0',
 };
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/** IDW elevation at (x, y) from borehole ground levels. */
+function topoElevAt(x: number, y: number, boreholes: Borehole3D[]): number {
+  let wSum = 0, zSum = 0;
+  for (const bh of boreholes) {
+    const d2 = (bh.x - x) ** 2 + (bh.y - y) ** 2;
+    if (d2 < 1e-6) return bh.elev;
+    const w = 1 / Math.sqrt(d2);
+    wSum += w;
+    zSum += w * bh.elev;
+  }
+  return wSum > 0 ? zSum / wSum : 0;
+}
+
+function disposeGroup(group: THREE.Group): void {
+  group.traverse(obj => {
+    if (obj instanceof THREE.Mesh || obj instanceof THREE.Line) {
+      obj.geometry.dispose();
+      if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+      else (obj.material as THREE.Material).dispose();
+    }
+  });
+}
+
 // ── Props ──────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -98,6 +126,7 @@ export function VoxelTab({ fileBytes }: Props) {
   const meshRef     = useRef<THREE.InstancedMesh | null>(null);
   const frameRef    = useRef<number>(0);
   const opacityRef  = useRef<number>(0.8);
+  const bhGroupRef  = useRef<THREE.Group | null>(null);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [selectedPropId, setSelectedPropId] = useState<string>('');
@@ -108,6 +137,12 @@ export function VoxelTab({ fileBytes }: Props) {
   const [lambdaIdx, setLambdaIdx]           = useState(0);
   const [grid, setGrid]                     = useState<VoxelGrid | null>(null);
   const [building, setBuilding]             = useState(false);
+  const [topoGrid, setTopoGrid]             = useState<TopoGrid | null>(null);
+  const [topoFetching, setTopoFetching]     = useState(false);
+  const [topoError, setTopoError]           = useState('');
+  const [fetchProgress, setFetchProgress]   = useState<FetchTopoProgress>({ batch: 0, total: 0 });
+  const topoFileRef = useRef<HTMLInputElement>(null);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   const lambda = LAMBDA_PRESETS[lambdaIdx]?.value ?? 0;
 
@@ -267,6 +302,142 @@ export function VoxelTab({ fileBytes }: Props) {
     }
   }, [opacity]);
 
+  // ── Borehole sticks + topo surface ─────────────────────────────────────────
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    if (bhGroupRef.current) {
+      scene.remove(bhGroupRef.current);
+      disposeGroup(bhGroupRef.current);
+      bhGroupRef.current = null;
+    }
+
+    if (!model || model.boreholes.length === 0) return;
+
+    const group = new THREE.Group();
+    const { xMin, xMax, yMin, yMax } = model.bounds;
+    const spanXY = Math.max(xMax - xMin, yMax - yMin, 1);
+
+    // ── Topo surface: IDW-interpolated ground levels ──
+    const TOPO_N = 28;
+    const tdx = (xMax - xMin) / (TOPO_N - 1);
+    const tdy = (yMax - yMin) / (TOPO_N - 1);
+    const topoVerts = new Float32Array(TOPO_N * TOPO_N * 3);
+    for (let iy = 0; iy < TOPO_N; iy++) {
+      for (let ix = 0; ix < TOPO_N; ix++) {
+        const wx = xMin + ix * tdx;
+        const wy = yMin + iy * tdy;
+        let elev: number;
+        if (topoGrid) {
+          const absX = wx + model.centroid.x;
+          const absY = wy + model.centroid.y;
+          const sampled = sampleTopoAt(topoGrid, absX, absY);
+          elev = isNaN(sampled) ? topoElevAt(wx, wy, model.boreholes) : sampled;
+        } else {
+          elev = topoElevAt(wx, wy, model.boreholes);
+        }
+        const wz = elev * vExag;
+        const i3 = (iy * TOPO_N + ix) * 3;
+        topoVerts[i3] = wx; topoVerts[i3 + 1] = wy; topoVerts[i3 + 2] = wz;
+      }
+    }
+    const topoIdx: number[] = [];
+    for (let iy = 0; iy < TOPO_N - 1; iy++) {
+      for (let ix = 0; ix < TOPO_N - 1; ix++) {
+        const a = iy * TOPO_N + ix, b = a + 1, c = a + TOPO_N, d = c + 1;
+        topoIdx.push(a, c, b, b, c, d);
+      }
+    }
+    const topoGeo = new THREE.BufferGeometry();
+    topoGeo.setAttribute('position', new THREE.BufferAttribute(topoVerts, 3));
+    topoGeo.setIndex(topoIdx);
+    topoGeo.computeVertexNormals();
+    group.add(new THREE.Mesh(topoGeo, new THREE.MeshPhongMaterial({
+      color: 0x6b8f5e, transparent: true, opacity: 0.35,
+      side: THREE.DoubleSide, depthWrite: false,
+    })));
+
+    // ── Borehole sticks ──
+    const stickColor = new THREE.Color(0xffcc00);
+    const sphereR = Math.max(spanXY * 0.008, 0.3);
+    for (const bh of model.boreholes) {
+      const maxLayerDepth = bh.layers.length > 0
+        ? Math.max(...bh.layers.map(l => l.baseDepth)) : 0;
+      const fd = Math.max(bh.finDepth, maxLayerDepth, 1);
+      const topZ = bh.elev * vExag;
+      const botZ = (bh.elev - fd) * vExag;
+
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(bh.x, bh.y, botZ),
+        new THREE.Vector3(bh.x, bh.y, topZ),
+      ]);
+      group.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: stickColor })));
+
+      const sphereGeo = new THREE.SphereGeometry(sphereR, 8, 6);
+      const sphere = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: stickColor }));
+      sphere.position.set(bh.x, bh.y, topZ);
+      group.add(sphere);
+    }
+
+    scene.add(group);
+    bhGroupRef.current = group;
+  }, [model, vExag, topoGrid]);
+
+  // ── Topo file upload ───────────────────────────────────────────────────────
+  const handleTopoFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setTopoError('');
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      try {
+        let tg: TopoGrid;
+        if (file.name.toLowerCase().endsWith('.asc')) {
+          tg = parseAscGrid(text, file.name);
+        } else {
+          tg = parseXyzPoints(text, 60, file.name);
+        }
+        setTopoGrid(tg);
+      } catch (err) {
+        setTopoError(err instanceof Error ? err.message : 'Failed to parse topo file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }, []);
+
+  // ── SRTM API fetch ─────────────────────────────────────────────────────────
+  const handleFetchSrtm = useCallback(async () => {
+    if (!model) return;
+    if (fetchAbortRef.current) fetchAbortRef.current.abort();
+    const ctrl = new AbortController();
+    fetchAbortRef.current = ctrl;
+    setTopoFetching(true);
+    setTopoError('');
+    setFetchProgress({ batch: 0, total: 0 });
+    try {
+      const tg = await fetchTopoGrid(
+        model,
+        p => setFetchProgress(p),
+        ctrl.signal,
+      );
+      if (tg) {
+        setTopoGrid(tg);
+      } else {
+        setTopoError('Could not project site coordinates to WGS84. Ensure LOCA_NATE/LOCA_NATN or LOCA_LAT/LOCA_LON are present.');
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        setTopoError(err instanceof Error ? err.message : 'Fetch failed');
+      }
+    } finally {
+      setTopoFetching(false);
+      fetchAbortRef.current = null;
+    }
+  }, [model]);
+
   // ── Build ──────────────────────────────────────────────────────────────────
   const buildGrid = useCallback(() => {
     if (!agsFile || !model || !selectedPropId) return;
@@ -423,6 +594,54 @@ export function VoxelTab({ fileBytes }: Props) {
           />
         </div>
 
+        {/* Topo surface */}
+        <div style={PANEL}>
+          <label style={SLABEL}>Topo surface</label>
+          <div style={{ fontSize: 12, color: topoGrid ? '#22c55e' : 'var(--muted)', marginBottom: 8 }}>
+            {topoGrid ? `✓ ${topoGrid.source}` : 'IDW from borehole collars'}
+          </div>
+          <input
+            ref={topoFileRef}
+            type="file"
+            accept=".asc,.xyz,.csv,.txt"
+            style={{ display: 'none' }}
+            onChange={handleTopoFileUpload}
+          />
+          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+            <button
+              onClick={() => topoFileRef.current?.click()}
+              style={{ flex: 1, fontSize: 12, padding: '5px 0', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer' }}
+            >
+              Load .asc / .xyz
+            </button>
+            <button
+              onClick={handleFetchSrtm}
+              disabled={topoFetching || !model}
+              style={{ flex: 1, fontSize: 12, padding: '5px 0', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', cursor: topoFetching || !model ? 'not-allowed' : 'pointer', opacity: topoFetching || !model ? 0.5 : 1 }}
+            >
+              {topoFetching
+                ? `SRTM… ${fetchProgress.batch}/${fetchProgress.total}`
+                : 'Fetch SRTM 30m'}
+            </button>
+          </div>
+          {topoGrid && (
+            <button
+              onClick={() => { setTopoGrid(null); setTopoError(''); }}
+              style={{ width: '100%', fontSize: 11, padding: '4px 0', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--muted)', cursor: 'pointer' }}
+            >
+              Clear topo
+            </button>
+          )}
+          {topoFetching && (
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, lineHeight: 1.4 }}>
+              Fetching from opentopodata.org ({fetchProgress.batch}/{fetchProgress.total} batches)…
+            </p>
+          )}
+          {topoError && (
+            <p style={{ fontSize: 11, color: '#dc2626', marginTop: 6, lineHeight: 1.4 }}>{topoError}</p>
+          )}
+        </div>
+
         {/* Build */}
         <button
           onClick={buildGrid}
@@ -446,6 +665,12 @@ export function VoxelTab({ fileBytes }: Props) {
               ['Method', grid.method === 'rbf' ? '3-D RBF' : 'IDW'],
               ['Size', `${grid.nx} × ${grid.ny} × ${grid.nz}`],
               ['Populated', `${grid.cells.length.toLocaleString()} / ${totalCells.toLocaleString()} (${filledPct}%)`],
+              ['Elevation', `${grid.bounds.zMin.toFixed(1)} – ${grid.bounds.zMax.toFixed(1)} m OD`],
+              ...(model ? [['Boreholes', (() => {
+                const elevs = model.boreholes.map(b => b.elev);
+                const lo = Math.min(...elevs).toFixed(1), hi = Math.max(...elevs).toFixed(1);
+                return `${model.boreholes.length} (GL ${lo}–${hi} m OD)`;
+              })()] as [string, string]] : []),
               ...(grid.property.type === 'numeric'
                 ? [
                     ['Interp. min', grid.numericRange[0].toFixed(3) + (grid.property.unit ? ' ' + grid.property.unit : '')],

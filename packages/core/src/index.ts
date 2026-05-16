@@ -21,3 +21,4 @@ export * from "./rbf.js";
 export * from "./geo3d.js";
 export * from "./voxel.js";
 export * from "./report.js";
+export * from "./topo.js";

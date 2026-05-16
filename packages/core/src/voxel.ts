@@ -319,12 +319,40 @@ export function buildVoxelGrid(
     }
     const charDist3D = charDist * rbf.az;  // scale to anisotropic space
 
+    // Per-borehole deepest observation depth (from surface). Cells above
+    // every borehole's ground level or below every borehole's deepest
+    // observation are excluded — RBF would otherwise extrapolate into
+    // unsampled volumes above/below the actual data.
+    const bhSampledRanges = [] as Array<{ elev: number; bot: number }>;
+    for (const [locaId, obs] of bhObs) {
+      const bh = bhByLoca.get(locaId);
+      if (!bh) continue;
+      let bot = -Infinity;
+      for (const o of obs) {
+        const base = prop.depthBaseField ? o.depthBase : o.depthTop;
+        if (base > bot) bot = base;
+      }
+      if (isFinite(bot)) bhSampledRanges.push({ elev: bh.elev, bot });
+    }
+
     const cells: VoxelCell[] = [];
     let numMin = Infinity;
     let numMax = -Infinity;
 
     for (let iz = 0; iz < nz; iz++) {
       const cz = zMin + (iz + 0.5) * dz;
+
+      // Skip cells not covered by any borehole's sampled depth range.
+      // depth = bh.elev - cz; must be in [0, bot+dz] for at least one borehole.
+      if (bhSampledRanges.length > 0) {
+        let inRange = false;
+        for (const r of bhSampledRanges) {
+          const depth = r.elev - cz;
+          if (depth >= 0 && depth <= r.bot + dz) { inRange = true; break; }
+        }
+        if (!inRange) continue;
+      }
+
       for (let iy = 0; iy < ny; iy++) {
         const cy = yMin + (iy + 0.5) * dy;
         for (let ix = 0; ix < nx; ix++) {
