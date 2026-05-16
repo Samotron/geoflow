@@ -1,25 +1,34 @@
 /**
- * Thin-plate spline (TPS) interpolation for geological surface fitting.
+ * Interpolation kernels for geological surface fitting.
  *
- * TPS minimises the bending energy of a surface that passes exactly through
- * all control points.  Basis function: φ(r) = r² ln(r)
+ * ThinPlateSurface — thin-plate spline (TPS), exact interpolation.
+ *   Basis: φ(r) = r² ln(r)
  *
- * The system solved is:
- *   [ Φ   P ] [w]   [z]
+ * RbfSurface — polyharmonic r³ RBF with optional Tikhonov regularization.
+ *   Basis: φ(r) = r³
+ *   Adds distToNearest() for uncertainty estimation.
+ *   Regularization λ > 0 smooths the surface when contact depths are uncertain.
+ *
+ * Both solve the augmented system:
+ *   [ K   P ] [w]   [z]
  *   [ Pᵀ  0 ] [a] = [0]
  *
- * where Φᵢⱼ = φ(‖pᵢ − pⱼ‖), P = [1  xᵢ  yᵢ], w = RBF weights,
+ * where K is the kernel matrix, P = [1 xᵢ yᵢ], w = RBF weights,
  * a = [a₀, a₁, a₂] are the linear polynomial coefficients.
  */
 
 export interface Pt2 { x: number; y: number; }
 export interface Pt3 { x: number; y: number; z: number; }
 
-// ── Basis function ────────────────────────────────────────────────────────────
+// ── Basis functions ───────────────────────────────────────────────────────────
 
 function tps(r: number): number {
   if (r < 1e-12) return 0;
   return r * r * Math.log(r);
+}
+
+function r3(r: number): number {
+  return r * r * r;
 }
 
 // ── Safe accessor (noUncheckedIndexedAccess-compatible) ───────────────────────
@@ -165,6 +174,123 @@ export class ThinPlateSurface {
   /**
    * Evaluate at N equally-spaced points along the line from (x0,y0) to (x1,y1).
    */
+  sampleLine(
+    x0: number, y0: number,
+    x1: number, y1: number,
+    n: number,
+  ): { dist: number; z: number }[] {
+    const ddx = x1 - x0;
+    const ddy = y1 - y0;
+    const totalDist = Math.sqrt(ddx * ddx + ddy * ddy);
+    const result: { dist: number; z: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      result.push({ dist: t * totalDist, z: this.evaluate(x0 + t * ddx, y0 + t * ddy) });
+    }
+    return result;
+  }
+}
+
+// ── RbfSurface ────────────────────────────────────────────────────────────────
+
+/**
+ * Polyharmonic r³ RBF surface with optional Tikhonov regularization.
+ *
+ * λ = 0 gives exact interpolation through control points (like TPS).
+ * λ > 0 allows the surface to deviate from control points, trading accuracy
+ * for smoothness — useful when contact depths carry measurement uncertainty.
+ *
+ * Also exposes distToNearest(x, y) which returns the 2-D distance to the
+ * nearest control point, used as a proxy for interpolation uncertainty.
+ */
+export class RbfSurface {
+  private readonly ptsX: Float64Array;
+  private readonly ptsY: Float64Array;
+  private readonly w: Float64Array;
+  private readonly a0: number;
+  private readonly a1: number;
+  private readonly a2: number;
+
+  constructor(pts: Pt3[], lambda = 0) {
+    if (pts.length < 3) throw new Error('RbfSurface needs ≥ 3 points');
+    const n = pts.length;
+    this.ptsX = new Float64Array(n);
+    this.ptsY = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      s(this.ptsX, i, pts[i]?.x ?? 0);
+      s(this.ptsY, i, pts[i]?.y ?? 0);
+    }
+
+    const sz = n + 3;
+    const Aflat = new Float64Array(sz * sz);
+    const bvec  = new Float64Array(sz);
+
+    // K block with optional regularization on the diagonal
+    for (let i = 0; i < n; i++) {
+      const ix = g(this.ptsX, i);
+      const iy = g(this.ptsY, i);
+      for (let j = 0; j < n; j++) {
+        const dx = ix - g(this.ptsX, j);
+        const dy = iy - g(this.ptsY, j);
+        const rv = r3(Math.sqrt(dx * dx + dy * dy));
+        s(Aflat, i * sz + j, rv + (i === j ? lambda : 0));
+      }
+    }
+    // Polynomial tail P and its transpose
+    for (let i = 0; i < n; i++) {
+      const px = g(this.ptsX, i);
+      const py = g(this.ptsY, i);
+      s(Aflat, i * sz + n,       1);   s(Aflat, n       * sz + i, 1);
+      s(Aflat, i * sz + (n + 1), px);  s(Aflat, (n + 1) * sz + i, px);
+      s(Aflat, i * sz + (n + 2), py);  s(Aflat, (n + 2) * sz + i, py);
+    }
+    for (let i = 0; i < n; i++) bvec[i] = pts[i]?.z ?? 0;
+
+    const sol = gaussSolve(sz, Aflat, bvec);
+    this.w  = sol.slice(0, n);
+    this.a0 = g(sol, n);
+    this.a1 = g(sol, n + 1);
+    this.a2 = g(sol, n + 2);
+  }
+
+  evaluate(x: number, y: number): number {
+    let val = this.a0 + this.a1 * x + this.a2 * y;
+    for (let i = 0; i < this.ptsX.length; i++) {
+      const dx = x - g(this.ptsX, i);
+      const dy = y - g(this.ptsY, i);
+      val += g(this.w, i) * r3(Math.sqrt(dx * dx + dy * dy));
+    }
+    return val;
+  }
+
+  /** Distance (m) to the nearest control point — uncertainty proxy. */
+  distToNearest(x: number, y: number): number {
+    let minD = Infinity;
+    for (let i = 0; i < this.ptsX.length; i++) {
+      const dx = x - g(this.ptsX, i);
+      const dy = y - g(this.ptsY, i);
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < minD) minD = d;
+    }
+    return minD;
+  }
+
+  evaluateGrid(
+    xMin: number, xMax: number,
+    yMin: number, yMax: number,
+    nx: number, ny: number,
+  ): Float32Array {
+    const out = new Float32Array(nx * ny);
+    for (let iy = 0; iy < ny; iy++) {
+      const y = yMin + (iy / (ny - 1)) * (yMax - yMin);
+      for (let ix = 0; ix < nx; ix++) {
+        const x = xMin + (ix / (nx - 1)) * (xMax - xMin);
+        out[iy * nx + ix] = this.evaluate(x, y);
+      }
+    }
+    return out;
+  }
+
   sampleLine(
     x0: number, y0: number,
     x1: number, y1: number,
