@@ -13,8 +13,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
   decodeBytes, parseStr, buildGeo3DModel,
   discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv,
+  parseAscGrid, parseXyzPoints, sampleTopoAt,
 } from '../core.js';
-import type { AgsFile, VoxelProperty, VoxelGrid, Borehole3D } from '../core.js';
+import type { AgsFile, VoxelProperty, VoxelGrid, Borehole3D, TopoGrid } from '../core.js';
+import { fetchTopoGrid } from '../topo-api.js';
+import type { FetchTopoProgress } from '../topo-api.js';
 
 // ── Colour helpers ─────────────────────────────────────────────────────────────
 
@@ -134,6 +137,12 @@ export function VoxelTab({ fileBytes }: Props) {
   const [lambdaIdx, setLambdaIdx]           = useState(0);
   const [grid, setGrid]                     = useState<VoxelGrid | null>(null);
   const [building, setBuilding]             = useState(false);
+  const [topoGrid, setTopoGrid]             = useState<TopoGrid | null>(null);
+  const [topoFetching, setTopoFetching]     = useState(false);
+  const [topoError, setTopoError]           = useState('');
+  const [fetchProgress, setFetchProgress]   = useState<FetchTopoProgress>({ batch: 0, total: 0 });
+  const topoFileRef = useRef<HTMLInputElement>(null);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   const lambda = LAMBDA_PRESETS[lambdaIdx]?.value ?? 0;
 
@@ -319,7 +328,16 @@ export function VoxelTab({ fileBytes }: Props) {
       for (let ix = 0; ix < TOPO_N; ix++) {
         const wx = xMin + ix * tdx;
         const wy = yMin + iy * tdy;
-        const wz = topoElevAt(wx, wy, model.boreholes) * vExag;
+        let elev: number;
+        if (topoGrid) {
+          const absX = wx + model.centroid.x;
+          const absY = wy + model.centroid.y;
+          const sampled = sampleTopoAt(topoGrid, absX, absY);
+          elev = isNaN(sampled) ? topoElevAt(wx, wy, model.boreholes) : sampled;
+        } else {
+          elev = topoElevAt(wx, wy, model.boreholes);
+        }
+        const wz = elev * vExag;
         const i3 = (iy * TOPO_N + ix) * 3;
         topoVerts[i3] = wx; topoVerts[i3 + 1] = wy; topoVerts[i3 + 2] = wz;
       }
@@ -364,7 +382,61 @@ export function VoxelTab({ fileBytes }: Props) {
 
     scene.add(group);
     bhGroupRef.current = group;
-  }, [model, vExag]);
+  }, [model, vExag, topoGrid]);
+
+  // ── Topo file upload ───────────────────────────────────────────────────────
+  const handleTopoFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setTopoError('');
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      try {
+        let tg: TopoGrid;
+        if (file.name.toLowerCase().endsWith('.asc')) {
+          tg = parseAscGrid(text, file.name);
+        } else {
+          tg = parseXyzPoints(text, 60, file.name);
+        }
+        setTopoGrid(tg);
+      } catch (err) {
+        setTopoError(err instanceof Error ? err.message : 'Failed to parse topo file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }, []);
+
+  // ── SRTM API fetch ─────────────────────────────────────────────────────────
+  const handleFetchSrtm = useCallback(async () => {
+    if (!model) return;
+    if (fetchAbortRef.current) fetchAbortRef.current.abort();
+    const ctrl = new AbortController();
+    fetchAbortRef.current = ctrl;
+    setTopoFetching(true);
+    setTopoError('');
+    setFetchProgress({ batch: 0, total: 0 });
+    try {
+      const tg = await fetchTopoGrid(
+        model,
+        p => setFetchProgress(p),
+        ctrl.signal,
+      );
+      if (tg) {
+        setTopoGrid(tg);
+      } else {
+        setTopoError('Could not project site coordinates to WGS84. Ensure LOCA_NATE/LOCA_NATN or LOCA_LAT/LOCA_LON are present.');
+      }
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        setTopoError(err instanceof Error ? err.message : 'Fetch failed');
+      }
+    } finally {
+      setTopoFetching(false);
+      fetchAbortRef.current = null;
+    }
+  }, [model]);
 
   // ── Build ──────────────────────────────────────────────────────────────────
   const buildGrid = useCallback(() => {
@@ -520,6 +592,54 @@ export function VoxelTab({ fileBytes }: Props) {
             onChange={e => setVExag(+e.target.value)}
             style={{ width: '100%' }}
           />
+        </div>
+
+        {/* Topo surface */}
+        <div style={PANEL}>
+          <label style={SLABEL}>Topo surface</label>
+          <div style={{ fontSize: 12, color: topoGrid ? '#22c55e' : 'var(--muted)', marginBottom: 8 }}>
+            {topoGrid ? `✓ ${topoGrid.source}` : 'IDW from borehole collars'}
+          </div>
+          <input
+            ref={topoFileRef}
+            type="file"
+            accept=".asc,.xyz,.csv,.txt"
+            style={{ display: 'none' }}
+            onChange={handleTopoFileUpload}
+          />
+          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+            <button
+              onClick={() => topoFileRef.current?.click()}
+              style={{ flex: 1, fontSize: 12, padding: '5px 0', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer' }}
+            >
+              Load .asc / .xyz
+            </button>
+            <button
+              onClick={handleFetchSrtm}
+              disabled={topoFetching || !model}
+              style={{ flex: 1, fontSize: 12, padding: '5px 0', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', cursor: topoFetching || !model ? 'not-allowed' : 'pointer', opacity: topoFetching || !model ? 0.5 : 1 }}
+            >
+              {topoFetching
+                ? `SRTM… ${fetchProgress.batch}/${fetchProgress.total}`
+                : 'Fetch SRTM 30m'}
+            </button>
+          </div>
+          {topoGrid && (
+            <button
+              onClick={() => { setTopoGrid(null); setTopoError(''); }}
+              style={{ width: '100%', fontSize: 11, padding: '4px 0', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--muted)', cursor: 'pointer' }}
+            >
+              Clear topo
+            </button>
+          )}
+          {topoFetching && (
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, lineHeight: 1.4 }}>
+              Fetching from opentopodata.org ({fetchProgress.batch}/{fetchProgress.total} batches)…
+            </p>
+          )}
+          {topoError && (
+            <p style={{ fontSize: 11, color: '#dc2626', marginTop: 6, lineHeight: 1.4 }}>{topoError}</p>
+          )}
         </div>
 
         {/* Build */}
