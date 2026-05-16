@@ -6,6 +6,7 @@ import {
   Registry,
   Severity,
   assessQuality,
+  buildGiReport,
   decodeBytes,
   diffFiles,
   diffToSummary,
@@ -15,6 +16,8 @@ import {
   readDiggs,
   renderDiffText,
   renderExplorerFromBytes,
+  renderGiReportJson,
+  renderGiReportText,
   renderInfo,
   renderQualityJson,
   renderQualityText,
@@ -71,6 +74,10 @@ export function runCli(argv: readonly string[]): RunResult {
       return runExplore(argv.slice(1));
     case "quality":
       return runQualityCmd(argv.slice(1));
+    case "report":
+      return runReport(argv.slice(1));
+    case "export":
+      return runExport(argv.slice(1));
     case "db":
       return runDb(argv.slice(1));
     case "--help":
@@ -524,6 +531,140 @@ function runQualityCmd(argv: readonly string[]): RunResult {
   }
 }
 
+function runReport(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("report requires a file path");
+  }
+
+  const file = argv[0]!;
+  let format: "text" | "json" = "text";
+  let outPath: string | null = null;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--format") {
+      const value = argv[++i];
+      if (!value) return usageError("--format requires a value");
+      if (value !== "text" && value !== "json") return usageError(`unsupported format: ${value}`);
+      format = value;
+      continue;
+    }
+    if (arg === "--out") {
+      const value = argv[++i];
+      if (!value) return usageError("--out requires a path");
+      outPath = value;
+      continue;
+    }
+    return usageError(`unknown report option: ${arg}`);
+  }
+
+  try {
+    const resolved = resolve(file);
+    const bytes = readFileSync(resolved);
+    const text = decodeBytes(bytes);
+    const { file: agsFile } = parseStr(text);
+    const report = buildGiReport(agsFile);
+    const output = format === "json" ? renderGiReportJson(report) : renderGiReportText(report, resolved);
+
+    if (outPath !== null) {
+      const resolvedOut = resolve(outPath);
+      writeFileSync(resolvedOut, output);
+      return { exitCode: 0, stdout: `report written to ${resolvedOut}\n`, stderr: "" };
+    }
+    return { exitCode: 0, stdout: output, stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function runExport(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("export requires a file path");
+  }
+
+  const file = argv[0]!;
+  let groupName: string | null = null;
+  let format: "csv" | "tsv" = "csv";
+  let outPath: string | null = null;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--group") {
+      const value = argv[++i];
+      if (!value) return usageError("--group requires a group name");
+      groupName = value.toUpperCase();
+      continue;
+    }
+    if (arg === "--format") {
+      const value = argv[++i];
+      if (!value) return usageError("--format requires a value");
+      if (value !== "csv" && value !== "tsv") return usageError(`unsupported export format: ${value}`);
+      format = value;
+      continue;
+    }
+    if (arg === "--out") {
+      const value = argv[++i];
+      if (!value) return usageError("--out requires a path");
+      outPath = value;
+      continue;
+    }
+    return usageError(`unknown export option: ${arg}`);
+  }
+
+  if (groupName === null) {
+    return usageError("export requires --group <name>");
+  }
+
+  try {
+    const resolved = resolve(file);
+    const bytes = readFileSync(resolved);
+    const text = decodeBytes(bytes);
+    const { file: agsFile } = parseStr(text);
+    const group = agsFile.groups[groupName];
+
+    if (!group) {
+      return {
+        exitCode: 2,
+        stdout: "",
+        stderr: `group ${JSON.stringify(groupName)} not found in ${resolved}\n`,
+      };
+    }
+
+    const sep = format === "tsv" ? "\t" : ",";
+    const escape = format === "csv"
+      ? (v: string) => {
+          if (v.includes(",") || v.includes('"') || v.includes("\n")) {
+            return `"${v.replace(/"/g, '""')}"`;
+          }
+          return v;
+        }
+      : (v: string) => v;
+
+    const headingNames = group.headings.map((h) => h.name);
+    const csvLines: string[] = [];
+    csvLines.push(headingNames.map(escape).join(sep));
+    for (const row of group.rows) {
+      const cells = headingNames.map((name) => {
+        const v = row[name];
+        return escape(v == null ? "" : String(v));
+      });
+      csvLines.push(cells.join(sep));
+    }
+    const output = csvLines.join("\n") + "\n";
+
+    if (outPath !== null) {
+      const resolvedOut = resolve(outPath);
+      writeFileSync(resolvedOut, output);
+      return { exitCode: 0, stdout: `exported ${groupName} to ${resolvedOut}\n`, stderr: "" };
+    }
+    return { exitCode: 0, stdout: output, stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
 function runDb(argv: readonly string[]): RunResult {
   const subcommand = argv[0];
   if (!subcommand || subcommand === "help") {
@@ -668,6 +809,8 @@ function usageText(): string {
     "  geoflow convert <in> <out> [--to ags|diggs]",
     "  geoflow diff <file-a> <file-b> [--format text|json]",
     "  geoflow quality <file> [--format text|json] [--fail-on error|warning|info]",
+    "  geoflow report <file> [--format text|json] [--out <path>]",
+    "  geoflow export <file> --group <name> [--format csv|tsv] [--out <path>]",
     "  geoflow explore <file> [--out <path>]",
     "  geoflow rules list",
     "  geoflow rules show <id>",
