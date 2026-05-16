@@ -3,11 +3,17 @@
  *
  * Discovers interpolatable properties from any depth-referenced AGS group
  * (GEOL, ISPT, LNMC, TRIG, SAMP, etc.) and fills a 3-D voxel grid using
- * inverse-distance weighting (IDW) from borehole observations.
+ * either IDW (inverse-distance weighting) or true 3-D RBF interpolation.
+ *
+ * Numeric fields use RBF by default — a single r³ polyharmonic solve over all
+ * (x, y, elevation, value) observation points with auto-scaled anisotropy.
+ * Categorical fields always use IDW (nearest borehole at matching depth).
  */
 
 import type { AgsFile, AgsType } from './model.js';
 import type { Geo3DModel } from './geo3d.js';
+import { RbfVolume } from './rbf.js';
+import type { Pt4 } from './rbf.js';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -27,7 +33,17 @@ export interface VoxelCell {
   cx: number; cy: number; cz: number;  // cell centre (local coords; cz = elevation m OD)
   value: number | null;                // numeric fields
   category: string | null;            // categorical fields
-  confidence: number;                  // 0–1: fraction of site boreholes contributing
+  confidence: number;                  // 0–1 proximity-to-data score
+}
+
+export interface VoxelStats {
+  count: number;
+  mean: number;
+  std: number;
+  p10: number;
+  p50: number;
+  p90: number;
+  histogram: { edges: number[]; counts: number[] };
 }
 
 export interface VoxelGrid {
@@ -39,6 +55,8 @@ export interface VoxelGrid {
   numericRange: [number, number]; // [min, max] of populated numeric cells
   categories: string[];           // sorted unique category values
   centroid: { x: number; y: number }; // absolute centroid for export
+  stats: VoxelStats | null;       // raw-observation statistics (numeric only)
+  method: 'idw' | 'rbf';
 }
 
 // ── Type helpers ──────────────────────────────────────────────────────────────
@@ -54,15 +72,37 @@ function isCatDt(dt: AgsType): boolean {
 
 // ── Depth field discovery ─────────────────────────────────────────────────────
 
-// Suffixes that indicate a depth field in an AGS group
 const DEPTH_SUFFIXES = ['_TOP', '_DPTH', '_DEPT', '_DEP', '_RDEP', '_DEPTH'];
 
-// Suffixes to skip when looking for value fields (metadata / depth / keys)
-const SKIP_SUFFIXES  = [
+const SKIP_SUFFIXES = [
   '_TOP', '_BASE', '_DPTH', '_DEPT', '_DEP', '_RDEP', '_DEPTH',
   '_TESN', '_REF', '_REM', '_EN', '_RTYP', '_METH', '_CRED',
   '_CONT', '_SAMP', '_ID', '_NCHK', '_CANC',
 ];
+
+// ── Stats helper ──────────────────────────────────────────────────────────────
+
+const N_HIST_BINS = 12;
+
+function computeStats(values: number[]): VoxelStats {
+  const n = values.length;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mean = values.reduce((s, v) => s + v, 0) / n;
+  const std  = Math.sqrt(values.reduce((s, v) => s + (v - mean) ** 2, 0) / n);
+  const p = (q: number) => sorted[Math.min(Math.floor(n * q), n - 1)] ?? mean;
+
+  const lo  = sorted[0]!;
+  const hi  = sorted[n - 1]!;
+  const bw  = (hi - lo) || 1;
+  const edges  = Array.from({ length: N_HIST_BINS + 1 }, (_, i) => lo + (i / N_HIST_BINS) * bw);
+  const counts = new Array<number>(N_HIST_BINS).fill(0);
+  for (const v of values) {
+    const bin = Math.min(Math.floor(((v - lo) / bw) * N_HIST_BINS), N_HIST_BINS - 1);
+    counts[bin]!++;
+  }
+
+  return { count: n, mean, std, p10: p(0.1), p50: p(0.5), p90: p(0.9), histogram: { edges, counts } };
+}
 
 // ── Property discovery ────────────────────────────────────────────────────────
 
@@ -82,9 +122,8 @@ export function discoverVoxelProperties(file: AgsFile): VoxelProperty[] {
     if (!headingNames.includes('LOCA_ID')) continue;
     if (group.rows.length === 0) continue;
 
-    // Find the primary depth field for this group
     const topField = DEPTH_SUFFIXES
-      .map(s => groupName + s)
+      .map(sfx => groupName + sfx)
       .find(f => headingNames.includes(f));
     if (!topField) continue;
 
@@ -95,13 +134,12 @@ export function discoverVoxelProperties(file: AgsFile): VoxelProperty[] {
     for (const heading of group.headings) {
       const name = heading.name;
       if (name === 'LOCA_ID') continue;
-      if (SKIP_SUFFIXES.some(s => name.endsWith(s))) continue;
+      if (SKIP_SUFFIXES.some(sfx => name.endsWith(sfx))) continue;
 
-      const dt = heading.data_type;
+      const dt   = heading.data_type;
       const unit = heading.unit ?? '';
 
       if (isNumericDt(dt)) {
-        // Require at least one parseable non-empty value
         const hasData = group.rows.some(r => {
           const v = r[name];
           return v != null && v !== '' && !isNaN(parseFloat(String(v)));
@@ -109,14 +147,9 @@ export function discoverVoxelProperties(file: AgsFile): VoxelProperty[] {
         if (!hasData) continue;
 
         props.push({
-          id: name,
-          label: name.replace(/_/g, ' '),
-          type: 'numeric',
-          group: groupName,
-          valueField: name,
-          depthTopField: topField,
-          depthBaseField: baseField,
-          unit,
+          id: name, label: name.replace(/_/g, ' '), type: 'numeric',
+          group: groupName, valueField: name,
+          depthTopField: topField, depthBaseField: baseField, unit,
         });
       } else if (isCatDt(dt)) {
         const vals = new Set(
@@ -125,14 +158,9 @@ export function discoverVoxelProperties(file: AgsFile): VoxelProperty[] {
         if (vals.size < 2) continue;
 
         props.push({
-          id: name,
-          label: name.replace(/_/g, ' '),
-          type: 'categorical',
-          group: groupName,
-          valueField: name,
-          depthTopField: topField,
-          depthBaseField: baseField,
-          unit: '',
+          id: name, label: name.replace(/_/g, ' '), type: 'categorical',
+          group: groupName, valueField: name,
+          depthTopField: topField, depthBaseField: baseField, unit: '',
         });
       }
     }
@@ -144,24 +172,38 @@ export function discoverVoxelProperties(file: AgsFile): VoxelProperty[] {
 // ── Voxel grid builder ────────────────────────────────────────────────────────
 
 /**
- * Fill a 3-D voxel grid for a single property using IDW interpolation.
+ * Fill a 3-D voxel grid for a single property.
  *
- * For each voxel cell (cx, cy, cz):
- *   - cz is elevation (m OD); depth_in_borehole = bh.elev − cz
- *   - Any observation whose depth interval overlaps the cell depth is a
- *     candidate; weighted by 1/distance (IDW power = 1)
- *   - Numeric:      weighted average across contributing boreholes
- *   - Categorical:  value from nearest contributing borehole
+ * Numeric fields:
+ *   method='rbf' (default) — build a single RbfVolume from all
+ *   (x, y, elevation, value) observation points, evaluate at every cell
+ *   centre.  Confidence is derived from distToNearest scaled by the
+ *   characteristic lateral spacing between boreholes.
+ *
+ *   method='idw' — classic IDW (power=1) per cell in 2-D horizontal space
+ *   with depth-window matching.
+ *
+ * Categorical fields always use IDW nearest-borehole at matching depth.
+ * Raw-observation statistics (count, mean, std, P10/P50/P90, histogram)
+ * are always computed for numeric properties and stored in grid.stats.
  */
 export function buildVoxelGrid(
   file: AgsFile,
   model: Geo3DModel,
   prop: VoxelProperty,
-  opts: { nx?: number; ny?: number; nz?: number } = {},
+  opts: {
+    nx?: number;
+    ny?: number;
+    nz?: number;
+    method?: 'idw' | 'rbf';
+    lambda?: number;
+  } = {},
 ): VoxelGrid {
-  const nx = Math.max(2, opts.nx ?? 20);
-  const ny = Math.max(2, opts.ny ?? 20);
-  const nz = Math.max(2, opts.nz ?? 20);
+  const nx     = Math.max(2, opts.nx ?? 20);
+  const ny     = Math.max(2, opts.ny ?? 20);
+  const nz     = Math.max(2, opts.nz ?? 20);
+  const method = (prop.type === 'numeric' ? (opts.method ?? 'rbf') : 'idw') as 'idw' | 'rbf';
+  const lambda = opts.lambda ?? 0;
 
   const { bounds, boreholes, centroid } = model;
   const { xMin, xMax, yMin, yMax, zMin, zMax } = bounds;
@@ -173,6 +215,7 @@ export function buildVoxelGrid(
     property: prop, nx, ny, nz,
     cellSize: { dx, dy, dz }, bounds, cells: [],
     numericRange: [0, 1], categories: [], centroid,
+    stats: null, method,
   };
 
   const group = file.groups[prop.group];
@@ -204,8 +247,8 @@ export function buildVoxelGrid(
         const n = parseFloat(String(raw));
         if (!isNaN(n)) numVal = n;
       } else {
-        const s = String(raw).trim();
-        if (s) catVal = s;
+        const sv = String(raw).trim();
+        if (sv) catVal = sv;
       }
     }
     if (numVal === null && catVal === null) continue;
@@ -217,15 +260,103 @@ export function buildVoxelGrid(
   if (bhObs.size === 0) return empty;
 
   const bhByLoca = new Map(boreholes.map(bh => [bh.id, bh]));
-  const nBh = Math.max(1, boreholes.length);
-  const halfDz = dz * 0.55; // slight overlap tolerance at cell boundaries
+
+  // ── Compute stats from raw observations (numeric only) ─────────────────────
+
+  let stats: VoxelStats | null = null;
+  if (prop.type === 'numeric') {
+    const allVals: number[] = [];
+    for (const obs of bhObs.values()) {
+      for (const o of obs) {
+        if (o.numVal !== null) allVals.push(o.numVal);
+      }
+    }
+    if (allVals.length > 0) stats = computeStats(allVals);
+  }
+
+  // ── RBF path (numeric only) ────────────────────────────────────────────────
+
+  if (method === 'rbf' && prop.type === 'numeric') {
+    const pt4s: Pt4[] = [];
+    for (const [locaId, obs] of bhObs) {
+      const bh = bhByLoca.get(locaId);
+      if (!bh) continue;
+      for (const o of obs) {
+        if (o.numVal === null) continue;
+        const midDepth = prop.depthBaseField
+          ? (o.depthTop + o.depthBase) / 2
+          : o.depthTop;
+        pt4s.push({ x: bh.x, y: bh.y, z: bh.elev - midDepth, v: o.numVal });
+      }
+    }
+
+    if (pt4s.length < 4) {
+      // Too few observations for the 3-D polynomial tail — fall back to IDW
+      return buildVoxelGrid(file, model, prop, { ...opts, method: 'idw' });
+    }
+
+    let rbf: RbfVolume;
+    try {
+      rbf = new RbfVolume(pt4s, lambda);
+    } catch {
+      return buildVoxelGrid(file, model, prop, { ...opts, method: 'idw' });
+    }
+
+    // Characteristic lateral spacing between contributing boreholes
+    const bhList = [...bhByLoca.values()].filter(bh => bhObs.has(bh.id));
+    let charDist = 1;
+    if (bhList.length >= 2) {
+      const dists: number[] = [];
+      for (let i = 0; i < bhList.length; i++) {
+        for (let j = i + 1; j < bhList.length; j++) {
+          const ddx = bhList[i]!.x - bhList[j]!.x;
+          const ddy = bhList[i]!.y - bhList[j]!.y;
+          dists.push(Math.sqrt(ddx * ddx + ddy * ddy));
+        }
+      }
+      dists.sort((a, b) => a - b);
+      charDist = dists[Math.floor(dists.length / 2)] ?? 1;
+    }
+    const charDist3D = charDist * rbf.az;  // scale to anisotropic space
+
+    const cells: VoxelCell[] = [];
+    let numMin = Infinity;
+    let numMax = -Infinity;
+
+    for (let iz = 0; iz < nz; iz++) {
+      const cz = zMin + (iz + 0.5) * dz;
+      for (let iy = 0; iy < ny; iy++) {
+        const cy = yMin + (iy + 0.5) * dy;
+        for (let ix = 0; ix < nx; ix++) {
+          const cx = xMin + (ix + 0.5) * dx;
+          const val = rbf.evaluate(cx, cy, cz);
+          const d   = rbf.distToNearest(cx, cy, cz);
+          const confidence = Math.max(0, 1 - d / (charDist3D * 1.5));
+
+          if (val < numMin) numMin = val;
+          if (val > numMax) numMax = val;
+          cells.push({ ix, iy, iz, cx, cy, cz, value: val, category: null, confidence });
+        }
+      }
+    }
+
+    return {
+      property: prop, nx, ny, nz,
+      cellSize: { dx, dy, dz }, bounds, cells,
+      numericRange: numMin <= numMax ? [numMin, numMax] : [0, 1],
+      categories: [], centroid, stats, method: 'rbf',
+    };
+  }
+
+  // ── IDW path (numeric fallback + all categorical) ──────────────────────────
+
+  const nBh    = Math.max(1, boreholes.length);
+  const halfDz = dz * 0.55;
 
   const cells: VoxelCell[] = [];
   let numMin = Infinity;
   let numMax = -Infinity;
   const catSet = new Set<string>();
-
-  // ── Fill grid ──────────────────────────────────────────────────────────────
 
   for (let iz = 0; iz < nz; iz++) {
     const cz = zMin + (iz + 0.5) * dz;
@@ -234,8 +365,7 @@ export function buildVoxelGrid(
       for (let ix = 0; ix < nx; ix++) {
         const cx = xMin + (ix + 0.5) * dx;
 
-        let wSum = 0;
-        let vSum = 0;
+        let wSum = 0, vSum = 0;
         let nearestCat: string | null = null;
         let nearestD = Infinity;
         let nContrib = 0;
@@ -245,8 +375,6 @@ export function buildVoxelGrid(
           if (!bh) continue;
 
           const depthInBh = bh.elev - cz;
-
-          // Find first observation whose depth range covers this voxel
           let matched: Obs | null = null;
           for (const o of obs) {
             const effBase = prop.depthBaseField ? o.depthBase : o.depthTop + halfDz;
@@ -258,13 +386,12 @@ export function buildVoxelGrid(
 
           const ddx = bh.x - cx;
           const ddy = bh.y - cy;
-          const dh = Math.sqrt(ddx * ddx + ddy * ddy);
+          const dh  = Math.sqrt(ddx * ddx + ddy * ddy);
           nContrib++;
 
           if (prop.type === 'numeric' && matched.numVal !== null) {
-            const w = 1.0 / Math.max(dh, 1.0); // IDW power 1
-            wSum += w;
-            vSum += w * matched.numVal;
+            const w = 1.0 / Math.max(dh, 1.0);
+            wSum += w; vSum += w * matched.numVal;
           } else if (matched.catVal !== null) {
             if (dh < nearestD) { nearestD = dh; nearestCat = matched.catVal; }
             wSum = 1;
@@ -292,8 +419,8 @@ export function buildVoxelGrid(
     property: prop, nx, ny, nz,
     cellSize: { dx, dy, dz }, bounds, cells,
     numericRange: numMin <= numMax ? [numMin, numMax] : [0, 1],
-    categories: [...catSet].sort(),
-    centroid,
+    categories: [...catSet].sort(), centroid,
+    stats, method: 'idw',
   };
 }
 

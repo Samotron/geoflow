@@ -19,6 +19,7 @@
 
 export interface Pt2 { x: number; y: number; }
 export interface Pt3 { x: number; y: number; z: number; }
+export interface Pt4 { x: number; y: number; z: number; v: number; }
 
 // ── Basis functions ───────────────────────────────────────────────────────────
 
@@ -305,5 +306,118 @@ export class RbfSurface {
       result.push({ dist: t * totalDist, z: this.evaluate(x0 + t * ddx, y0 + t * ddy) });
     }
     return result;
+  }
+}
+
+// ── RbfVolume ─────────────────────────────────────────────────────────────────
+
+/**
+ * True 3-D polyharmonic r³ RBF with linear polynomial tail [1, x, y, z·az].
+ *
+ * Fits scattered (x, y, z, v) observations and evaluates anywhere in the
+ * volume.  The anisotropy parameter `az` scales z before computing distances —
+ * set it to (lateral_span / vertical_span) so the basis is roughly isotropic
+ * in geological space.  Pass az = 0 to auto-compute from the data bounding box.
+ *
+ * System size: n + 4 (n observations + 4 polynomial unknowns).
+ * Needs ≥ 4 non-coplanar points.  λ > 0 enables Tikhonov smoothing.
+ */
+export class RbfVolume {
+  private readonly ptsX: Float64Array;
+  private readonly ptsY: Float64Array;
+  private readonly ptsZ: Float64Array;
+  private readonly w:    Float64Array;
+  private readonly a0: number;
+  private readonly a1: number;
+  private readonly a2: number;
+  private readonly a3: number;
+  readonly az: number;  // resolved anisotropy (exposed for tests / confidence scaling)
+
+  constructor(pts: Pt4[], lambda = 0, az = 0) {
+    if (pts.length < 4) throw new Error('RbfVolume needs ≥ 4 points');
+    const n = pts.length;
+
+    // Auto-compute anisotropy from data bounding box when az = 0
+    let resolvedAz = az;
+    if (az === 0) {
+      let xMin = Infinity, xMax = -Infinity;
+      let yMin = Infinity, yMax = -Infinity;
+      let zMin = Infinity, zMax = -Infinity;
+      for (const p of pts) {
+        if (p.x < xMin) xMin = p.x; if (p.x > xMax) xMax = p.x;
+        if (p.y < yMin) yMin = p.y; if (p.y > yMax) yMax = p.y;
+        if (p.z < zMin) zMin = p.z; if (p.z > zMax) zMax = p.z;
+      }
+      const latSpan = Math.max(xMax - xMin, yMax - yMin, 1);
+      const zSpan   = Math.max(zMax - zMin, 0.1);
+      resolvedAz = latSpan / zSpan;
+    }
+    this.az = resolvedAz;
+
+    this.ptsX = new Float64Array(n);
+    this.ptsY = new Float64Array(n);
+    this.ptsZ = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      s(this.ptsX, i, pts[i]?.x ?? 0);
+      s(this.ptsY, i, pts[i]?.y ?? 0);
+      s(this.ptsZ, i, pts[i]?.z ?? 0);
+    }
+
+    // Augmented system: [K + λI  P ; Pᵀ  0] · [w ; a] = [v ; 0]
+    // K is n×n RBF kernel, P = [1, x, y, z·az] polynomial tail
+    const sz = n + 4;
+    const Aflat = new Float64Array(sz * sz);
+    const bvec  = new Float64Array(sz);
+
+    for (let i = 0; i < n; i++) {
+      const ix = g(this.ptsX, i);
+      const iy = g(this.ptsY, i);
+      const iz = g(this.ptsZ, i) * resolvedAz;
+      for (let j = 0; j < n; j++) {
+        const dx = ix - g(this.ptsX, j);
+        const dy = iy - g(this.ptsY, j);
+        const dz = iz - g(this.ptsZ, j) * resolvedAz;
+        s(Aflat, i * sz + j, r3(Math.sqrt(dx * dx + dy * dy + dz * dz)) + (i === j ? lambda : 0));
+      }
+      // Polynomial tail columns and their transpose
+      s(Aflat, i * sz + n,       1);  s(Aflat, n       * sz + i, 1);
+      s(Aflat, i * sz + (n + 1), ix); s(Aflat, (n + 1) * sz + i, ix);
+      s(Aflat, i * sz + (n + 2), iy); s(Aflat, (n + 2) * sz + i, iy);
+      s(Aflat, i * sz + (n + 3), iz); s(Aflat, (n + 3) * sz + i, iz);
+    }
+    for (let i = 0; i < n; i++) bvec[i] = pts[i]?.v ?? 0;
+
+    const sol = gaussSolve(sz, Aflat, bvec);
+    this.w  = sol.slice(0, n);
+    this.a0 = g(sol, n);
+    this.a1 = g(sol, n + 1);
+    this.a2 = g(sol, n + 2);
+    this.a3 = g(sol, n + 3);
+  }
+
+  evaluate(x: number, y: number, z: number): number {
+    const sz = z * this.az;
+    let val = this.a0 + this.a1 * x + this.a2 * y + this.a3 * sz;
+    for (let i = 0; i < this.ptsX.length; i++) {
+      const dx = x - g(this.ptsX, i);
+      const dy = y - g(this.ptsY, i);
+      const dz = sz - g(this.ptsZ, i) * this.az;
+      val += g(this.w, i) * r3(Math.sqrt(dx * dx + dy * dy + dz * dz));
+    }
+    return val;
+  }
+
+  /** Anisotropy-scaled 3-D distance to the nearest observation point. */
+  distToNearest(x: number, y: number, z: number): number {
+    const sz = z * this.az;
+    let minD = Infinity;
+    for (let i = 0; i < this.ptsX.length; i++) {
+      const dx = x - g(this.ptsX, i);
+      const dy = y - g(this.ptsY, i);
+      const dz = sz - g(this.ptsZ, i) * this.az;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (d < minD) minD = d;
+    }
+    return minD;
   }
 }

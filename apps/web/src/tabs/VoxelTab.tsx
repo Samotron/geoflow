@@ -2,8 +2,9 @@
  * VoxelTab — geostatistical voxel grid viewer.
  *
  * Layout:
- *   LEFT (300 px)  — property selector, sliders, build button, legend, stats, export
- *   RIGHT (flex 1) — Three.js InstancedMesh voxel renderer with OrbitControls
+ *   LEFT (300 px)  — property, interpolation method, sliders, build, stats,
+ *                    histogram, legend, export
+ *   RIGHT (flex 1) — Three.js InstancedMesh voxel renderer + OrbitControls
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -17,13 +18,12 @@ import type { AgsFile, VoxelProperty, VoxelGrid } from '../core.js';
 
 // ── Colour helpers ─────────────────────────────────────────────────────────────
 
-// Simplified viridis key stops: [R, G, B] in 0–1
 const VIRIDIS: [number, number, number][] = [
-  [0.267, 0.005, 0.329],  // 0.00 — dark purple
-  [0.231, 0.322, 0.545],  // 0.25
-  [0.129, 0.569, 0.549],  // 0.50
-  [0.369, 0.788, 0.384],  // 0.75
-  [0.993, 0.906, 0.144],  // 1.00 — yellow
+  [0.267, 0.005, 0.329],
+  [0.231, 0.322, 0.545],
+  [0.129, 0.569, 0.549],
+  [0.369, 0.788, 0.384],
+  [0.993, 0.906, 0.144],
 ];
 
 function viridisColor(t: number, out: THREE.Color): void {
@@ -37,11 +37,26 @@ function viridisColor(t: number, out: THREE.Color): void {
   out.setRGB(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f);
 }
 
+const VIRIDIS_CSS = VIRIDIS.map((s, i) =>
+  `rgb(${Math.round(s[0]*255)},${Math.round(s[1]*255)},${Math.round(s[2]*255)}) ${i*25}%`
+).join(', ');
+
 const CAT_PALETTE = [
-  '#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed',
-  '#0891b2', '#be185d', '#65a30d', '#ea580c', '#4f46e5',
-  '#0d9488', '#b45309', '#9333ea', '#0284c7', '#c2410c',
-  '#1d4ed8', '#b91c1c', '#15803d', '#b45309', '#6d28d9',
+  '#2563eb','#dc2626','#16a34a','#d97706','#7c3aed',
+  '#0891b2','#be185d','#65a30d','#ea580c','#4f46e5',
+  '#0d9488','#b45309','#9333ea','#0284c7','#c2410c',
+  '#1d4ed8','#b91c1c','#15803d','#b45309','#6d28d9',
+];
+
+// ── Lambda presets ─────────────────────────────────────────────────────────────
+
+const LAMBDA_PRESETS: { label: string; value: number }[] = [
+  { label: 'None (exact)',  value: 0      },
+  { label: 'Very slight',   value: 1      },
+  { label: 'Slight',        value: 10     },
+  { label: 'Moderate',      value: 100    },
+  { label: 'Heavy',         value: 1000   },
+  { label: 'Very heavy',    value: 10000  },
 ];
 
 // ── Style constants ────────────────────────────────────────────────────────────
@@ -59,6 +74,11 @@ const SLABEL: React.CSSProperties = {
   letterSpacing: '0.4px', color: 'var(--muted)', display: 'block', marginBottom: 6,
 };
 
+const ROW: React.CSSProperties = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  fontSize: 12, borderBottom: '1px solid var(--border)', padding: '3px 0',
+};
+
 // ── Props ──────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -70,22 +90,26 @@ interface Props {
 
 export function VoxelTab({ fileBytes }: Props) {
   // ── Three.js refs ──────────────────────────────────────────────────────────
-  const canvasRef    = useRef<HTMLDivElement>(null);
-  const rendererRef  = useRef<THREE.WebGLRenderer | null>(null);
-  const sceneRef     = useRef<THREE.Scene | null>(null);
-  const cameraRef    = useRef<THREE.PerspectiveCamera | null>(null);
-  const controlsRef  = useRef<OrbitControls | null>(null);
-  const meshRef      = useRef<THREE.InstancedMesh | null>(null);
-  const frameRef     = useRef<number>(0);
-  const opacityRef   = useRef<number>(0.8);
+  const canvasRef   = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef    = useRef<THREE.Scene | null>(null);
+  const cameraRef   = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const meshRef     = useRef<THREE.InstancedMesh | null>(null);
+  const frameRef    = useRef<number>(0);
+  const opacityRef  = useRef<number>(0.8);
 
-  // ── Data state ─────────────────────────────────────────────────────────────
+  // ── UI state ───────────────────────────────────────────────────────────────
   const [selectedPropId, setSelectedPropId] = useState<string>('');
   const [resolution, setResolution]         = useState(20);
   const [opacity, setOpacity]               = useState(0.8);
   const [vExag, setVExag]                   = useState(1);
+  const [method, setMethod]                 = useState<'rbf' | 'idw'>('rbf');
+  const [lambdaIdx, setLambdaIdx]           = useState(0);
   const [grid, setGrid]                     = useState<VoxelGrid | null>(null);
   const [building, setBuilding]             = useState(false);
+
+  const lambda = LAMBDA_PRESETS[lambdaIdx]?.value ?? 0;
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const agsFile = useMemo<AgsFile | null>(() => {
@@ -103,14 +127,10 @@ export function VoxelTab({ fileBytes }: Props) {
     try { return discoverVoxelProperties(agsFile); } catch { return []; }
   }, [agsFile]);
 
-  // Auto-select first property
   useEffect(() => {
-    if (properties.length > 0 && !selectedPropId) {
-      setSelectedPropId(properties[0]!.id);
-    }
+    if (properties.length > 0 && !selectedPropId) setSelectedPropId(properties[0]!.id);
   }, [properties, selectedPropId]);
 
-  // Group properties by AGS group for <optgroup>
   const groupedProps = useMemo(() => {
     const map = new Map<string, VoxelProperty[]>();
     for (const p of properties) {
@@ -119,6 +139,8 @@ export function VoxelTab({ fileBytes }: Props) {
     }
     return map;
   }, [properties]);
+
+  const selectedProp = properties.find(p => p.id === selectedPropId);
 
   // ── Three.js init / cleanup ────────────────────────────────────────────────
   useEffect(() => {
@@ -170,13 +192,11 @@ export function VoxelTab({ fileBytes }: Props) {
       cancelAnimationFrame(frameRef.current);
       controls.dispose();
       renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
+      if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
     };
   }, []);
 
-  // ── Rebuild voxel mesh when grid or vExag changes ──────────────────────────
+  // ── Rebuild voxel mesh ─────────────────────────────────────────────────────
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
@@ -224,7 +244,7 @@ export function VoxelTab({ fileBytes }: Props) {
     scene.add(mesh);
     meshRef.current = mesh;
 
-    // Fit camera to grid
+    // Fit camera to grid bounds
     const camera = cameraRef.current!;
     const controls = controlsRef.current!;
     const cx = (bounds.xMin + bounds.xMax) / 2;
@@ -240,28 +260,31 @@ export function VoxelTab({ fileBytes }: Props) {
     controls.update();
   }, [grid, vExag]);
 
-  // Update material opacity without full mesh rebuild
   useEffect(() => {
     opacityRef.current = opacity;
-    if (!meshRef.current) return;
-    (meshRef.current.material as THREE.MeshLambertMaterial).opacity = opacity;
+    if (meshRef.current) {
+      (meshRef.current.material as THREE.MeshLambertMaterial).opacity = opacity;
+    }
   }, [opacity]);
 
-  // ── Build voxel grid ───────────────────────────────────────────────────────
+  // ── Build ──────────────────────────────────────────────────────────────────
   const buildGrid = useCallback(() => {
     if (!agsFile || !model || !selectedPropId) return;
     const prop = properties.find(p => p.id === selectedPropId);
     if (!prop) return;
     setBuilding(true);
     try {
-      const g = buildVoxelGrid(agsFile, model, prop, { nx: resolution, ny: resolution, nz: resolution });
+      const g = buildVoxelGrid(agsFile, model, prop, {
+        nx: resolution, ny: resolution, nz: resolution,
+        method, lambda,
+      });
       setGrid(g);
     } finally {
       setBuilding(false);
     }
-  }, [agsFile, model, selectedPropId, properties, resolution]);
+  }, [agsFile, model, selectedPropId, properties, resolution, method, lambda]);
 
-  // ── Export CSV ─────────────────────────────────────────────────────────────
+  // ── Export ─────────────────────────────────────────────────────────────────
   const exportCsv = useCallback(() => {
     if (!grid) return;
     const csv = voxelGridToCsv(grid);
@@ -274,29 +297,31 @@ export function VoxelTab({ fileBytes }: Props) {
     URL.revokeObjectURL(url);
   }, [grid]);
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
+  // ── Derived display values ─────────────────────────────────────────────────
   const totalCells = grid ? grid.nx * grid.ny * grid.nz : 0;
   const filledPct  = grid && totalCells > 0
-    ? (grid.cells.length / totalCells * 100).toFixed(1)
-    : '0';
-
+    ? (grid.cells.length / totalCells * 100).toFixed(1) : '0';
   const noFile  = !fileBytes;
   const noModel = fileBytes && !model;
   const canBuild = !!agsFile && !!model && !!selectedPropId && !building;
+  const isNumeric = selectedProp?.type === 'numeric';
+
+  // Histogram max count for bar scaling
+  const histMax = grid?.stats
+    ? Math.max(...grid.stats.histogram.counts, 1)
+    : 1;
 
   return (
     <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 210px)', minHeight: 540 }}>
       {/* ── Left panel ────────────────────────────────────────────────────── */}
       <div style={{ width: 300, flexShrink: 0, overflowY: 'auto' }}>
 
-        {/* Property selector */}
+        {/* Property */}
         <div style={PANEL}>
           <label style={SLABEL}>Property</label>
-          {noFile && (
-            <p style={{ fontSize: 13, color: 'var(--muted)' }}>Load an AGS file to begin.</p>
-          )}
+          {noFile && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Load an AGS file to begin.</p>}
           {!noFile && properties.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--muted)' }}>No interpolatable fields found in this file.</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)' }}>No interpolatable fields found.</p>
           )}
           {properties.length > 0 && (
             <select
@@ -317,9 +342,57 @@ export function VoxelTab({ fileBytes }: Props) {
           )}
         </div>
 
+        {/* Interpolation method — only relevant for numeric fields */}
+        {isNumeric && (
+          <div style={PANEL}>
+            <label style={SLABEL}>Interpolation method</label>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              {(['rbf', 'idw'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => setMethod(m)}
+                  style={{
+                    flex: 1, padding: '6px 0', fontSize: 12, fontWeight: 600,
+                    borderRadius: 6, border: '1px solid var(--border)',
+                    background: method === m ? 'var(--navy)' : 'var(--card)',
+                    color: method === m ? '#fff' : 'var(--muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {m === 'rbf' ? '3-D RBF' : 'IDW'}
+                </button>
+              ))}
+            </div>
+            {method === 'rbf' && (
+              <>
+                <label style={{ ...SLABEL, marginTop: 4 }}>
+                  Smoothing (λ) — {LAMBDA_PRESETS[lambdaIdx]?.label}
+                </label>
+                <input
+                  type="range" min={0} max={LAMBDA_PRESETS.length - 1} step={1} value={lambdaIdx}
+                  onChange={e => setLambdaIdx(+e.target.value)}
+                  style={{ width: '100%' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                  <span>Exact</span><span>Heavy</span>
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, lineHeight: 1.4 }}>
+                  RBF fits a single 3-D radial basis function through all observations.
+                  Higher λ smooths out measurement noise.
+                </p>
+              </>
+            )}
+            {method === 'idw' && (
+              <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4 }}>
+                IDW weights each borehole by 1/distance at matching depth.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Resolution */}
         <div style={PANEL}>
-          <label style={SLABEL}>Grid resolution — {resolution}³ ({resolution ** 3} cells max)</label>
+          <label style={SLABEL}>Grid resolution — {resolution}³</label>
           <input
             type="range" min={10} max={40} step={5} value={resolution}
             onChange={e => setResolution(+e.target.value)}
@@ -350,7 +423,7 @@ export function VoxelTab({ fileBytes }: Props) {
           />
         </div>
 
-        {/* Build button */}
+        {/* Build */}
         <button
           onClick={buildGrid}
           disabled={!canBuild}
@@ -361,49 +434,86 @@ export function VoxelTab({ fileBytes }: Props) {
 
         {noModel && (
           <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 10 }}>
-            No borehole location data (LOCA group) found.
+            No borehole location data (LOCA) found.
           </p>
         )}
 
-        {/* Stats */}
+        {/* Grid info */}
         {grid && (
           <div style={PANEL}>
-            <label style={SLABEL}>Statistics</label>
-            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-              <tbody>
-                {([
-                  ['Property', grid.property.id],
-                  ['Grid', `${grid.nx} × ${grid.ny} × ${grid.nz}`],
-                  ['Populated', `${grid.cells.length.toLocaleString()} / ${totalCells.toLocaleString()}`],
-                  ['Fill ratio', `${filledPct}%`],
-                  ...(grid.property.type === 'numeric'
-                    ? [
-                        ['Min', grid.numericRange[0].toFixed(3) + (grid.property.unit ? ' ' + grid.property.unit : '')],
-                        ['Max', grid.numericRange[1].toFixed(3) + (grid.property.unit ? ' ' + grid.property.unit : '')],
-                      ]
-                    : [['Categories', String(grid.categories.length)]]),
-                ] as [string, string][]).map(([k, v]) => (
-                  <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ color: 'var(--muted)', padding: '4px 0', paddingRight: 8 }}>{k}</td>
-                    <td style={{ fontWeight: 600 }}>{v}</td>
-                  </tr>
+            <label style={SLABEL}>Grid</label>
+            {([
+              ['Method', grid.method === 'rbf' ? '3-D RBF' : 'IDW'],
+              ['Size', `${grid.nx} × ${grid.ny} × ${grid.nz}`],
+              ['Populated', `${grid.cells.length.toLocaleString()} / ${totalCells.toLocaleString()} (${filledPct}%)`],
+              ...(grid.property.type === 'numeric'
+                ? [
+                    ['Interp. min', grid.numericRange[0].toFixed(3) + (grid.property.unit ? ' ' + grid.property.unit : '')],
+                    ['Interp. max', grid.numericRange[1].toFixed(3) + (grid.property.unit ? ' ' + grid.property.unit : '')],
+                  ]
+                : [['Categories', String(grid.categories.length)]]),
+            ] as [string, string][]).map(([k, v]) => (
+              <div key={k} style={ROW}>
+                <span style={{ color: 'var(--muted)' }}>{k}</span>
+                <span style={{ fontWeight: 600 }}>{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Observation statistics (numeric only) */}
+        {grid?.stats && (
+          <div style={PANEL}>
+            <label style={SLABEL}>
+              Observations ({grid.stats.count}){grid.property.unit ? ` — ${grid.property.unit}` : ''}
+            </label>
+            {([
+              ['Mean',  grid.stats.mean.toFixed(3)],
+              ['Std',   grid.stats.std.toFixed(3)],
+              ['P10',   grid.stats.p10.toFixed(3)],
+              ['P50',   grid.stats.p50.toFixed(3)],
+              ['P90',   grid.stats.p90.toFixed(3)],
+            ] as [string, string][]).map(([k, v]) => (
+              <div key={k} style={ROW}>
+                <span style={{ color: 'var(--muted)' }}>{k}</span>
+                <span style={{ fontWeight: 600 }}>{v}</span>
+              </div>
+            ))}
+            {/* Mini histogram */}
+            <div style={{ marginTop: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 40 }}>
+                {grid.stats.histogram.counts.map((count, i) => (
+                  <div
+                    key={i}
+                    title={`${grid.stats!.histogram.edges[i]?.toFixed(2)} – ${grid.stats!.histogram.edges[i+1]?.toFixed(2)}: ${count}`}
+                    style={{
+                      flex: 1,
+                      height: `${Math.max(2, (count / histMax) * 40)}px`,
+                      background: `linear-gradient(to right, ${VIRIDIS_CSS})`,
+                      backgroundSize: `${grid.stats!.histogram.counts.length * 100}% 100%`,
+                      backgroundPositionX: `${(i / (grid.stats!.histogram.counts.length - 1)) * 100}%`,
+                      borderRadius: '2px 2px 0 0',
+                      cursor: 'default',
+                    }}
+                  />
                 ))}
-              </tbody>
-            </table>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>
+                <span>{grid.stats.histogram.edges[0]?.toFixed(1)}</span>
+                <span>{grid.stats.histogram.edges[Math.floor(grid.stats.histogram.edges.length / 2)]?.toFixed(1)}</span>
+                <span>{grid.stats.histogram.edges[grid.stats.histogram.edges.length - 1]?.toFixed(1)}</span>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Numeric legend */}
         {grid?.property.type === 'numeric' && (
           <div style={PANEL}>
-            <label style={SLABEL}>
-              Legend{grid.property.unit ? ` (${grid.property.unit})` : ''}
-            </label>
+            <label style={SLABEL}>Colour scale{grid.property.unit ? ` (${grid.property.unit})` : ''}</label>
             <div style={{
-              height: 16, borderRadius: 4, marginBottom: 6,
-              background: `linear-gradient(to right, ${VIRIDIS.map((s, i) =>
-                `rgb(${Math.round(s[0] * 255)},${Math.round(s[1] * 255)},${Math.round(s[2] * 255)}) ${i * 25}%`
-              ).join(', ')})`,
+              height: 14, borderRadius: 4, marginBottom: 5,
+              background: `linear-gradient(to right, ${VIRIDIS_CSS})`,
             }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
               <span>{grid.numericRange[0].toFixed(2)}</span>
@@ -420,10 +530,7 @@ export function VoxelTab({ fileBytes }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {grid.categories.map((cat, i) => (
                 <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                  <div style={{
-                    width: 14, height: 14, borderRadius: 3, flexShrink: 0,
-                    background: CAT_PALETTE[i % CAT_PALETTE.length],
-                  }} />
+                  <div style={{ width: 14, height: 14, borderRadius: 3, flexShrink: 0, background: CAT_PALETTE[i % CAT_PALETTE.length] }} />
                   <span style={{ wordBreak: 'break-word' }}>{cat}</span>
                 </div>
               ))}

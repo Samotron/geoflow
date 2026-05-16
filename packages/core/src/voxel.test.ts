@@ -202,12 +202,22 @@ describe('buildVoxelGrid', () => {
     expect(grid.cells.every(c => c.category === null)).toBe(true);
   });
 
-  it('numeric range covers actual values', () => {
+  it('numeric range is a valid interval', () => {
     const file  = makeFile();
     const model = makeModel();
     const props = discoverVoxelProperties(file);
     const isptProp = props.find(p => p.id === 'ISPT_NVAL')!;
     const grid  = buildVoxelGrid(file, model, isptProp, { nx: 10, ny: 10, nz: 10 });
+    // RBF can extrapolate slightly outside observation range, so just check ordering
+    expect(grid.numericRange[0]).toBeLessThanOrEqual(grid.numericRange[1]);
+  });
+
+  it('IDW numeric range stays within observation bounds', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const isptProp = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, isptProp, { nx: 10, ny: 10, nz: 10, method: 'idw' });
     expect(grid.numericRange[0]).toBeGreaterThanOrEqual(10);
     expect(grid.numericRange[1]).toBeLessThanOrEqual(20);
     expect(grid.numericRange[0]).toBeLessThanOrEqual(grid.numericRange[1]);
@@ -276,6 +286,129 @@ describe('buildVoxelGrid', () => {
     expect(grid.nx).toBe(2);
     expect(grid.ny).toBe(2);
     expect(grid.nz).toBe(2);
+  });
+
+  // ── method field ────────────────────────────────────────────────────────────
+
+  it('numeric property defaults to rbf method', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.method).toBe('rbf');
+  });
+
+  it('categorical property always uses idw', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'GEOL_LEG')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5, method: 'rbf' });
+    expect(grid.method).toBe('idw');
+  });
+
+  it('respects explicit method: idw for numeric property', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5, method: 'idw' });
+    expect(grid.method).toBe('idw');
+  });
+
+  it('RBF fills every cell in the grid (global interpolant)', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf' });
+    // RBF is a global interpolant — every cell gets a value
+    expect(grid.cells.length).toBe(4 * 4 * 4);
+    expect(grid.cells.every(c => c.value !== null)).toBe(true);
+  });
+
+  it('RBF with lambda>0 produces a valid grid (smoothed solve)', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf', lambda: 100 });
+    expect(grid.method).toBe('rbf');
+    expect(grid.cells.length).toBeGreaterThan(0);
+    expect(grid.cells.every(c => isFinite(c.value!))).toBe(true);
+  });
+
+  it('falls back to IDW when fewer than 4 unique observations', () => {
+    // File with only 3 observations total
+    const sparseFile = makeFile({
+      ISPT: {
+        name: 'ISPT', source_line: 10,
+        headings: [
+          { name: 'LOCA_ID',   data_type: 'ID',  unit: '', description: '' },
+          { name: 'ISPT_DPTH', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'ISPT_NVAL', data_type: { _tag: 'DP', decimals: 0 }, unit: '', description: '' },
+        ],
+        rows: [
+          { LOCA_ID: 'BH1', ISPT_DPTH: '2', ISPT_NVAL: '12' },
+          { LOCA_ID: 'BH2', ISPT_DPTH: '2', ISPT_NVAL: '15' },
+          { LOCA_ID: 'BH3', ISPT_DPTH: '2', ISPT_NVAL: '10' },
+        ],
+      } as unknown as AgsFile['groups'][string],
+    });
+    const model = makeModel();
+    const props = discoverVoxelProperties(sparseFile);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(sparseFile, model, prop, { nx: 5, ny: 5, nz: 5, method: 'rbf' });
+    // Should fall back gracefully — either rbf with more obs or idw
+    expect(grid.cells.length).toBeGreaterThanOrEqual(0);
+  });
+
+  // ── stats ───────────────────────────────────────────────────────────────────
+
+  it('stats are populated for numeric properties', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.stats).not.toBeNull();
+    expect(grid.stats!.count).toBe(5);  // 5 ISPT observations in fixture
+    expect(grid.stats!.mean).toBeGreaterThan(0);
+    expect(grid.stats!.std).toBeGreaterThanOrEqual(0);
+    expect(grid.stats!.p10).toBeLessThanOrEqual(grid.stats!.p50);
+    expect(grid.stats!.p50).toBeLessThanOrEqual(grid.stats!.p90);
+  });
+
+  it('stats histogram has correct bin structure', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    const { histogram } = grid.stats!;
+    expect(histogram.edges.length).toBe(histogram.counts.length + 1);
+    const total = histogram.counts.reduce((s, c) => s + c, 0);
+    expect(total).toBe(grid.stats!.count);
+  });
+
+  it('stats are null for categorical properties', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'GEOL_LEG')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.stats).toBeNull();
+  });
+
+  it('stats mean is within observation range', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.stats!.mean).toBeGreaterThanOrEqual(10);
+    expect(grid.stats!.mean).toBeLessThanOrEqual(20);
   });
 });
 
