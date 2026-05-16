@@ -19,4 +19,5 @@ export * from "./explorer.js";
 export * from "./quality.js";
 export * from "./rbf.js";
 export * from "./geo3d.js";
+export * from "./voxel.js";
 export * from "./report.js";

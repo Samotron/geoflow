@@ -25,6 +25,9 @@ export {
   Severity,
   buildGeo3DModel,
   renderBoreholeStripSvg,
+  discoverVoxelProperties,
+  buildVoxelGrid,
+  voxelGridToCsv,
 } from '@geoflow/core';
 
 export type {
@@ -48,4 +51,7 @@ export type {
   Borehole3D,
   GeoUnit,
   GeoLayer,
+  VoxelProperty,
+  VoxelCell,
+  VoxelGrid,
 } from '@geoflow/core';
