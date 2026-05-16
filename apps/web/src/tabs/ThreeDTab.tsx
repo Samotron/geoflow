@@ -129,6 +129,7 @@ function buildSectionSvg(
   p0: SecPt,
   p1: SecPt,
   normalOffset = 0,
+  faults: Fault[] = [],
 ): string {
   const dx = p1.x - p0.x;
   const dy = p1.y - p0.y;
@@ -211,6 +212,23 @@ function buildSectionSvg(
     }
     out.push(`<line x1="${sx.toFixed(1)}" y1="${ys(bh.elev).toFixed(1)}" x2="${sx.toFixed(1)}" y2="${ys(bh.elev - bh.finDepth).toFixed(1)}" stroke="#111" stroke-width="2"/>`);
     out.push(`<text x="${sx.toFixed(1)}" y="${(ys(bh.elev) - 5).toFixed(1)}" font-size="8.5" fill="#0f2644" text-anchor="middle" font-weight="700">${bh.id}</text>`);
+  }
+
+  // Fault crossings — vertical dashed lines where fault polylines intersect the section
+  for (const fault of faults) {
+    for (let i = 0; i < fault.vertices.length - 1; i++) {
+      const fa = fault.vertices[i]!; const fb = fault.vertices[i + 1]!;
+      const fdx = fb.x - fa.x; const fdy = fb.y - fa.y;
+      // 2-D line–line intersection (section ray vs fault segment)
+      const denom = dx * fdy - dy * fdx;
+      if (Math.abs(denom) < 1e-10) continue;
+      const t = ((fa.x - ap0.x) * fdy - (fa.y - ap0.y) * fdx) / denom;
+      const u = ((fa.x - ap0.x) * dy  - (fa.y - ap0.y) * dx)  / denom;
+      if (t < -0.01 || t > 1.01 || u < 0 || u > 1) continue;
+      const cx2 = xs(t * len);
+      out.push(`<line x1="${cx2.toFixed(1)}" y1="${PT}" x2="${cx2.toFixed(1)}" y2="${PT + plotH}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="6,3"/>`);
+      out.push(`<text x="${(cx2 + 4).toFixed(1)}" y="${PT + 14}" font-size="9" fill="#ef4444" font-weight="700">${fault.name}</text>`);
+    }
   }
 
   out.push('</g>');
@@ -383,6 +401,51 @@ function makeSectionPlaneMesh(
   return mesh;
 }
 
+// ── Fault mesh in 3D ─────────────────────────────────────────────────────────
+
+function makeFaultMesh(fault: Fault, zMin: number, zMax: number, vExag: number): THREE.Group {
+  const group = new THREE.Group();
+  const verts = fault.vertices;
+  if (verts.length < 2) return group;
+
+  const h    = (zMax - zMin) * vExag + 20;
+  const cz   = ((zMin + zMax) / 2) * vExag;
+  const zBot = zMin * vExag - 2;
+  const zTop = zMax * vExag + 2;
+
+  for (let i = 0; i < verts.length - 1; i++) {
+    const a = verts[i]!; const b = verts[i + 1]!;
+    const dx = b.x - a.x; const dy = b.y - a.y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    if (segLen < 0.01) continue;
+
+    // Semi-transparent fault plane
+    const geo = new THREE.PlaneGeometry(segLen, h);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.18, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.set(0, Math.atan2(dx, dy), 0);
+    mesh.position.set((a.x + b.x) / 2, cz, -(a.y + b.y) / 2);
+    group.add(mesh);
+
+    // Outline
+    const edge = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(a.x, zBot, -a.y), new THREE.Vector3(b.x, zBot, -b.y),
+      new THREE.Vector3(b.x, zTop, -b.y), new THREE.Vector3(a.x, zTop, -a.y),
+      new THREE.Vector3(a.x, zBot, -a.y),
+    ]);
+    group.add(new THREE.Line(edge, new THREE.LineBasicMaterial({ color: 0xef4444 })));
+  }
+
+  // Vertex nodes
+  const sGeo = new THREE.SphereGeometry(2, 6, 5);
+  for (const v of verts) {
+    const sphere = new THREE.Mesh(sGeo, new THREE.MeshBasicMaterial({ color: 0xef4444 }));
+    sphere.position.set(v.x, cz, -v.y);
+    group.add(sphere);
+  }
+  return group;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Section {
@@ -395,8 +458,14 @@ interface Section {
   svg: string;
 }
 
-type Tool = 'select' | 'section';
+type Tool = 'select' | 'section' | 'fault';
 type PickStep = 'idle' | 'a' | 'b';
+
+interface Fault {
+  id: string;
+  name: string;
+  vertices: Array<{ x: number; y: number }>;
+}
 
 interface Props {
   fileBytes: Uint8Array | null;
@@ -478,6 +547,10 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
   const [sections, setSections]     = useState<Section[]>([]);
   const [activeSec, setActiveSec]   = useState<string | null>(null);
 
+  // ── Faults ──────────────────────────────────────────────────────────────────
+  const [faults, setFaults]               = useState<Fault[]>([]);
+  const [faultDraftVerts, setFaultDraftVerts] = useState<Array<{ x: number; y: number }>>([]);
+
   // ── Borehole selection ──────────────────────────────────────────────────────
   const [selectedBh, setSelectedBh] = useState<Borehole3D | null>(null);
   const bhLogSvg = useMemo(() => selectedBh ? renderBoreholeStripSvg(selectedBh) : null, [selectedBh]);
@@ -493,6 +566,7 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
       const file: AgsFile = parseStr(decodeBytes(fileBytes)).file;
       setModel(buildGeo3DModel(file));
       setSections([]); setSelectedBh(null); setPickStep('idle'); setDraftA(null);
+      setFaults([]); setFaultDraftVerts([]);
     } catch { setModel(null); }
   }, [fileBytes]);
 
@@ -601,6 +675,13 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
     }
     scene.add(surfGrp);
 
+    // Fault planes
+    for (const fault of faults) {
+      const fm = makeFaultMesh(fault, bounds.zMin, bounds.zMax, vExag);
+      fm.userData['isModel'] = true;
+      scene.add(fm);
+    }
+
     // Contact-point spheres — visible in uncertainty mode to show constraints
     if (showUncertainty && model.contacts.length > 0) {
       const cpGrp = new THREE.Group();
@@ -626,7 +707,7 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
     camRef.current?.position.set(cx + r, cz + r * 0.7, -cy + r);
     ctrlRef.current?.target.set(cx, cz, -cy);
     ctrlRef.current?.update();
-  }, [model, opacity, hiddenUnits, vExag, showUncertainty]);
+  }, [model, opacity, hiddenUnits, vExag, showUncertainty, faults]);
 
   // ── Update section plane in 3D when active section changes ─────────────────
   useEffect(() => {
@@ -716,20 +797,50 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
     }
 
     // Draft section in progress
-    if (pickStep !== 'idle' && draftA) {
+    if (activeTool === 'section' && pickStep !== 'idle' && draftA) {
       ctx.beginPath();
       ctx.arc(sx(draftA.x), sy(draftA.y), 6, 0, Math.PI * 2);
       ctx.fillStyle = '#dc2626'; ctx.fill();
       ctx.font = 'bold 10px system-ui'; ctx.fillStyle = '#dc2626';
       ctx.fillText('A', sx(draftA.x) + 8, sy(draftA.y) - 5);
     }
-  }, [model, sections, activeSec, selectedBh, pickStep, draftA]);
+
+    // Existing faults
+    for (const fault of faults) {
+      if (fault.vertices.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(sx(fault.vertices[0]!.x), sy(fault.vertices[0]!.y));
+      for (let i = 1; i < fault.vertices.length; i++) {
+        ctx.lineTo(sx(fault.vertices[i]!.x), sy(fault.vertices[i]!.y));
+      }
+      ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.stroke();
+      // Label at midpoint
+      const mid = fault.vertices[Math.floor(fault.vertices.length / 2)]!;
+      ctx.font = 'bold 9px system-ui'; ctx.fillStyle = '#ef4444';
+      ctx.fillText(fault.name, sx(mid.x) + 5, sy(mid.y) - 4);
+    }
+
+    // Fault draft in progress
+    if (activeTool === 'fault' && faultDraftVerts.length > 0) {
+      ctx.beginPath();
+      ctx.moveTo(sx(faultDraftVerts[0]!.x), sy(faultDraftVerts[0]!.y));
+      for (let i = 1; i < faultDraftVerts.length; i++) {
+        ctx.lineTo(sx(faultDraftVerts[i]!.x), sy(faultDraftVerts[i]!.y));
+      }
+      ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]); ctx.stroke();
+      ctx.setLineDash([]);
+      for (const v of faultDraftVerts) {
+        ctx.beginPath(); ctx.arc(sx(v.x), sy(v.y), 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#ef4444'; ctx.fill();
+      }
+    }
+  }, [model, sections, activeSec, selectedBh, pickStep, draftA, faults, faultDraftVerts, activeTool]);
 
   useEffect(() => { drawPlan(); }, [drawPlan]);
 
   const handlePlanClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = planRef.current;
-    if (!canvas || !model || activeTool !== 'section' || pickStep === 'idle') return;
+    if (!canvas || !model) return;
 
     const rect = canvas.getBoundingClientRect();
     const { bounds } = model;
@@ -739,25 +850,39 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
     const ly = bounds.yMin + (1 - (e.clientY - rect.top - pad) / (H - pad * 2)) * (bounds.yMax - bounds.yMin || 1);
     const pt = { x: lx, y: ly };
 
-    if (pickStep === 'a') {
-      setDraftA(pt); setPickStep('b');
-    } else if (pickStep === 'b' && draftA) {
-      const id = `sec-${Date.now()}`;
-      const name = `S${sections.length + 1}`;
-      const svg = buildSectionSvg(model, draftA, pt, 0);
-      setSections(prev => [...prev, { id, name, ptA: draftA, ptB: pt, offset: 0, expanded: true, svg }]);
-      setActiveSec(id);
-      setPickStep('idle'); setDraftA(null); setActiveTool('select');
+    if (activeTool === 'section') {
+      if (pickStep === 'idle') return;
+      if (pickStep === 'a') {
+        setDraftA(pt); setPickStep('b');
+      } else if (pickStep === 'b' && draftA) {
+        const id = `sec-${Date.now()}`;
+        const name = `S${sections.length + 1}`;
+        const svg = buildSectionSvg(model, draftA, pt, 0, faults);
+        setSections(prev => [...prev, { id, name, ptA: draftA, ptB: pt, offset: 0, expanded: true, svg }]);
+        setActiveSec(id);
+        setPickStep('idle'); setDraftA(null); setActiveTool('select');
+      }
+    } else if (activeTool === 'fault') {
+      setFaultDraftVerts(prev => [...prev, pt]);
     }
-  }, [model, activeTool, pickStep, draftA, sections.length]);
+  }, [model, activeTool, pickStep, draftA, sections.length, faults]);
+
+  const finishFault = useCallback(() => {
+    if (faultDraftVerts.length < 2) return;
+    const id = `fault-${Date.now()}`;
+    const name = `F${faults.length + 1}`;
+    setFaults(prev => [...prev, { id, name, vertices: faultDraftVerts }]);
+    setFaultDraftVerts([]);
+    setActiveTool('select');
+  }, [faultDraftVerts, faults.length]);
 
   // Update section SVG when offset changes
   const updateSectionOffset = useCallback((id: string, offset: number) => {
     setSections(prev => prev.map(s => {
       if (s.id !== id || !model) return s;
-      return { ...s, offset, svg: buildSectionSvg(model, s.ptA, s.ptB, offset) };
+      return { ...s, offset, svg: buildSectionSvg(model, s.ptA, s.ptB, offset, faults) };
     }));
-  }, [model]);
+  }, [model, faults]);
 
   const toggleUnit = (key: string) => {
     setHiddenUnits(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -779,6 +904,16 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, []);
+
+  // ── Regenerate section SVGs when faults change ──────────────────────────────
+  useEffect(() => {
+    if (!model || sections.length === 0) return;
+    setSections(prev => prev.map(s => ({
+      ...s,
+      svg: buildSectionSvg(model, s.ptA, s.ptB, s.offset, faults),
+    })));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faults]);
 
   // ── SVG export helper ────────────────────────────────────────────────────────
   const exportSectionSvg = (sec: Section) => {
@@ -823,8 +958,13 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
           </ToolBtn>
           <ToolBtn active={activeTool === 'section'}
             title="Add cross-section (draw A→B on plan)"
-            onClick={() => { setActiveTool('section'); setPickStep('a'); setDraftA(null); }}>
+            onClick={() => { setActiveTool('section'); setPickStep('a'); setDraftA(null); setFaultDraftVerts([]); }}>
             ⊘
+          </ToolBtn>
+          <ToolBtn active={activeTool === 'fault'}
+            title="Draw fault trace (click vertices on plan, then Finish)"
+            onClick={() => { setActiveTool('fault'); setPickStep('idle'); setDraftA(null); setFaultDraftVerts([]); }}>
+            ⚡
           </ToolBtn>
           <ToolBtn active={false}
             title="Clear all sections"
@@ -841,6 +981,34 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
             padding: '5px 16px', fontSize: 12, fontWeight: 600, pointerEvents: 'none',
           }}>
             {pickStep === 'a' ? 'Click plan view (right panel) to place point A' : 'Click plan view to place point B'}
+          </div>
+        )}
+        {activeTool === 'fault' && (
+          <div style={{
+            position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'rgba(15,22,36,0.88)', color: '#fff', borderRadius: 20,
+            padding: '5px 16px', fontSize: 12, fontWeight: 600,
+          }}>
+            <span style={{ pointerEvents: 'none' }}>
+              {faultDraftVerts.length === 0
+                ? 'Click plan view to add fault vertices'
+                : `${faultDraftVerts.length} vertex${faultDraftVerts.length > 1 ? 'es' : ''} — keep clicking or`}
+            </span>
+            {faultDraftVerts.length >= 2 && (
+              <button onClick={finishFault} style={{
+                background: '#ef4444', border: 'none', borderRadius: 12,
+                color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 10px', cursor: 'pointer',
+              }}>
+                Finish
+              </button>
+            )}
+            <button onClick={() => { setFaultDraftVerts([]); setActiveTool('select'); }} style={{
+              background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 12,
+              color: '#fff', fontSize: 11, padding: '3px 8px', cursor: 'pointer',
+            }}>
+              Cancel
+            </button>
           </div>
         )}
         {activeTool === 'select' && (
@@ -1022,6 +1190,45 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
           ))}
         </CollapsiblePanel>
 
+        {/* Faults */}
+        <CollapsiblePanel title={`Faults${faults.length ? ` (${faults.length})` : ''}`} defaultOpen={false}>
+          <button
+            onClick={() => { setActiveTool('fault'); setFaultDraftVerts([]); }}
+            style={{
+              width: '100%', padding: '7px 12px', marginBottom: 8,
+              border: '1.5px dashed #fca5a5', borderRadius: 6, background: '#fff5f5',
+              color: '#dc2626', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            ⚡ Draw new fault trace
+          </button>
+
+          {faults.length === 0 && (
+            <p style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center', margin: '8px 0' }}>
+              No faults yet — use the ⚡ tool above
+            </p>
+          )}
+
+          {faults.map(fault => (
+            <div key={fault.id} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 8px', borderRadius: 6, marginBottom: 4,
+              background: '#fff5f5', border: '1px solid #fecaca',
+            }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#991b1b' }}>{fault.name}</span>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>{fault.vertices.length} pts</span>
+              <button
+                onClick={() => setFaults(prev => prev.filter(f => f.id !== fault.id))}
+                title="Delete fault"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#94a3b8', padding: '0 2px' }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </CollapsiblePanel>
+
         {/* Borehole Log */}
         <CollapsiblePanel title={selectedBh ? `Log: ${selectedBh.id}` : 'Borehole Log'} defaultOpen={true}>
           {!selectedBh && (
@@ -1055,7 +1262,7 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
             onClick={handlePlanClick}
             style={{
               borderRadius: 6, border: '1px solid #e2e8f0', display: 'block',
-              cursor: activeTool === 'section' && pickStep !== 'idle' ? 'crosshair' : 'default',
+              cursor: (activeTool === 'section' && pickStep !== 'idle') || activeTool === 'fault' ? 'crosshair' : 'default',
             }}
           />
           {/* Legend */}
