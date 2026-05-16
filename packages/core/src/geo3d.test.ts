@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Option } from "effect";
-import { geolColor, geolHatch, buildGeo3DModel } from "./geo3d.js";
+import { geolColor, geolHatch, buildGeo3DModel, extractGeologicalContacts } from "./geo3d.js";
+import type { Borehole3D, GeoLayer } from "./geo3d.js";
 import type { AgsFile, AgsGroup } from "./model.js";
 
 function makeFile(groups: AgsFile["groups"]): AgsFile {
@@ -252,5 +253,136 @@ describe("buildGeo3DModel", () => {
     const model = buildGeo3DModel(file)!;
     const bh01 = model.boreholes.find((b) => b.id === "BH01");
     expect(bh01?.layers.length).toBeGreaterThan(0);
+  });
+
+  it("model includes contacts array", () => {
+    const file = makeFile({ LOCA: LOCA_GROUP, GEOL: GEOL_GROUP });
+    const model = buildGeo3DModel(file)!;
+    expect(Array.isArray(model.contacts)).toBe(true);
+  });
+
+  it("model includes empty faults array", () => {
+    const file = makeFile({ LOCA: LOCA_GROUP, GEOL: GEOL_GROUP });
+    const model = buildGeo3DModel(file)!;
+    expect(model.faults).toEqual([]);
+  });
+
+  it("units include contactSurface when ≥ 3 boreholes observe the unit", () => {
+    const file = makeFile({ LOCA: LOCA_GROUP, GEOL: GEOL_GROUP });
+    const model = buildGeo3DModel(file)!;
+    // All three boreholes have TOPSOIL and CLAY → contactSurface should be set
+    const clay = model.units.find((u) => u.key === "CLAY");
+    expect(clay).toBeDefined();
+    expect(clay!.contactSurface).not.toBeNull();
+  });
+});
+
+// ── extractGeologicalContacts ─────────────────────────────────────────────────
+
+function makeLayer(
+  unitKey: string, desc: string,
+  topDepth: number, baseDepth: number,
+  elev: number,
+): GeoLayer {
+  return {
+    unitKey,
+    desc,
+    topDepth,
+    baseDepth,
+    topElev: elev - topDepth,
+    baseElev: elev - baseDepth,
+    color: "#aabbcc",
+    hatch: "none",
+  };
+}
+
+function makeBorehole(id: string, x: number, y: number, elev: number, layers: GeoLayer[]): Borehole3D {
+  return { id, x, y, elev, finDepth: layers.at(-1)?.baseDepth ?? 0, layers };
+}
+
+describe("extractGeologicalContacts", () => {
+  it("returns empty array for boreholes with no layers", () => {
+    const bh = makeBorehole("BH01", 0, 0, 50, []);
+    expect(extractGeologicalContacts([bh])).toEqual([]);
+  });
+
+  it("returns empty array when a borehole has only one layer", () => {
+    const bh = makeBorehole("BH01", 0, 0, 50, [makeLayer("CLAY", "Clay", 0, 10, 50)]);
+    expect(extractGeologicalContacts([bh])).toEqual([]);
+  });
+
+  it("extracts one contact for two adjacent layers", () => {
+    const bh = makeBorehole("BH01", 10, 20, 50, [
+      makeLayer("TOPSOIL", "Topsoil", 0, 2, 50),
+      makeLayer("CLAY", "Clay", 2, 15, 50),
+    ]);
+    const contacts = extractGeologicalContacts([bh]);
+    expect(contacts).toHaveLength(1);
+    const c = contacts[0]!;
+    expect(c.unitAbove).toBe("TOPSOIL");
+    expect(c.unitBelow).toBe("CLAY");
+    expect(c.zContact).toBeCloseTo(50 - 2, 4); // elev − base of TOPSOIL
+    expect(c.boreholeId).toBe("BH01");
+    expect(c.x).toBe(10);
+    expect(c.y).toBe(20);
+  });
+
+  it("extracts two contacts for three sequential layers", () => {
+    const bh = makeBorehole("BH01", 0, 0, 50, [
+      makeLayer("TOPSOIL", "Topsoil", 0, 1, 50),
+      makeLayer("CLAY", "Clay", 1, 8, 50),
+      makeLayer("SAND", "Sand", 8, 20, 50),
+    ]);
+    const contacts = extractGeologicalContacts([bh]);
+    expect(contacts).toHaveLength(2);
+    expect(contacts[0]!.unitAbove).toBe("TOPSOIL");
+    expect(contacts[0]!.unitBelow).toBe("CLAY");
+    expect(contacts[1]!.unitAbove).toBe("CLAY");
+    expect(contacts[1]!.unitBelow).toBe("SAND");
+  });
+
+  it("does not emit a contact where layers have a gap > 50 mm", () => {
+    const bh = makeBorehole("BH01", 0, 0, 50, [
+      makeLayer("TOPSOIL", "Topsoil", 0, 2, 50),
+      makeLayer("CLAY", "Clay", 2.1, 15, 50), // 100 mm gap — should be skipped
+    ]);
+    const contacts = extractGeologicalContacts([bh]);
+    expect(contacts).toHaveLength(0);
+  });
+
+  it("aggregates contacts from multiple boreholes", () => {
+    const bhs = [
+      makeBorehole("BH01", 0, 0, 50, [
+        makeLayer("TOPSOIL", "Topsoil", 0, 2, 50),
+        makeLayer("CLAY", "Clay", 2, 15, 50),
+      ]),
+      makeBorehole("BH02", 50, 0, 49, [
+        makeLayer("TOPSOIL", "Topsoil", 0, 1.5, 49),
+        makeLayer("CLAY", "Clay", 1.5, 12, 49),
+      ]),
+      makeBorehole("BH03", 25, 50, 51, [
+        makeLayer("TOPSOIL", "Topsoil", 0, 1.8, 51),
+        makeLayer("CLAY", "Clay", 1.8, 10, 51),
+      ]),
+    ];
+    const contacts = extractGeologicalContacts(bhs);
+    expect(contacts).toHaveLength(3);
+    expect(contacts.every((c) => c.unitAbove === "TOPSOIL" && c.unitBelow === "CLAY")).toBe(true);
+  });
+
+  it("returns contacts sorted by borehole insertion order", () => {
+    const bhs = [
+      makeBorehole("A", 0, 0, 10, [
+        makeLayer("X", "X", 0, 5, 10),
+        makeLayer("Y", "Y", 5, 10, 10),
+      ]),
+      makeBorehole("B", 10, 0, 10, [
+        makeLayer("X", "X", 0, 3, 10),
+        makeLayer("Y", "Y", 3, 10, 10),
+      ]),
+    ];
+    const contacts = extractGeologicalContacts(bhs);
+    expect(contacts[0]!.boreholeId).toBe("A");
+    expect(contacts[1]!.boreholeId).toBe("B");
   });
 });

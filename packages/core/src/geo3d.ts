@@ -4,13 +4,14 @@
  * Data flow:
  *   AgsFile  →  extract LOCA + GEOL rows
  *            →  project to local (x, y, elev) coordinates
- *            →  fit a ThinPlateSurface for each unit's top and base
+ *            →  extract ContactPoints (inter-layer transitions)
+ *            →  fit ThinPlateSurface (TPS) and RbfSurface per unit
  *            →  return Geo3DModel ready for Three.js rendering
  */
 
 import { Option } from 'effect';
 import type { AgsFile, AgsRow } from './model.js';
-import { ThinPlateSurface } from './rbf.js';
+import { ThinPlateSurface, RbfSurface } from './rbf.js';
 import type { Pt3 } from './rbf.js';
 
 // ── Colour palette (mirrors explorer.ts) ─────────────────────────────────────
@@ -83,11 +84,57 @@ export interface GeoUnit {
   /** Null when fewer than 3 boreholes contain this unit (not enough to fit). */
   topSurface: ThinPlateSurface | null;
   baseSurface: ThinPlateSurface | null;
+  /**
+   * Contact-derived top surface fitted with regularized r³ RBF.
+   * More robust than TPS for sparse or near-collinear borehole layouts.
+   * Null when fewer than 3 observations are available.
+   */
+  contactSurface: RbfSurface | null;
+}
+
+/**
+ * A single stratigraphic contact observed at a borehole: the boundary
+ * between two adjacent geological units at a known 3-D position.
+ */
+export interface ContactPoint {
+  x: number;
+  y: number;
+  zContact: number;   // elevation of the contact (m OD)
+  unitAbove: string;  // unit key of the layer immediately above
+  unitBelow: string;  // unit key of the layer immediately below
+  boreholeId: string;
+}
+
+/**
+ * A fault or discontinuity defined by a 2-D polyline in plan view.
+ * Interpreted as a vertical plane for simple cases; future work can add dip.
+ */
+export interface FaultTrace {
+  id: string;
+  name: string;
+  /** Vertices in local (centroid-relative) x/y coordinates. */
+  vertices: Array<{ x: number; y: number }>;
+}
+
+/**
+ * A fault surface: a FaultTrace combined with its geometric properties.
+ * Currently treated as a vertical plane; dip/dip-direction to follow.
+ */
+export interface FaultSurface {
+  trace: FaultTrace;
+  /** Dip angle from horizontal (degrees). 90 = vertical. */
+  dip: number;
+  /** Dip direction (degrees clockwise from north). */
+  dipDirection: number;
 }
 
 export interface Geo3DModel {
   boreholes: Borehole3D[];
   units: GeoUnit[];
+  /** Stratigraphic contacts extracted from borehole GEOL logs. */
+  contacts: ContactPoint[];
+  /** User-defined faults / discontinuities (populated by the UI). */
+  faults: FaultSurface[];
   /** Axis-aligned bounding box in local (centroid-relative) coordinates. */
   bounds: {
     xMin: number; xMax: number;
@@ -147,6 +194,38 @@ function unitKey(geolCode: string, desc: string): string {
   // Derive from first word of description
   const first = desc.trim().split(/\s+/)[0]?.toUpperCase() ?? 'UNK';
   return first.slice(0, 12);
+}
+
+// ── Contact extractor ─────────────────────────────────────────────────────────
+
+/**
+ * Walk each borehole's layers in depth order and emit a ContactPoint at every
+ * transition between adjacent geological units.
+ *
+ * Example: TOPSOIL (0–2 m) → CLAY (2–15 m) produces one contact at the
+ * base of TOPSOIL / top of CLAY (zContact = borehole GL − 2 m).
+ */
+export function extractGeologicalContacts(boreholes: Borehole3D[]): ContactPoint[] {
+  const contacts: ContactPoint[] = [];
+  for (const bh of boreholes) {
+    const sorted = [...bh.layers].sort((a, b) => a.topDepth - b.topDepth);
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const above = sorted[i]!;
+      const below = sorted[i + 1]!;
+      // Only emit if the layers are actually adjacent (gap < 50 mm)
+      if (Math.abs(above.baseDepth - below.topDepth) < 0.05) {
+        contacts.push({
+          x: bh.x,
+          y: bh.y,
+          zContact: above.baseElev,
+          unitAbove: above.unitKey,
+          unitBelow: below.unitKey,
+          boreholeId: bh.id,
+        });
+      }
+    }
+  }
+  return contacts;
 }
 
 // ── Builder ───────────────────────────────────────────────────────────────────
@@ -233,7 +312,11 @@ export function buildGeo3DModel(file: AgsFile): Geo3DModel | null {
     boreholes.push({ id: entry.id, x: lx, y: ly, elev: entry.elev, finDepth: entry.finDepth, layers });
   }
 
-  // ── 5. Collect TPS control points per unit ────────────────────────────────
+  // ── 5. Extract stratigraphic contacts ────────────────────────────────────
+
+  const contacts = extractGeologicalContacts(boreholes);
+
+  // ── 6. Collect control points per unit ───────────────────────────────────
 
   const unitTopPts  = new Map<string, Pt3[]>();
   const unitBasePts = new Map<string, Pt3[]>();
@@ -251,21 +334,33 @@ export function buildGeo3DModel(file: AgsFile): Geo3DModel | null {
     }
   }
 
-  // ── 6. Fit surfaces ───────────────────────────────────────────────────────
+  // Build per-unit contact control points: contacts where this unit is below
+  // (= these are top-of-unit observations from actual inter-layer transitions)
+  const unitContactPts = new Map<string, Pt3[]>();
+  for (const c of contacts) {
+    if (!unitContactPts.has(c.unitBelow)) unitContactPts.set(c.unitBelow, []);
+    unitContactPts.get(c.unitBelow)!.push({ x: c.x, y: c.y, z: c.zContact });
+  }
+
+  // ── 7. Fit surfaces ───────────────────────────────────────────────────────
 
   const units: GeoUnit[] = [];
   for (const [key, meta] of unitMeta) {
-    const topPts  = unitTopPts.get(key)!;
-    const basePts = unitBasePts.get(key)!;
+    const topPts     = unitTopPts.get(key)!;
+    const basePts    = unitBasePts.get(key)!;
+    const contactPts = unitContactPts.get(key) ?? topPts; // fall back to topPts
+
     let topSurface: ThinPlateSurface | null = null;
     let baseSurface: ThinPlateSurface | null = null;
+    let contactSurface: RbfSurface | null = null;
     try {
-      if (topPts.length >= 3)  topSurface  = new ThinPlateSurface(topPts);
-      if (basePts.length >= 3) baseSurface = new ThinPlateSurface(basePts);
+      if (topPts.length >= 3)     topSurface     = new ThinPlateSurface(topPts);
+      if (basePts.length >= 3)    baseSurface    = new ThinPlateSurface(basePts);
+      if (contactPts.length >= 3) contactSurface = new RbfSurface(contactPts);
     } catch {
-      // Singular matrix (all points collinear, etc.) — leave surfaces null
+      // Singular matrix (collinear points, etc.) — leave surfaces null
     }
-    units.push({ key, color: meta.color, hatch: meta.hatch, topSurface, baseSurface });
+    units.push({ key, color: meta.color, hatch: meta.hatch, topSurface, baseSurface, contactSurface });
   }
 
   // ── 7. Bounds ─────────────────────────────────────────────────────────────
@@ -290,6 +385,8 @@ export function buildGeo3DModel(file: AgsFile): Geo3DModel | null {
   return {
     boreholes,
     units,
+    contacts,
+    faults: [],
     bounds: { xMin, xMax, yMin, yMax, zMin, zMax },
     centroid: { x: cx, y: cy },
   };

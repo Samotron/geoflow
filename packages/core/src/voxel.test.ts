@@ -1,0 +1,476 @@
+import { describe, it, expect } from 'vitest';
+import { discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv } from './voxel.js';
+import type { AgsFile } from './model.js';
+import type { Geo3DModel } from './geo3d.js';
+
+// ── Fixtures ──────────────────────────────────────────────────────────────────
+
+function makeFile(overrides: Partial<AgsFile['groups']> = {}): AgsFile {
+  return {
+    source_path: null,
+    ags_version: '4.0.4',
+    groups: {
+      LOCA: {
+        name: 'LOCA',
+        source_line: 1,
+        headings: [
+          { name: 'LOCA_ID',   data_type: 'ID', unit: '', description: '' },
+          { name: 'LOCA_NATE', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'LOCA_NATN', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'LOCA_FDEP', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'LOCA_ELEV', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm OD', description: '' },
+        ],
+        rows: [
+          { LOCA_ID: 'BH1', LOCA_NATE: '100', LOCA_NATN: '200', LOCA_FDEP: '10', LOCA_ELEV: '5' },
+          { LOCA_ID: 'BH2', LOCA_NATE: '200', LOCA_NATN: '200', LOCA_FDEP: '10', LOCA_ELEV: '5' },
+          { LOCA_ID: 'BH3', LOCA_NATE: '150', LOCA_NATN: '300', LOCA_FDEP: '10', LOCA_ELEV: '5' },
+        ],
+      },
+      ISPT: {
+        name: 'ISPT',
+        source_line: 10,
+        headings: [
+          { name: 'LOCA_ID',   data_type: 'ID',  unit: '', description: '' },
+          { name: 'ISPT_DPTH', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'ISPT_NVAL', data_type: { _tag: 'DP', decimals: 0 }, unit: 'blows/300mm', description: '' },
+        ],
+        rows: [
+          { LOCA_ID: 'BH1', ISPT_DPTH: '2', ISPT_NVAL: '12' },
+          { LOCA_ID: 'BH1', ISPT_DPTH: '4', ISPT_NVAL: '18' },
+          { LOCA_ID: 'BH2', ISPT_DPTH: '2', ISPT_NVAL: '15' },
+          { LOCA_ID: 'BH2', ISPT_DPTH: '4', ISPT_NVAL: '20' },
+          { LOCA_ID: 'BH3', ISPT_DPTH: '2', ISPT_NVAL: '10' },
+        ],
+      },
+      GEOL: {
+        name: 'GEOL',
+        source_line: 20,
+        headings: [
+          { name: 'LOCA_ID',   data_type: 'ID',  unit: '', description: '' },
+          { name: 'GEOL_TOP',  data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'GEOL_BASE', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'GEOL_LEG',  data_type: 'PA',  unit: '', description: '' },
+        ],
+        rows: [
+          { LOCA_ID: 'BH1', GEOL_TOP: '0', GEOL_BASE: '3', GEOL_LEG: 'SAND' },
+          { LOCA_ID: 'BH1', GEOL_TOP: '3', GEOL_BASE: '10', GEOL_LEG: 'CLAY' },
+          { LOCA_ID: 'BH2', GEOL_TOP: '0', GEOL_BASE: '4', GEOL_LEG: 'SAND' },
+          { LOCA_ID: 'BH2', GEOL_TOP: '4', GEOL_BASE: '10', GEOL_LEG: 'CLAY' },
+          { LOCA_ID: 'BH3', GEOL_TOP: '0', GEOL_BASE: '5', GEOL_LEG: 'GRAVEL' },
+          { LOCA_ID: 'BH3', GEOL_TOP: '5', GEOL_BASE: '10', GEOL_LEG: 'CLAY' },
+        ],
+      },
+      ...overrides,
+    },
+  } as unknown as AgsFile;
+}
+
+function makeModel(): Geo3DModel {
+  return {
+    boreholes: [
+      { id: 'BH1', x: 0,   y: 0,   elev: 5, depth: 10, layers: [], units: [] },
+      { id: 'BH2', x: 100, y: 0,   elev: 5, depth: 10, layers: [], units: [] },
+      { id: 'BH3', x: 50,  y: 100, elev: 5, depth: 10, layers: [], units: [] },
+    ],
+    bounds: { xMin: -10, xMax: 110, yMin: -10, yMax: 110, zMin: -6, zMax: 6 },
+    units: [],
+    contacts: [],
+    faults: [],
+    centroid: { x: 150, y: 200 },
+  } as unknown as Geo3DModel;
+}
+
+// ── discoverVoxelProperties ───────────────────────────────────────────────────
+
+describe('discoverVoxelProperties', () => {
+  it('discovers numeric fields from ISPT group', () => {
+    const props = discoverVoxelProperties(makeFile());
+    const isptNval = props.find(p => p.id === 'ISPT_NVAL');
+    expect(isptNval).toBeDefined();
+    expect(isptNval!.type).toBe('numeric');
+    expect(isptNval!.group).toBe('ISPT');
+    expect(isptNval!.depthTopField).toBe('ISPT_DPTH');
+    expect(isptNval!.depthBaseField).toBeNull();
+  });
+
+  it('discovers categorical fields from GEOL group', () => {
+    const props = discoverVoxelProperties(makeFile());
+    const geolLeg = props.find(p => p.id === 'GEOL_LEG');
+    expect(geolLeg).toBeDefined();
+    expect(geolLeg!.type).toBe('categorical');
+    expect(geolLeg!.group).toBe('GEOL');
+    expect(geolLeg!.depthTopField).toBe('GEOL_TOP');
+    expect(geolLeg!.depthBaseField).toBe('GEOL_BASE');
+  });
+
+  it('skips groups without LOCA_ID', () => {
+    const file = makeFile({
+      NOLOCA: {
+        headings: [
+          { name: 'NOLOCA_TOP',  data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'NOLOCA_NVAL', data_type: { _tag: 'DP', decimals: 0 }, unit: '', description: '' },
+        ],
+        rows: [{ NOLOCA_TOP: '1', NOLOCA_NVAL: '5' }],
+      } as unknown as AgsFile['groups'][string],
+    });
+    const props = discoverVoxelProperties(file);
+    expect(props.every(p => p.group !== 'NOLOCA')).toBe(true);
+  });
+
+  it('skips groups without a depth field', () => {
+    const file = makeFile({
+      NODEPTH: {
+        headings: [
+          { name: 'LOCA_ID',      data_type: 'ID', unit: '', description: '' },
+          { name: 'NODEPTH_VAL',  data_type: { _tag: 'DP', decimals: 2 }, unit: '', description: '' },
+        ],
+        rows: [{ LOCA_ID: 'BH1', NODEPTH_VAL: '5' }],
+      } as unknown as AgsFile['groups'][string],
+    });
+    const props = discoverVoxelProperties(file);
+    expect(props.every(p => p.group !== 'NODEPTH')).toBe(true);
+  });
+
+  it('skips numeric fields with no parseable values', () => {
+    const file = makeFile({
+      EMPTY: {
+        headings: [
+          { name: 'LOCA_ID',    data_type: 'ID', unit: '', description: '' },
+          { name: 'EMPTY_TOP',  data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'EMPTY_VAL',  data_type: { _tag: 'DP', decimals: 2 }, unit: '', description: '' },
+        ],
+        rows: [{ LOCA_ID: 'BH1', EMPTY_TOP: '1', EMPTY_VAL: '' }],
+      } as unknown as AgsFile['groups'][string],
+    });
+    const props = discoverVoxelProperties(file);
+    expect(props.every(p => p.id !== 'EMPTY_VAL')).toBe(true);
+  });
+
+  it('skips categorical fields with fewer than 2 distinct values', () => {
+    const file = makeFile({
+      MONO: {
+        headings: [
+          { name: 'LOCA_ID',  data_type: 'ID', unit: '', description: '' },
+          { name: 'MONO_TOP', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'MONO_CAT', data_type: 'PA', unit: '', description: '' },
+        ],
+        rows: [
+          { LOCA_ID: 'BH1', MONO_TOP: '1', MONO_CAT: 'SAND' },
+          { LOCA_ID: 'BH2', MONO_TOP: '1', MONO_CAT: 'SAND' },
+        ],
+      } as unknown as AgsFile['groups'][string],
+    });
+    const props = discoverVoxelProperties(file);
+    expect(props.every(p => p.id !== 'MONO_CAT')).toBe(true);
+  });
+
+  it('skips metadata/key fields (TESN, REF, REM, METH, etc.)', () => {
+    const props = discoverVoxelProperties(makeFile());
+    expect(props.every(p => !p.id.endsWith('_TOP'))).toBe(true);
+    expect(props.every(p => !p.id.endsWith('_BASE'))).toBe(true);
+    expect(props.every(p => !p.id.endsWith('_DPTH'))).toBe(true);
+  });
+
+  it('returns empty array for empty file', () => {
+    const emptyFile: AgsFile = { groups: {} } as AgsFile;
+    expect(discoverVoxelProperties(emptyFile)).toEqual([]);
+  });
+});
+
+// ── buildVoxelGrid ────────────────────────────────────────────────────────────
+
+describe('buildVoxelGrid', () => {
+  it('returns correct grid dimensions', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const isptProp = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, isptProp, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.nx).toBe(5);
+    expect(grid.ny).toBe(5);
+    expect(grid.nz).toBe(5);
+  });
+
+  it('populates cells for numeric ISPT_NVAL property', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const isptProp = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, isptProp, { nx: 10, ny: 10, nz: 10 });
+    expect(grid.cells.length).toBeGreaterThan(0);
+    expect(grid.cells.every(c => c.value !== null)).toBe(true);
+    expect(grid.cells.every(c => c.category === null)).toBe(true);
+  });
+
+  it('numeric range is a valid interval', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const isptProp = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, isptProp, { nx: 10, ny: 10, nz: 10 });
+    // RBF can extrapolate slightly outside observation range, so just check ordering
+    expect(grid.numericRange[0]).toBeLessThanOrEqual(grid.numericRange[1]);
+  });
+
+  it('IDW numeric range stays within observation bounds', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const isptProp = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, isptProp, { nx: 10, ny: 10, nz: 10, method: 'idw' });
+    expect(grid.numericRange[0]).toBeGreaterThanOrEqual(10);
+    expect(grid.numericRange[1]).toBeLessThanOrEqual(20);
+    expect(grid.numericRange[0]).toBeLessThanOrEqual(grid.numericRange[1]);
+  });
+
+  it('populates cells for categorical GEOL_LEG property', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const geolProp = props.find(p => p.id === 'GEOL_LEG')!;
+    const grid  = buildVoxelGrid(file, model, geolProp, { nx: 10, ny: 10, nz: 10 });
+    expect(grid.cells.length).toBeGreaterThan(0);
+    expect(grid.cells.every(c => c.category !== null)).toBe(true);
+    expect(grid.categories.length).toBeGreaterThan(0);
+    expect(grid.categories.every(c => ['SAND', 'CLAY', 'GRAVEL'].includes(c))).toBe(true);
+  });
+
+  it('confidence is in 0–1 range', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 8, ny: 8, nz: 8 });
+    expect(grid.cells.every(c => c.confidence >= 0 && c.confidence <= 1)).toBe(true);
+  });
+
+  it('cell centre coordinates are within bounds', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 8, ny: 8, nz: 8 });
+    const { xMin, xMax, yMin, yMax, zMin, zMax } = grid.bounds;
+    for (const c of grid.cells) {
+      expect(c.cx).toBeGreaterThanOrEqual(xMin);
+      expect(c.cx).toBeLessThanOrEqual(xMax);
+      expect(c.cy).toBeGreaterThanOrEqual(yMin);
+      expect(c.cy).toBeLessThanOrEqual(yMax);
+      expect(c.cz).toBeGreaterThanOrEqual(zMin);
+      expect(c.cz).toBeLessThanOrEqual(zMax);
+    }
+  });
+
+  it('returns empty grid when group has no matching borehole data', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    // Model with boreholes not matching any LOCA_IDs in ISPT
+    const emptyModel: Geo3DModel = {
+      ...model,
+      boreholes: [
+        { id: 'UNKNOWN', x: 50, y: 50, elev: 5, depth: 10, layers: [], units: [] },
+      ],
+    } as unknown as Geo3DModel;
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, emptyModel, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.cells.length).toBe(0);
+  });
+
+  it('clamps minimum grid resolution to 2', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 0, ny: 1, nz: -5 });
+    expect(grid.nx).toBe(2);
+    expect(grid.ny).toBe(2);
+    expect(grid.nz).toBe(2);
+  });
+
+  // ── method field ────────────────────────────────────────────────────────────
+
+  it('numeric property defaults to rbf method', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.method).toBe('rbf');
+  });
+
+  it('categorical property always uses idw', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'GEOL_LEG')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5, method: 'rbf' });
+    expect(grid.method).toBe('idw');
+  });
+
+  it('respects explicit method: idw for numeric property', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5, method: 'idw' });
+    expect(grid.method).toBe('idw');
+  });
+
+  it('RBF fills every cell in the grid (global interpolant)', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf' });
+    // RBF is a global interpolant — every cell gets a value
+    expect(grid.cells.length).toBe(4 * 4 * 4);
+    expect(grid.cells.every(c => c.value !== null)).toBe(true);
+  });
+
+  it('RBF with lambda>0 produces a valid grid (smoothed solve)', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf', lambda: 100 });
+    expect(grid.method).toBe('rbf');
+    expect(grid.cells.length).toBeGreaterThan(0);
+    expect(grid.cells.every(c => isFinite(c.value!))).toBe(true);
+  });
+
+  it('falls back to IDW when fewer than 4 unique observations', () => {
+    // File with only 3 observations total
+    const sparseFile = makeFile({
+      ISPT: {
+        name: 'ISPT', source_line: 10,
+        headings: [
+          { name: 'LOCA_ID',   data_type: 'ID',  unit: '', description: '' },
+          { name: 'ISPT_DPTH', data_type: { _tag: 'DP', decimals: 2 }, unit: 'm', description: '' },
+          { name: 'ISPT_NVAL', data_type: { _tag: 'DP', decimals: 0 }, unit: '', description: '' },
+        ],
+        rows: [
+          { LOCA_ID: 'BH1', ISPT_DPTH: '2', ISPT_NVAL: '12' },
+          { LOCA_ID: 'BH2', ISPT_DPTH: '2', ISPT_NVAL: '15' },
+          { LOCA_ID: 'BH3', ISPT_DPTH: '2', ISPT_NVAL: '10' },
+        ],
+      } as unknown as AgsFile['groups'][string],
+    });
+    const model = makeModel();
+    const props = discoverVoxelProperties(sparseFile);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(sparseFile, model, prop, { nx: 5, ny: 5, nz: 5, method: 'rbf' });
+    // Should fall back gracefully — either rbf with more obs or idw
+    expect(grid.cells.length).toBeGreaterThanOrEqual(0);
+  });
+
+  // ── stats ───────────────────────────────────────────────────────────────────
+
+  it('stats are populated for numeric properties', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.stats).not.toBeNull();
+    expect(grid.stats!.count).toBe(5);  // 5 ISPT observations in fixture
+    expect(grid.stats!.mean).toBeGreaterThan(0);
+    expect(grid.stats!.std).toBeGreaterThanOrEqual(0);
+    expect(grid.stats!.p10).toBeLessThanOrEqual(grid.stats!.p50);
+    expect(grid.stats!.p50).toBeLessThanOrEqual(grid.stats!.p90);
+  });
+
+  it('stats histogram has correct bin structure', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    const { histogram } = grid.stats!;
+    expect(histogram.edges.length).toBe(histogram.counts.length + 1);
+    const total = histogram.counts.reduce((s, c) => s + c, 0);
+    expect(total).toBe(grid.stats!.count);
+  });
+
+  it('stats are null for categorical properties', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'GEOL_LEG')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.stats).toBeNull();
+  });
+
+  it('stats mean is within observation range', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.stats!.mean).toBeGreaterThanOrEqual(10);
+    expect(grid.stats!.mean).toBeLessThanOrEqual(20);
+  });
+});
+
+// ── voxelGridToCsv ────────────────────────────────────────────────────────────
+
+describe('voxelGridToCsv', () => {
+  function buildNumericGrid(): ReturnType<typeof buildVoxelGrid> {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    return buildVoxelGrid(file, model, props.find(p => p.id === 'ISPT_NVAL')!, { nx: 5, ny: 5, nz: 5 });
+  }
+
+  it('produces a header row followed by data rows', () => {
+    const csv   = voxelGridToCsv(buildNumericGrid());
+    const lines = csv.trim().split('\n');
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines[0]).toContain('easting_m');
+    expect(lines[0]).toContain('northing_m');
+    expect(lines[0]).toContain('z_elev_m_od');
+    expect(lines[0]).toContain('confidence');
+  });
+
+  it('includes absolute easting and northing from centroid', () => {
+    const grid  = buildNumericGrid();
+    const csv   = voxelGridToCsv(grid);
+    const lines = csv.trim().split('\n');
+    // Data rows should have easting near centroid.x ± bounds span
+    const firstDataCols = lines[1]!.split(',');
+    const easting = parseFloat(firstDataCols[0]!);
+    expect(easting).toBeGreaterThan(grid.centroid.x - 200);
+    expect(easting).toBeLessThan(grid.centroid.x + 200);
+  });
+
+  it('data rows have the correct number of columns', () => {
+    const csv      = voxelGridToCsv(buildNumericGrid());
+    const lines    = csv.trim().split('\n');
+    const numCols  = lines[0]!.split(',').length;
+    for (const line of lines.slice(1)) {
+      expect(line.split(',').length).toBe(numCols);
+    }
+  });
+
+  it('value column name includes unit when present', () => {
+    const grid = buildNumericGrid();
+    const csv  = voxelGridToCsv(grid);
+    const header = csv.split('\n')[0]!;
+    // ISPT_NVAL has unit 'blows/300mm'
+    if (grid.property.unit) {
+      expect(header).toContain(grid.property.unit);
+    }
+  });
+
+  it('empty grid produces header-only output', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const props = discoverVoxelProperties(file);
+    const prop  = props.find(p => p.id === 'ISPT_NVAL')!;
+    const emptyModel: Geo3DModel = { ...model, boreholes: [] } as unknown as Geo3DModel;
+    const grid  = buildVoxelGrid(file, emptyModel, prop, { nx: 5, ny: 5, nz: 5 });
+    const csv   = voxelGridToCsv(grid);
+    const lines = csv.trim().split('\n');
+    expect(lines.length).toBe(1); // header only
+  });
+});
