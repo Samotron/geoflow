@@ -14,6 +14,8 @@ import type { AgsFile, AgsType } from './model.js';
 import type { Geo3DModel } from './geo3d.js';
 import { RbfVolume } from './rbf.js';
 import type { Pt4 } from './rbf.js';
+import { sampleTopoAt } from './topo.js';
+import type { TopoGrid } from './topo.js';
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -197,6 +199,8 @@ export function buildVoxelGrid(
     nz?: number;
     method?: 'idw' | 'rbf';
     lambda?: number;
+    /** Optional topo grid: cells above the terrain surface are excluded. */
+    topo?: TopoGrid;
   } = {},
 ): VoxelGrid {
   const nx     = Math.max(2, opts.nx ?? 20);
@@ -210,6 +214,12 @@ export function buildVoxelGrid(
   const dx = (xMax - xMin) / nx;
   const dy = (yMax - yMin) / ny;
   const dz = (zMax - zMin) / nz;
+
+  // Converts local (centroid-relative) x,y to a terrain elevation from the
+  // topo grid. Returns NaN when outside the grid or no topo provided.
+  const topoZ = opts.topo
+    ? (lx: number, ly: number) => sampleTopoAt(opts.topo!, lx + centroid.x, ly + centroid.y)
+    : null;
 
   const empty: VoxelGrid = {
     property: prop, nx, ny, nz,
@@ -357,6 +367,13 @@ export function buildVoxelGrid(
         const cy = yMin + (iy + 0.5) * dy;
         for (let ix = 0; ix < nx; ix++) {
           const cx = xMin + (ix + 0.5) * dx;
+
+          // Topo clip: exclude cells above the terrain surface at (cx, cy)
+          if (topoZ) {
+            const tz = topoZ(cx, cy);
+            if (!isNaN(tz) && cz > tz + dz * 0.5) continue;
+          }
+
           const val = rbf.evaluate(cx, cy, cz);
           const d   = rbf.distToNearest(cx, cy, cz);
           const confidence = Math.max(0, 1 - d / (charDist3D * 1.5));
@@ -392,6 +409,12 @@ export function buildVoxelGrid(
       const cy = yMin + (iy + 0.5) * dy;
       for (let ix = 0; ix < nx; ix++) {
         const cx = xMin + (ix + 0.5) * dx;
+
+        // Topo clip: exclude cells above the terrain surface at (cx, cy)
+        if (topoZ) {
+          const tz = topoZ(cx, cy);
+          if (!isNaN(tz) && cz > tz + halfDz) continue;
+        }
 
         let wSum = 0, vSum = 0;
         let nearestCat: string | null = null;

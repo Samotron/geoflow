@@ -448,6 +448,7 @@ export function VoxelTab({ fileBytes }: Props) {
       const g = buildVoxelGrid(agsFile, model, prop, {
         nx: resolution, ny: resolution, nz: resolution,
         method, lambda,
+        ...(topoGrid ? { topo: topoGrid } : {}),
       });
       setGrid(g);
     } finally {

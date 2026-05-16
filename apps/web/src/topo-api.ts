@@ -44,12 +44,23 @@ function toLatLon(absX: number, absY: number): [number, number] | null {
   return null;
 }
 
+/**
+ * Build the opentopodata request URL for an array of [lat, lon] pairs.
+ * Pipe-separated coordinates must NOT be percent-encoded — the server
+ * expects literal `|` and will return HTTP 400 for `%7C`.
+ * Lat/lon values contain only digits, `.`, and `-`, so they are safe
+ * to include unencoded in a query string.
+ */
+export function buildTopoUrl(points: Array<[number, number]>, dataset = DATASET): string {
+  const locs = points.map(([la, lo]) => `${la.toFixed(6)},${lo.toFixed(6)}`).join('|');
+  return `${API_BASE}/${dataset}?locations=${locs}`;
+}
+
 async function fetchBatch(
   points: Array<[number, number]>,
   signal?: AbortSignal,
 ): Promise<number[]> {
-  const locs = points.map(([la, lo]) => `${la.toFixed(6)},${lo.toFixed(6)}`).join('|');
-  const url = `${API_BASE}/${DATASET}?locations=${encodeURIComponent(locs)}`;
+  const url = buildTopoUrl(points);
   const res = await fetch(url, signal ? { signal } : undefined);
   if (!res.ok) throw new Error(`opentopodata returned HTTP ${res.status}`);
   const json = await res.json() as { status: string; results: { elevation: number | null }[] };

@@ -146,10 +146,11 @@ export function parseXyzPoints(text: string, gridN = 60, sourceName = 'XYZ point
 export function sampleTopoAt(topo: TopoGrid, x: number, y: number): number {
   const fx = (x - topo.x0) / topo.dx;
   const fy = (y - topo.y0) / topo.dy;
-  const ix = Math.floor(fx);
-  const iy = Math.floor(fy);
 
-  if (ix < 0 || ix >= topo.nx - 1 || iy < 0 || iy >= topo.ny - 1) return NaN;
+  // Reject out-of-bounds; clamp to last cell so exact far-edge coords work.
+  if (fx < 0 || fx > topo.nx - 1 || fy < 0 || fy > topo.ny - 1) return NaN;
+  const ix = Math.min(Math.floor(fx), topo.nx - 2);
+  const iy = Math.min(Math.floor(fy), topo.ny - 2);
 
   const tx = fx - ix, ty = fy - iy;
   const z00 = topo.zValues[iy * topo.nx + ix]!;
