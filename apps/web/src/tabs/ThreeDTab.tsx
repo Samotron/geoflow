@@ -45,6 +45,17 @@ function niceStep(rough: number): number {
   return n < 1.5 ? p : n < 3.5 ? 2 * p : n < 7.5 ? 5 * p : 10 * p;
 }
 
+// Green → Amber → Red ramp for uncertainty: t=0 (near borehole) → t=1 (far)
+const _GREEN = new THREE.Color('#22c55e');
+const _AMBER = new THREE.Color('#f59e0b');
+const _RED   = new THREE.Color('#dc2626');
+function uncertaintyColor(t: number): THREE.Color {
+  const c = new THREE.Color();
+  if (t < 0.5) { c.copy(_GREEN).lerp(_AMBER, t * 2); }
+  else          { c.copy(_AMBER).lerp(_RED,   (t - 0.5) * 2); }
+  return c;
+}
+
 // ── SVG hatch patterns ────────────────────────────────────────────────────────
 
 const HATCH_DEFS = `<defs>
@@ -215,7 +226,15 @@ function buildSectionSvg(
 
 // ── Three.js helpers ──────────────────────────────────────────────────────────
 
-function makeSurfaceMesh(model: Geo3DModel, unit: GeoUnit, side: 'top' | 'base', opacity: number): THREE.Mesh | null {
+type UncertSurf = { distToNearest(x: number, y: number): number } | null;
+
+function makeSurfaceMesh(
+  model: Geo3DModel,
+  unit: GeoUnit,
+  side: 'top' | 'base',
+  opacity: number,
+  uncertaintySurf: UncertSurf = null,
+): THREE.Mesh | null {
   const surf = side === 'top' ? unit.topSurface : unit.baseSurface;
   if (!surf) return null;
   const { xMin, xMax, yMin, yMax } = model.bounds;
@@ -223,6 +242,23 @@ function makeSurfaceMesh(model: Geo3DModel, unit: GeoUnit, side: 'top' | 'base',
   const zg = surf.evaluateGrid(xMin, xMax, yMin, yMax, nx, ny);
   const pos = new Float32Array(nx * ny * 3);
   const idx: number[] = [];
+
+  // Pre-compute per-vertex uncertainty distances when requested
+  let distArr: Float32Array | null = null;
+  let maxDist = 1;
+  if (uncertaintySurf) {
+    distArr = new Float32Array(nx * ny);
+    for (let iy = 0; iy < ny; iy++) {
+      for (let ix = 0; ix < nx; ix++) {
+        const x = xMin + (ix / (nx - 1)) * (xMax - xMin);
+        const y = yMin + (iy / (ny - 1)) * (yMax - yMin);
+        const d = uncertaintySurf.distToNearest(x, y);
+        distArr[iy * nx + ix] = d;
+        if (d > maxDist) maxDist = d;
+      }
+    }
+  }
+
   for (let iy = 0; iy < ny; iy++) {
     const y = yMin + (iy / (ny - 1)) * (yMax - yMin);
     for (let ix = 0; ix < nx; ix++) {
@@ -239,14 +275,30 @@ function makeSurfaceMesh(model: Geo3DModel, unit: GeoUnit, side: 'top' | 'base',
       idx.push(a, c, b, b, c, d);
     }
   }
+
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setIndex(idx);
+
+  let mat: THREE.Material;
+  if (distArr) {
+    const colours = new Float32Array(nx * ny * 3);
+    for (let i = 0; i < nx * ny; i++) {
+      const c = uncertaintyColor((distArr[i] ?? 0) / maxDist);
+      colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+    mat = new THREE.MeshPhongMaterial({
+      vertexColors: true, transparent: true, opacity, side: THREE.DoubleSide, shininess: 20,
+    });
+  } else {
+    mat = new THREE.MeshPhongMaterial({
+      color: hexToThree(side === 'top' ? unit.color : darken(unit.color, 0.55)),
+      transparent: true, opacity, side: THREE.DoubleSide, shininess: 25,
+    });
+  }
+
   geo.computeVertexNormals();
-  const mat = new THREE.MeshPhongMaterial({
-    color: hexToThree(side === 'top' ? unit.color : darken(unit.color, 0.55)),
-    transparent: true, opacity, side: THREE.DoubleSide, shininess: 25,
-  });
   return new THREE.Mesh(geo, mat);
 }
 
@@ -412,9 +464,10 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
 
   // ── Core state ──────────────────────────────────────────────────────────────
   const [model, setModel] = useState<Geo3DModel | null>(null);
-  const [opacity, setOpacity]     = useState(0.52);
-  const [vExag, setVExag]         = useState(1.0);
+  const [opacity, setOpacity]         = useState(0.52);
+  const [vExag, setVExag]             = useState(1.0);
   const [hiddenUnits, setHiddenUnits] = useState<Set<string>>(new Set());
+  const [showUncertainty, setShowUncertainty] = useState(false);
 
   // ── Tool state ──────────────────────────────────────────────────────────────
   const [activeTool, setActiveTool] = useState<Tool>('select');
@@ -535,17 +588,35 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
       for (const m of meshes) bhMeshesRef.current.push({ mesh: m, id: bh.id });
     }
 
-    // Surfaces
+    // Surfaces (with optional per-vertex uncertainty colouring)
     const surfGrp = new THREE.Group();
     surfGrp.userData['isModel'] = true;
     for (const unit of model.units) {
       if (hiddenUnits.has(unit.key)) continue;
-      const top  = makeSurfaceMesh(model, unit, 'top',  opacity);
-      const base = makeSurfaceMesh(model, unit, 'base', opacity * 0.65);
+      const uSurf = showUncertainty ? unit.contactSurface : null;
+      const top  = makeSurfaceMesh(model, unit, 'top',  opacity,        uSurf);
+      const base = makeSurfaceMesh(model, unit, 'base', opacity * 0.65, uSurf);
       if (top)  { top.scale.y  = vExag; surfGrp.add(top); }
       if (base) { base.scale.y = vExag; surfGrp.add(base); }
     }
     scene.add(surfGrp);
+
+    // Contact-point spheres — visible in uncertainty mode to show constraints
+    if (showUncertainty && model.contacts.length > 0) {
+      const cpGrp = new THREE.Group();
+      cpGrp.userData['isModel'] = true;
+      const siteW = model.bounds.xMax - model.bounds.xMin;
+      const siteH = model.bounds.yMax - model.bounds.yMin;
+      const r = Math.max(1, Math.min(5, Math.sqrt(siteW * siteW + siteH * siteH) / 80));
+      const sphereGeo = new THREE.SphereGeometry(r, 8, 6);
+      for (const c of model.contacts) {
+        const mat = new THREE.MeshPhongMaterial({ color: 0x22c55e, emissive: 0x166534, emissiveIntensity: 0.4 });
+        const sphere = new THREE.Mesh(sphereGeo, mat);
+        sphere.position.set(c.x, c.zContact * vExag, -c.y);
+        cpGrp.add(sphere);
+      }
+      scene.add(cpGrp);
+    }
 
     // Fit camera
     const cx = (bounds.xMin + bounds.xMax) / 2;
@@ -555,7 +626,7 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
     camRef.current?.position.set(cx + r, cz + r * 0.7, -cy + r);
     ctrlRef.current?.target.set(cx, cz, -cy);
     ctrlRef.current?.update();
-  }, [model, opacity, hiddenUnits, vExag]);
+  }, [model, opacity, hiddenUnits, vExag, showUncertainty]);
 
   // ── Update section plane in 3D when active section changes ─────────────────
   useEffect(() => {
@@ -818,6 +889,33 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
                 <span style={{ fontSize: 11, color: '#64748b', width: 30 }}>{vExag.toFixed(1)}×</span>
               </div>
             </div>
+            {/* Uncertainty overlay */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5 }}>Uncertainty overlay</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setShowUncertainty(p => !p)}
+                  style={{
+                    padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    border: `1.5px solid ${showUncertainty ? '#22c55e' : '#cbd5e1'}`,
+                    borderRadius: 6,
+                    background: showUncertainty ? '#f0fdf4' : '#f8fafc',
+                    color: showUncertainty ? '#15803d' : '#64748b',
+                  }}
+                >
+                  {showUncertainty ? '● On' : '○ Off'}
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#64748b' }}>
+                  <span>Near</span>
+                  <div style={{ width: 52, height: 8, borderRadius: 2, background: 'linear-gradient(to right, #22c55e, #f59e0b, #dc2626)' }} />
+                  <span>Far</span>
+                </div>
+              </div>
+              {showUncertainty && model && model.contacts.length === 0 && (
+                <p style={{ fontSize: 10, color: '#f59e0b', marginTop: 4 }}>No contacts found — load a file with GEOL data</p>
+              )}
+            </div>
+
             {/* Unit visibility */}
             {model && (
               <div>
