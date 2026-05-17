@@ -12,6 +12,9 @@ import { ThreeDTab } from './tabs/ThreeDTab.js';
 import { VoxelTab } from './tabs/VoxelTab.js';
 import { PlotsTab } from './tabs/PlotsTab.js';
 import { ReportTab } from './tabs/ReportTab.js';
+import { ProjectManager } from './components/ProjectManager.js';
+import type { Project } from './storage/types.js';
+import { saveProject, saveProjectFile } from './storage/db.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 
@@ -242,6 +245,8 @@ export default function App() {
   const [tab, setTab] = useState<TabId>(hashTab);
   const [fileName, setFileName] = useState<string | undefined>();
   const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [showProjectManager, setShowProjectManager] = useState(false);
   const pendingHoleRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -255,22 +260,71 @@ export default function App() {
     setTab(id);
   };
 
-  const onFile = (name: string, bytes: Uint8Array) => {
+  const onFile = useCallback(async (name: string, bytes: Uint8Array) => {
     setFileName(name);
     setFileBytes(bytes);
-  };
+    if (currentProject) {
+      const now = Date.now();
+      await saveProjectFile({
+        id: crypto.randomUUID(),
+        projectId: currentProject.id,
+        name,
+        bytes,
+        addedAt: now,
+      });
+      await saveProject({ ...currentProject, updatedAt: now });
+    }
+  }, [currentProject]);
+
+  const onLoadFromProject = useCallback((name: string, bytes: Uint8Array, project: Project) => {
+    setFileName(name);
+    setFileBytes(bytes);
+    setCurrentProject(project);
+  }, []);
 
   return (
     <>
       <style>{GLOBAL_STYLE}</style>
       <header style={{ background: 'var(--navy)', color: '#fff', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
         <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px' }}>GeoFlow</h1>
-        <span style={{ fontSize: 12, opacity: 0.55, marginLeft: 'auto' }}>AGS Validator &amp; Converter</span>
+        {currentProject && (
+          <span style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
+            {currentProject.name}
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setShowProjectManager(true)}
+            style={{
+              padding: '6px 14px', fontSize: 12, fontWeight: 600,
+              background: 'rgba(255,255,255,0.12)', color: '#fff',
+              border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
+            Projects
+          </button>
+          <span style={{ fontSize: 12, opacity: 0.45 }}>AGS Validator &amp; Converter</span>
+        </div>
       </header>
+
+      {showProjectManager && (
+        <ProjectManager
+          onClose={() => setShowProjectManager(false)}
+          onLoadFile={onLoadFromProject}
+          currentProjectId={currentProject?.id}
+        />
+      )}
 
       <main style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 24px 60px' }}>
         {/* Drop zone */}
-        <DropZone onFile={onFile} fileName={fileName} fileSize={fileBytes?.length} />
+        <DropZone onFile={(n, b) => { void onFile(n, b); }} fileName={fileName} fileSize={fileBytes?.length} />
 
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 2, borderBottom: '2px solid var(--border)', marginBottom: 24, marginTop: 20 }}>
