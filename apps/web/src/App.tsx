@@ -18,6 +18,7 @@ import { ReportTab } from './tabs/ReportTab.js';
 import { DescribeTab } from './tabs/DescribeTab.js';
 import { ProjectManager } from './components/ProjectManager.js';
 import { ConflictResolver } from './components/ConflictResolver.js';
+import { DisclaimerBanner, DisclaimerModal } from './components/Disclaimer.js';
 import type { Project, Commit } from './storage/types.js';
 import { saveProject, saveCommit, getCommit } from './storage/db.js';
 import { mergeAgsFiles, applyConflictResolutions } from './merge.js';
@@ -711,6 +712,7 @@ export default function App() {
   const [pendingMerge, setPendingMerge] = useState<{ result: MergeResult; incomingName: string } | null>(null);
 
   const [showProjectManager, setShowProjectManager] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
   const pendingHoleRef = useRef<string | null>(null);
   // Tracks the last committed AgsFile so edit deltas are computed incrementally.
   const lastCommittedFileRef = useRef<AgsFile | null>(null);
@@ -914,9 +916,10 @@ export default function App() {
           {' '}<code style={{ background: 'var(--surface-muted)', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>.xml</code> file into the panel on the left,
           or open the <strong>Projects</strong> menu to restore a saved session.
         </p>
-        <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+        <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 22 }}>
           The <strong>Diff</strong> tab works without a loaded file.
         </p>
+        <DisclaimerBanner onOpen={() => setShowDisclaimer(true)} />
       </div>
     </div>
   );
@@ -1086,6 +1089,21 @@ export default function App() {
             </>
           )}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, color: '#a3b1c8' }}>
+            <button
+              onClick={() => setShowDisclaimer(true)}
+              title="Read the disclaimer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '2px 8px', fontSize: 11, fontWeight: 600,
+                background: 'transparent', color: '#f3d9a8',
+                border: '1px solid rgba(255,255,255,0.18)', borderRadius: 4,
+                cursor: 'pointer',
+              }}
+            >
+              <span aria-hidden="true">⚠</span>
+              <span>Disclaimer</span>
+            </button>
+            <span style={{ color: 'rgba(255,255,255,0.25)' }}>│</span>
             <span>{tab}</span>
           </div>
         </footer>
@@ -1106,6 +1124,10 @@ export default function App() {
           onResolve={(resolved) => { void onResolveConflicts(resolved); }}
           onCancel={() => setPendingMerge(null)}
         />
+      )}
+
+      {showDisclaimer && (
+        <DisclaimerModal onClose={() => setShowDisclaimer(false)} />
       )}
     </>
   );
