@@ -33,6 +33,7 @@ import type {
 } from '../core.js';
 import { fetchTopoGrid } from '../topo-api.js';
 import type { FetchTopoProgress } from '../topo-api.js';
+import { LineageModal } from './LineageModal.js';
 
 // ── Colour helpers ─────────────────────────────────────────────────────────────
 
@@ -312,6 +313,7 @@ export function VoxelTab({ fileBytes }: Props) {
   const [colorMode, setColorMode]       = useState<ColorMode>('property');
   const [toolMode, setToolMode]         = useState<ToolMode>('orbit');
   const [lineage, setLineage]           = useState<VoxelCellLineage | null>(null);
+  const [lineageModalOpen, setLineageModalOpen] = useState(false);
   const [virtualBh, setVirtualBh]       = useState<VirtualBh | null>(null);
   const [virtualBhSvg, setVirtualBhSvg] = useState('');
 
@@ -1362,6 +1364,19 @@ export function VoxelTab({ fileBytes }: Props) {
                   </p>
                 </div>
               )}
+
+              {/* Full lineage detail view */}
+              <button
+                onClick={() => setLineageModalOpen(true)}
+                style={{
+                  width: '100%', padding: '8px 0', borderRadius: 8,
+                  border: '1px solid #2563eb', background: 'transparent',
+                  color: '#3b82f6', fontSize: 12, fontWeight: 700,
+                  cursor: 'pointer', marginTop: 4,
+                }}
+              >
+                Full Lineage View →
+              </button>
             </div>
           )}
 
@@ -1391,6 +1406,15 @@ export function VoxelTab({ fileBytes }: Props) {
             </div>
           )}
         </div>
+      )}
+
+      {lineageModalOpen && lineage && model && grid && (
+        <LineageModal
+          lineage={lineage}
+          model={model}
+          grid={grid}
+          onClose={() => setLineageModalOpen(false)}
+        />
       )}
     </div>
   );
