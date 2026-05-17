@@ -36,6 +36,7 @@ export interface VoxelCell {
   value: number | null;                // numeric fields
   category: string | null;            // categorical fields
   confidence: number;                  // 0–1 proximity-to-data score
+  geolUnit: string | null;            // inferred geological unit (from GEOL layers)
 }
 
 export interface VoxelStats {
@@ -59,6 +60,34 @@ export interface VoxelGrid {
   centroid: { x: number; y: number }; // absolute centroid for export
   stats: VoxelStats | null;       // raw-observation statistics (numeric only)
   method: 'idw' | 'rbf';
+}
+
+/** A single borehole's contribution to a cell's interpolated value. */
+export interface VoxelObsContribution {
+  boreholeId: string;
+  distH: number;        // horizontal distance (m) to cell centre
+  weight: number;       // normalised IDW weight (0–1)
+  value: number | null;
+  category: string | null;
+  depthTop: number;     // depth below ground (m) of observation top
+  depthBase: number;    // depth below ground (m) of observation base
+}
+
+/** Provenance record for a single voxel cell — shows how its value was calculated. */
+export interface VoxelCellLineage {
+  ix: number; iy: number; iz: number;
+  cx: number; cy: number; cz: number;
+  method: 'rbf' | 'idw';
+  value: number | null;
+  category: string | null;
+  geolUnit: string | null;
+  confidence: number;
+  /** Horizontal distance to the nearest contributing observation (m). */
+  nearestObsDistH: number | null;
+  /** Estimated depth below inferred ground surface (m, positive downwards). */
+  depthBelowGround: number | null;
+  /** Observations that influenced this cell, sorted nearest-first. */
+  contributors: VoxelObsContribution[];
 }
 
 // ── Type helpers ──────────────────────────────────────────────────────────────
@@ -104,6 +133,50 @@ function computeStats(values: number[]): VoxelStats {
   }
 
   return { count: n, mean, std, p10: p(0.1), p50: p(0.5), p90: p(0.9), histogram: { edges, counts } };
+}
+
+// ── Geological unit inference ─────────────────────────────────────────────────
+
+/**
+ * Infer the geological unit at a point (cx, cy, cz) in local coordinates.
+ *
+ * Priority:
+ *   1. Unit surfaces (contactSurface > topSurface / baseSurface) from the
+ *      fitted 3-D model — interpolates geology between boreholes.
+ *   2. Nearest borehole GEOL layer at matching depth — exact at borehole
+ *      locations, degrades to nearest-neighbour elsewhere.
+ */
+function inferGeolUnit(
+  cx: number, cy: number, cz: number,
+  model: Geo3DModel,
+): string | null {
+  // 1. Try fitted unit surfaces
+  for (const unit of model.units) {
+    const topSurf = unit.contactSurface ?? unit.topSurface;
+    if (!topSurf) continue;
+    const topZ = topSurf.evaluate(cx, cy);
+    if (!isFinite(topZ)) continue;
+    const baseZ = unit.baseSurface ? unit.baseSurface.evaluate(cx, cy) : -Infinity;
+    if (cz <= topZ + 0.25 && cz >= baseZ - 0.25) return unit.key;
+  }
+
+  // 2. Nearest borehole depth match
+  let bestKey: string | null = null;
+  let bestDist2 = Infinity;
+  for (const bh of model.boreholes) {
+    if (bh.layers.length === 0) continue;
+    const d2 = (bh.x - cx) ** 2 + (bh.y - cy) ** 2;
+    if (d2 >= bestDist2) continue;
+    const depthInBh = bh.elev - cz;
+    for (const layer of bh.layers) {
+      if (depthInBh >= layer.topDepth - 0.25 && depthInBh <= layer.baseDepth + 0.25) {
+        bestDist2 = d2;
+        bestKey = layer.unitKey;
+        break;
+      }
+    }
+  }
+  return bestKey;
 }
 
 // ── Property discovery ────────────────────────────────────────────────────────
@@ -188,6 +261,9 @@ export function discoverVoxelProperties(file: AgsFile): VoxelProperty[] {
  * Categorical fields always use IDW nearest-borehole at matching depth.
  * Raw-observation statistics (count, mean, std, P10/P50/P90, histogram)
  * are always computed for numeric properties and stored in grid.stats.
+ *
+ * Each cell receives a `geolUnit` inferred from the geo3d model's fitted
+ * unit surfaces (falling back to nearest-borehole GEOL layer matching).
  */
 export function buildVoxelGrid(
   file: AgsFile,
@@ -201,6 +277,12 @@ export function buildVoxelGrid(
     lambda?: number;
     /** Optional topo grid: cells above the terrain surface are excluded. */
     topo?: TopoGrid;
+    /**
+     * Optional combined topo function (takes precedence over `topo`).
+     * Receives local (centroid-relative) x, y coordinates and returns
+     * the ground surface elevation (m OD).  Return NaN to skip clipping.
+     */
+    topoFn?: (lx: number, ly: number) => number;
   } = {},
 ): VoxelGrid {
   const nx     = Math.max(2, opts.nx ?? 20);
@@ -215,11 +297,11 @@ export function buildVoxelGrid(
   const dy = (yMax - yMin) / ny;
   const dz = (zMax - zMin) / nz;
 
-  // Converts local (centroid-relative) x,y to a terrain elevation from the
-  // topo grid. Returns NaN when outside the grid or no topo provided.
-  const topoZ = opts.topo
-    ? (lx: number, ly: number) => sampleTopoAt(opts.topo!, lx + centroid.x, ly + centroid.y)
-    : null;
+  // Resolve topo clip function: topoFn > topo grid > none
+  const topoClip: ((lx: number, ly: number) => number) | null =
+    opts.topoFn ?? (opts.topo
+      ? (lx, ly) => sampleTopoAt(opts.topo!, lx + centroid.x, ly + centroid.y)
+      : null);
 
   const empty: VoxelGrid = {
     property: prop, nx, ny, nz,
@@ -353,7 +435,6 @@ export function buildVoxelGrid(
       const cz = zMin + (iz + 0.5) * dz;
 
       // Skip cells not covered by any borehole's sampled depth range.
-      // depth = bh.elev - cz; must be in [0, bot+dz] for at least one borehole.
       if (bhSampledRanges.length > 0) {
         let inRange = false;
         for (const r of bhSampledRanges) {
@@ -368,19 +449,20 @@ export function buildVoxelGrid(
         for (let ix = 0; ix < nx; ix++) {
           const cx = xMin + (ix + 0.5) * dx;
 
-          // Topo clip: exclude cells above the terrain surface at (cx, cy)
-          if (topoZ) {
-            const tz = topoZ(cx, cy);
+          // Topo clip
+          if (topoClip) {
+            const tz = topoClip(cx, cy);
             if (!isNaN(tz) && cz > tz + dz * 0.5) continue;
           }
 
           const val = rbf.evaluate(cx, cy, cz);
           const d   = rbf.distToNearest(cx, cy, cz);
           const confidence = Math.max(0, 1 - d / (charDist3D * 1.5));
+          const geolUnit = inferGeolUnit(cx, cy, cz, model);
 
           if (val < numMin) numMin = val;
           if (val > numMax) numMax = val;
-          cells.push({ ix, iy, iz, cx, cy, cz, value: val, category: null, confidence });
+          cells.push({ ix, iy, iz, cx, cy, cz, value: val, category: null, confidence, geolUnit });
         }
       }
     }
@@ -410,9 +492,9 @@ export function buildVoxelGrid(
       for (let ix = 0; ix < nx; ix++) {
         const cx = xMin + (ix + 0.5) * dx;
 
-        // Topo clip: exclude cells above the terrain surface at (cx, cy)
-        if (topoZ) {
-          const tz = topoZ(cx, cy);
+        // Topo clip
+        if (topoClip) {
+          const tz = topoClip(cx, cy);
           if (!isNaN(tz) && cz > tz + halfDz) continue;
         }
 
@@ -452,15 +534,16 @@ export function buildVoxelGrid(
         if (wSum === 0) continue;
 
         const confidence = Math.min(1, nContrib / nBh);
+        const geolUnit = inferGeolUnit(cx, cy, cz, model);
 
         if (prop.type === 'numeric') {
           const val = vSum / wSum;
           if (val < numMin) numMin = val;
           if (val > numMax) numMax = val;
-          cells.push({ ix, iy, iz, cx, cy, cz, value: val, category: null, confidence });
+          cells.push({ ix, iy, iz, cx, cy, cz, value: val, category: null, confidence, geolUnit });
         } else {
           if (nearestCat) catSet.add(nearestCat);
-          cells.push({ ix, iy, iz, cx, cy, cz, value: null, category: nearestCat, confidence });
+          cells.push({ ix, iy, iz, cx, cy, cz, value: null, category: nearestCat, confidence, geolUnit });
         }
       }
     }
@@ -472,6 +555,106 @@ export function buildVoxelGrid(
     numericRange: numMin <= numMax ? [numMin, numMax] : [0, 1],
     categories: [...catSet].sort(), centroid,
     stats, method: 'idw',
+  };
+}
+
+// ── Cell lineage ──────────────────────────────────────────────────────────────
+
+/**
+ * Compute the full provenance record for a voxel cell — shows which borehole
+ * observations influenced its value and their relative weights.
+ *
+ * Works post-hoc from the built grid and the original AGS file; no changes
+ * to the grid data structure are required.
+ */
+export function getVoxelCellLineage(
+  grid: VoxelGrid,
+  cellIndex: number,
+  file: AgsFile,
+  model: Geo3DModel,
+): VoxelCellLineage | null {
+  const cell = grid.cells[cellIndex];
+  if (!cell) return null;
+
+  const group = file.groups[grid.property.group];
+  const contributors: VoxelObsContribution[] = [];
+  const halfDz = grid.cellSize.dz * 0.55;
+
+  if (group) {
+    const bhByLoca = new Map(model.boreholes.map(bh => [bh.id, bh]));
+
+    for (const row of group.rows) {
+      const locaId = String(row['LOCA_ID'] ?? '').trim();
+      const bh = locaId ? bhByLoca.get(locaId) : undefined;
+      if (!bh) continue;
+
+      const topRaw = parseFloat(String(row[grid.property.depthTopField] ?? ''));
+      if (isNaN(topRaw)) continue;
+
+      let depthBase = topRaw;
+      if (grid.property.depthBaseField) {
+        const b = parseFloat(String(row[grid.property.depthBaseField] ?? ''));
+        if (!isNaN(b)) depthBase = b;
+      }
+
+      // Depth match: does this observation cover the cell's elevation?
+      const depthInBh = bh.elev - cell.cz;
+      const effBase = grid.property.depthBaseField ? depthBase : topRaw + halfDz;
+      if (depthInBh < topRaw - halfDz || depthInBh > effBase + halfDz) continue;
+
+      const raw = row[grid.property.valueField];
+      let numVal: number | null = null;
+      let catVal: string | null = null;
+      if (raw != null && raw !== '') {
+        if (grid.property.type === 'numeric') {
+          const n = parseFloat(String(raw));
+          if (!isNaN(n)) numVal = n;
+        } else {
+          const sv = String(raw).trim();
+          if (sv) catVal = sv;
+        }
+      }
+      if (numVal === null && catVal === null) continue;
+
+      const dh = Math.sqrt((bh.x - cell.cx) ** 2 + (bh.y - cell.cy) ** 2);
+      contributors.push({
+        boreholeId: locaId,
+        distH: dh,
+        weight: 1 / Math.max(dh, 1),
+        value: numVal,
+        category: catVal,
+        depthTop: topRaw,
+        depthBase,
+      });
+    }
+
+    // Normalise weights and sort nearest-first
+    const wSum = contributors.reduce((s, c) => s + c.weight, 0);
+    if (wSum > 0) {
+      for (const c of contributors) c.weight /= wSum;
+    }
+    contributors.sort((a, b) => a.distH - b.distH);
+  }
+
+  // Estimate depth below ground: nearest borehole collar above this cell
+  let groundElev: number | null = null;
+  let minD2 = Infinity;
+  for (const bh of model.boreholes) {
+    const d2 = (bh.x - cell.cx) ** 2 + (bh.y - cell.cy) ** 2;
+    if (d2 < minD2) { minD2 = d2; groundElev = bh.elev; }
+  }
+
+  return {
+    ix: cell.ix, iy: cell.iy, iz: cell.iz,
+    cx: cell.cx, cy: cell.cy, cz: cell.cz,
+    method: grid.method,
+    value: cell.value,
+    category: cell.category,
+    geolUnit: cell.geolUnit,
+    confidence: cell.confidence,
+    nearestObsDistH: contributors.length > 0 ? contributors[0]!.distH : null,
+    depthBelowGround: groundElev !== null ? Math.max(0, groundElev - cell.cz) : null,
+    contributors: contributors.slice(0, 12),
   };
 }
 
@@ -489,7 +672,7 @@ export function voxelGridToCsv(grid: VoxelGrid): string {
     'easting_m', 'northing_m', 'z_elev_m_od',
     'x_local_m', 'y_local_m',
     'ix', 'iy', 'iz',
-    valCol, 'confidence',
+    valCol, 'confidence', 'geol_unit',
   ].join(',');
 
   const rows = cells.map(c => {
@@ -505,6 +688,7 @@ export function voxelGridToCsv(grid: VoxelGrid): string {
       c.ix, c.iy, c.iz,
       val,
       c.confidence.toFixed(3),
+      c.geolUnit ?? '',
     ].join(',');
   });
 

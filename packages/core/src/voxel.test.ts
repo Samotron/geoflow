@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv } from './voxel.js';
+import { discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv, getVoxelCellLineage } from './voxel.js';
 import type { AgsFile } from './model.js';
 import type { Geo3DModel } from './geo3d.js';
 import type { TopoGrid } from './topo.js';
@@ -550,5 +550,88 @@ describe('voxelGridToCsv', () => {
     const csv   = voxelGridToCsv(grid);
     const lines = csv.trim().split('\n');
     expect(lines.length).toBe(1); // header only
+  });
+
+  it('CSV includes geol_unit column', () => {
+    const grid = buildVoxelGrid(makeFile(), makeModel(), discoverVoxelProperties(makeFile()).find(p => p.id === 'ISPT_NVAL')!, { nx: 5, ny: 5, nz: 5 });
+    const header = voxelGridToCsv(grid).split('\n')[0]!;
+    expect(header).toContain('geol_unit');
+  });
+});
+
+// ── geolUnit inference ────────────────────────────────────────────────────────
+
+describe('geolUnit inference in buildVoxelGrid', () => {
+  it('each cell has a geolUnit property (may be null without GEOL layers)', () => {
+    const file  = makeFile();
+    const model = makeModel(); // fixture model has no layers
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.cells.length).toBeGreaterThan(0);
+    // geolUnit is always present on each cell (null when GEOL data absent)
+    for (const c of grid.cells) {
+      expect('geolUnit' in c).toBe(true);
+    }
+  });
+
+  it('topoFn option clips cells (same as topo grid)', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    // Flat topoFn at 2 m OD (local coords: z = absolute - centroid)
+    const flatFn = (_lx: number, _ly: number) => 2;
+
+    const withFn    = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf', topoFn: flatFn });
+    const withoutFn = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf' });
+
+    expect(withFn.cells.length).toBeLessThan(withoutFn.cells.length);
+    expect(withFn.cells.every(c => c.cz <= 2 + 1.5 + 1e-6)).toBe(true);
+  });
+});
+
+// ── getVoxelCellLineage ───────────────────────────────────────────────────────
+
+describe('getVoxelCellLineage', () => {
+  function buildGrid() {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    return { file, model, grid: buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5, method: 'idw' }) };
+  }
+
+  it('returns null for out-of-bounds cell index', () => {
+    const { file, model, grid } = buildGrid();
+    expect(getVoxelCellLineage(grid, -1, file, model)).toBeNull();
+    expect(getVoxelCellLineage(grid, grid.cells.length, file, model)).toBeNull();
+  });
+
+  it('returns a lineage object for a valid cell', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    expect(lg).not.toBeNull();
+    expect(lg!.ix).toBeDefined();
+    expect(lg!.confidence).toBeGreaterThanOrEqual(0);
+    expect(lg!.confidence).toBeLessThanOrEqual(1);
+    expect(lg!.method).toBe('idw');
+  });
+
+  it('contributors are sorted by distance ascending', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    if (!lg || lg.contributors.length < 2) return;
+    for (let i = 1; i < lg.contributors.length; i++) {
+      expect(lg.contributors[i]!.distH).toBeGreaterThanOrEqual(lg.contributors[i-1]!.distH);
+    }
+  });
+
+  it('contributor weights sum to ≈1 when contributors exist', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    if (!lg || lg.contributors.length === 0) return;
+    const wSum = lg.contributors.reduce((s, c) => s + c.weight, 0);
+    expect(wSum).toBeCloseTo(1, 5);
   });
 });
