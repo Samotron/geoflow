@@ -72,7 +72,7 @@ export function ConflictResolver({ result, sourceName, onResolve, onCancel }: Pr
         </div>
 
         {/* Summary bar */}
-        <div style={{ background: '#f8fafc', borderBottom: '1px solid var(--border)', padding: '10px 24px', display: 'flex', gap: 20, alignItems: 'center', fontSize: 13, flexShrink: 0 }}>
+        <div style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', padding: '10px 24px', display: 'flex', gap: 20, alignItems: 'center', fontSize: 13, flexShrink: 0 }}>
           <span style={{ color: 'var(--muted)' }}>Keeping current:</span>
           <strong style={{ color: 'var(--blue)' }}>{oursCount}</strong>
           <span style={{ color: 'var(--muted)' }}>Taking incoming:</span>
@@ -80,11 +80,11 @@ export function ConflictResolver({ result, sourceName, onResolve, onCancel }: Pr
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <button
               onClick={() => setChoices(Object.fromEntries(conflicts.map((c) => [`${c.group}::${c.primaryKey}`, 'ours' as Side])))}
-              style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, background: '#eff6ff', color: 'var(--blue)', border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer' }}
+              style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, background: 'var(--accent-soft)', color: 'var(--blue)', border: '1px solid var(--accent-border)', borderRadius: 6, cursor: 'pointer' }}
             >Take all current</button>
             <button
               onClick={() => setChoices(Object.fromEntries(conflicts.map((c) => [`${c.group}::${c.primaryKey}`, 'theirs' as Side])))}
-              style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, background: '#f0fdf4', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 6, cursor: 'pointer' }}
+              style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, background: 'var(--green-soft)', color: 'var(--green)', border: '1px solid var(--green-border)', borderRadius: 6, cursor: 'pointer' }}
             >Take all incoming</button>
           </div>
         </div>
@@ -94,7 +94,7 @@ export function ConflictResolver({ result, sourceName, onResolve, onCancel }: Pr
           {Object.entries(byGroup).map(([groupName, groupConflicts]) => (
             <div key={groupName} style={{ marginBottom: 24 }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: 4, fontFamily: 'ui-monospace, monospace' }}>{groupName}</span>
+                <span style={{ background: 'var(--surface-muted)', padding: '2px 8px', borderRadius: 4, fontFamily: 'ui-monospace, monospace' }}>{groupName}</span>
                 <span>{groupConflicts.length} conflict{groupConflicts.length !== 1 ? 's' : ''}</span>
               </div>
 
@@ -107,8 +107,8 @@ export function ConflictResolver({ result, sourceName, onResolve, onCancel }: Pr
                 return (
                   <div key={key} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: 10, overflow: 'hidden' }}>
                     {/* Conflict header */}
-                    <div style={{ background: '#f8fafc', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)' }}>
-                      <code style={{ fontSize: 12, color: 'var(--navy)', fontFamily: 'ui-monospace, monospace', background: '#e0f2fe', padding: '2px 8px', borderRadius: 4 }}>
+                    <div style={{ background: 'var(--surface-muted)', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)' }}>
+                      <code style={{ fontSize: 12, color: 'var(--navy)', fontFamily: 'ui-monospace, monospace', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: 4 }}>
                         {conflict.primaryKeyHeadings.join(' + ')}: {conflict.primaryKey.replace(/\0/g, ' · ')}
                       </code>
                       <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>
@@ -119,11 +119,11 @@ export function ConflictResolver({ result, sourceName, onResolve, onCancel }: Pr
                     {/* Side-by-side diff table */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', fontSize: 12, fontFamily: 'ui-monospace, monospace' }}>
                       {/* Column headers */}
-                      <div style={{ padding: '7px 14px', background: choice === 'ours' ? '#eff6ff' : '#f8fafc', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ padding: '7px 14px', background: choice === 'ours' ? 'var(--accent-soft)' : 'var(--surface-muted)', borderBottom: '1px solid var(--border)', borderRight: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
                         <input type="radio" checked={choice === 'ours'} onChange={() => setChoice(conflict, 'ours')} style={{ accentColor: 'var(--blue)' }} />
                         <span style={{ fontWeight: 700, color: choice === 'ours' ? 'var(--blue)' : 'var(--muted)', fontSize: 11 }}>Current (keep)</span>
                       </div>
-                      <div style={{ padding: '7px 14px', background: choice === 'theirs' ? '#f0fdf4' : '#f8fafc', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ padding: '7px 14px', background: choice === 'theirs' ? 'var(--green-soft)' : 'var(--surface-muted)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
                         <input type="radio" checked={choice === 'theirs'} onChange={() => setChoice(conflict, 'theirs')} style={{ accentColor: 'var(--green)' }} />
                         <span style={{ fontWeight: 700, color: choice === 'theirs' ? 'var(--green)' : 'var(--muted)', fontSize: 11 }}>Incoming — {sourceName}</span>
                       </div>
@@ -132,15 +132,15 @@ export function ConflictResolver({ result, sourceName, onResolve, onCancel }: Pr
                       {diffHeadings.map((heading, i) => {
                         const oursVal = norm(conflict.oursRow[heading]);
                         const theirsVal = norm(conflict.theirsRow[heading]);
-                        const rowBg = i % 2 === 0 ? '#fafafa' : '#fff';
+                        const rowBg = i % 2 === 0 ? 'var(--surface-muted)' : '#fff';
                         return [
-                          <div key={`o-${heading}`} style={{ padding: '6px 14px', background: choice === 'ours' ? '#eff6ff' : rowBg, borderBottom: '1px solid #f1f5f9', borderRight: '1px solid var(--border)' }}>
+                          <div key={`o-${heading}`} style={{ padding: '6px 14px', background: choice === 'ours' ? 'var(--accent-soft)' : rowBg, borderBottom: '1px solid var(--surface-muted)', borderRight: '1px solid var(--border)' }}>
                             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{heading}</div>
-                            <div style={{ color: oursVal ? 'var(--text)' : '#cbd5e1', fontStyle: oursVal ? undefined : 'italic' }}>{oursVal || '—'}</div>
+                            <div style={{ color: oursVal ? 'var(--text)' : 'var(--border-strong)', fontStyle: oursVal ? undefined : 'italic' }}>{oursVal || '—'}</div>
                           </div>,
-                          <div key={`t-${heading}`} style={{ padding: '6px 14px', background: choice === 'theirs' ? '#f0fdf4' : rowBg, borderBottom: '1px solid #f1f5f9' }}>
+                          <div key={`t-${heading}`} style={{ padding: '6px 14px', background: choice === 'theirs' ? 'var(--green-soft)' : rowBg, borderBottom: '1px solid var(--surface-muted)' }}>
                             <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>{heading}</div>
-                            <div style={{ color: theirsVal ? 'var(--text)' : '#cbd5e1', fontStyle: theirsVal ? undefined : 'italic' }}>{theirsVal || '—'}</div>
+                            <div style={{ color: theirsVal ? 'var(--text)' : 'var(--border-strong)', fontStyle: theirsVal ? undefined : 'italic' }}>{theirsVal || '—'}</div>
                           </div>,
                         ];
                       })}
@@ -153,12 +153,12 @@ export function ConflictResolver({ result, sourceName, onResolve, onCancel }: Pr
         </div>
 
         {/* Footer */}
-        <div style={{ borderTop: '1px solid var(--border)', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12, background: '#f8fafc', flexShrink: 0 }}>
+        <div style={{ borderTop: '1px solid var(--border)', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--surface-muted)', flexShrink: 0 }}>
           <span style={{ fontSize: 13, color: 'var(--muted)' }}>
             Non-conflicting rows from both files have already been merged.
           </span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button onClick={onCancel} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#f1f5f9', color: 'var(--muted)', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={onCancel} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: 'var(--surface-muted)', color: 'var(--muted)', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
             <button onClick={handleCommit} style={{ padding: '8px 20px', fontSize: 13, fontWeight: 700, background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
               Commit merge
             </button>

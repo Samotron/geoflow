@@ -13,9 +13,9 @@ type ValidateView = 'diagnostics' | 'source';
 // ── Source editor ─────────────────────────────────────────────────────────────
 
 function sevColor(sev: string) {
-  if (sev === 'error') return { bg: '#fef2f2', border: '#fecaca', text: 'var(--red)', gutter: '#fee2e2' };
-  if (sev === 'warning') return { bg: '#fff7ed', border: '#fed7aa', text: 'var(--orange)', gutter: '#ffedd5' };
-  return { bg: '#eff6ff', border: '#bfdbfe', text: '#2563eb', gutter: '#dbeafe' };
+  if (sev === 'error') return { bg: 'var(--red-soft)', border: 'var(--red-border)', text: 'var(--red)', gutter: 'var(--red-soft)' };
+  if (sev === 'warning') return { bg: 'var(--orange-soft)', border: 'var(--orange-border)', text: 'var(--orange)', gutter: 'var(--orange-soft)' };
+  return { bg: 'var(--accent-soft)', border: 'var(--accent-border)', text: 'var(--accent)', gutter: 'var(--accent-soft)' };
 }
 
 function SourceEditor({ sourceText, diagnostics }: { sourceText: string; diagnostics: Diagnostic[] }) {
@@ -41,7 +41,7 @@ function SourceEditor({ sourceText, diagnostics }: { sourceText: string; diagnos
   return (
     <div
       ref={lineRef}
-      style={{ background: '#0f172a', borderRadius: 'var(--radius)', overflow: 'auto', maxHeight: 'calc(100vh - 260px)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, lineHeight: '1.6' }}
+      style={{ background: 'var(--text)', borderRadius: 'var(--radius)', overflow: 'auto', maxHeight: 'calc(100vh - 260px)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 12, lineHeight: '1.6' }}
     >
       {lines.map((line, i) => {
         const lineNo = i + 1;
@@ -62,15 +62,15 @@ function SourceEditor({ sourceText, diagnostics }: { sourceText: string; diagnos
                   padding: '0 10px',
                   textAlign: 'right',
                   userSelect: 'none',
-                  color: worstSev === 'error' ? '#fca5a5' : worstSev === 'warning' ? '#fcd34d' : '#475569',
-                  background: worstSev === 'error' ? 'rgba(239,68,68,0.15)' : worstSev === 'warning' ? 'rgba(234,179,8,0.12)' : '#0f172a',
-                  borderRight: `2px solid ${worstSev === 'error' ? '#ef4444' : worstSev === 'warning' ? '#f59e0b' : '#1e293b'}`,
+                  color: worstSev === 'error' ? 'var(--red-border)' : worstSev === 'warning' ? 'var(--amber)' : 'var(--text-dim)',
+                  background: worstSev === 'error' ? 'rgba(239,68,68,0.15)' : worstSev === 'warning' ? 'rgba(234,179,8,0.12)' : 'var(--text)',
+                  borderRight: `2px solid ${worstSev === 'error' ? 'var(--red)' : worstSev === 'warning' ? 'var(--amber)' : 'var(--text)'}`,
                   flexShrink: 0,
                 }}
               >
                 {lineNo}
               </span>
-              <span style={{ padding: '0 16px', color: '#e2e8f0', whiteSpace: 'pre', flexGrow: 1 }}>
+              <span style={{ padding: '0 16px', color: 'var(--border)', whiteSpace: 'pre', flexGrow: 1 }}>
                 {line || ' '}
               </span>
             </div>
@@ -79,7 +79,7 @@ function SourceEditor({ sourceText, diagnostics }: { sourceText: string; diagnos
               const c = sevColor(d.severity);
               return (
                 <div key={j} style={{ display: 'flex', gap: 0 }}>
-                  <span style={{ minWidth: `${lineNumWidth + 2}ch`, background: c.gutter + '22', borderRight: `2px solid ${worstSev === 'error' ? '#ef4444' : '#f59e0b'}`, flexShrink: 0 }} />
+                  <span style={{ minWidth: `${lineNumWidth + 2}ch`, background: c.gutter + '22', borderRight: `2px solid ${worstSev === 'error' ? 'var(--red)' : 'var(--amber)'}`, flexShrink: 0 }} />
                   <div style={{ padding: '2px 16px 4px', color: c.text, fontSize: 11, background: c.bg + '15', flexGrow: 1 }}>
                     <span style={{ fontWeight: 700 }}>{d.severity.toUpperCase()}</span>
                     {' '}
@@ -211,7 +211,7 @@ export function InspectTab({ fileBytes, fileName }: Props) {
       <div>
         <div style={sectionLabel}>File Info</div>
         {infoError ? (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)' }}>{infoError}</div>
+          <div style={{ background: 'var(--red-soft)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)' }}>{infoError}</div>
         ) : (
           <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
             <pre style={{ padding: 16, fontSize: 13, lineHeight: 1.7, fontFamily: 'monospace', background: 'var(--card)', color: 'var(--text)', margin: 0 }}>
@@ -246,7 +246,7 @@ export function InspectTab({ fileBytes, fileName }: Props) {
         </div>
 
         {validateDiags !== null && validateExitCode === 0 && validateView === 'diagnostics' && (
-          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius)', padding: '14px 18px', color: 'var(--green)', fontWeight: 600, marginBottom: 12 }}>
+          <div style={{ background: 'var(--green-soft)', border: '1px solid var(--green-border)', borderRadius: 'var(--radius)', padding: '14px 18px', color: 'var(--green)', fontWeight: 600, marginBottom: 12 }}>
             ✓ No issues found
           </div>
         )}
@@ -256,17 +256,17 @@ export function InspectTab({ fileBytes, fileName }: Props) {
             {(counts.error > 0 || counts.warning > 0 || counts.info > 0) && (
               <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                 {counts.error > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: '#fef2f2', color: 'var(--red)', border: '1px solid #fecaca' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: 'var(--red-soft)', color: 'var(--red)', border: '1px solid var(--red-border)' }}>
                     {counts.error} error{counts.error !== 1 ? 's' : ''}
                   </span>
                 )}
                 {counts.warning > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: '#fff7ed', color: 'var(--orange)', border: '1px solid #fed7aa' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: 'var(--orange-soft)', color: 'var(--orange)', border: '1px solid var(--orange-border)' }}>
                     {counts.warning} warning{counts.warning !== 1 ? 's' : ''}
                   </span>
                 )}
                 {counts.info > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--accent-border)' }}>
                     {counts.info} info
                   </span>
                 )}
@@ -310,24 +310,24 @@ export function InspectTab({ fileBytes, fileName }: Props) {
         </div>
 
         {fixError && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)', marginBottom: 12 }}>{fixError}</div>
+          <div style={{ background: 'var(--red-soft)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)', marginBottom: 12 }}>{fixError}</div>
         )}
 
         {fixApplied !== null && (
           fixApplied.length === 0 ? (
-            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius)', padding: '14px 18px', color: 'var(--green)', fontWeight: 600 }}>
+            <div style={{ background: 'var(--green-soft)', border: '1px solid var(--green-border)', borderRadius: 'var(--radius)', padding: '14px 18px', color: 'var(--green)', fontWeight: 600 }}>
               ✓ No fixes needed — file is already clean
             </div>
           ) : (
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: '#f8fafc', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>
                 {fixApplied.length} fix{fixApplied.length !== 1 ? 'es' : ''} applied
               </div>
               <ul style={{ listStyle: 'none', padding: 0 }}>
                 {fixApplied.map((fix, i) => (
-                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
+                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--surface-muted)', fontSize: 13 }}>
                     <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓</span>
-                    <code style={{ fontFamily: 'monospace', fontSize: 12, background: '#f1f5f9', padding: '2px 8px', borderRadius: 4 }}>{fix}</code>
+                    <code style={{ fontFamily: 'monospace', fontSize: 12, background: 'var(--surface-muted)', padding: '2px 8px', borderRadius: 4 }}>{fix}</code>
                   </li>
                 ))}
               </ul>

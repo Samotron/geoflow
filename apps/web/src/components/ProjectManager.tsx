@@ -174,8 +174,8 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
   const btn = (variant: 'primary' | 'ghost' | 'danger' | 'small'): React.CSSProperties => {
     const base: React.CSSProperties = { padding: variant === 'small' ? '4px 10px' : '8px 14px', fontSize: variant === 'small' ? 11 : 12, fontWeight: 600, borderRadius: 6, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity .15s' };
     if (variant === 'primary') return { ...base, background: 'var(--blue)', color: '#fff' };
-    if (variant === 'danger') return { ...base, background: '#fee2e2', color: 'var(--red)' };
-    return { ...base, background: '#f1f5f9', color: 'var(--muted)' };
+    if (variant === 'danger') return { ...base, background: 'var(--red-soft)', color: 'var(--red)' };
+    return { ...base, background: 'var(--surface-muted)', color: 'var(--muted)' };
   };
 
   return (
@@ -195,7 +195,7 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Sidebar — project list */}
           <div style={{ width: 260, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', flex: 1 }}>
                 {projects.length} Project{projects.length !== 1 ? 's' : ''}
               </span>
@@ -203,7 +203,7 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
             </div>
 
             {creating && (
-              <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: '#eff6ff' }}>
+              <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--accent-soft)' }}>
                 <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') void createProject(); if (e.key === 'Escape') { setCreating(false); setNewName(''); } }}
                   placeholder="Project name…"
@@ -224,7 +224,7 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
               )}
               {projects.map((p) => (
                 <div key={p.id}
-                  style={{ padding: '10px 16px', cursor: 'pointer', background: p.id === selectedId ? '#eff6ff' : 'transparent', borderLeft: `3px solid ${p.id === selectedId ? 'var(--blue)' : 'transparent'}`, transition: 'background .1s' }}
+                  style={{ padding: '10px 16px', cursor: 'pointer', background: p.id === selectedId ? 'var(--accent-soft)' : 'transparent', borderLeft: `3px solid ${p.id === selectedId ? 'var(--blue)' : 'transparent'}`, transition: 'background .1s' }}
                   onClick={() => setSelectedId(p.id)}
                 >
                   <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', marginBottom: 2 }}>{p.name}</div>
@@ -237,7 +237,7 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
 
             {/* Import drop zone */}
             <div
-              style={{ borderTop: '1px solid var(--border)', padding: 10, background: dragOver ? '#eff6ff' : '#f8fafc', border: `2px dashed ${dragOver ? 'var(--blue)' : 'var(--border)'}`, borderRadius: 8, margin: 8, textAlign: 'center', cursor: importing ? 'wait' : 'pointer', transition: 'all .15s' }}
+              style={{ borderTop: '1px solid var(--border)', padding: 10, background: dragOver ? 'var(--accent-soft)' : 'var(--surface-muted)', border: `2px dashed ${dragOver ? 'var(--blue)' : 'var(--border)'}`, borderRadius: 8, margin: 8, textAlign: 'center', cursor: importing ? 'wait' : 'pointer', transition: 'all .15s' }}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
@@ -256,7 +256,7 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
               </div>
             ) : (
               <>
-                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: '#f8fafc' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface-muted)' }}>
                   <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{selectedProject.name}</span>
                   <button style={btn('small')} onClick={() => void handleRename(selectedProject)}>Rename</button>
                   <button style={btn('small')} disabled={exportingId === selectedProject.id || commits.length === 0} onClick={() => void handleExport(selectedProject)}>
@@ -291,7 +291,7 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
                                 <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{c.message}</span>
                                 {isHead && <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--navy)', color: '#fff', padding: '1px 6px', borderRadius: 4 }}>HEAD</span>}
                                 {c.conflictCount > 0 && (
-                                  <span style={{ fontSize: 10, fontWeight: 700, background: '#fff7ed', color: 'var(--amber)', padding: '1px 6px', borderRadius: 4, border: '1px solid #fed7aa' }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--orange-soft)', color: 'var(--amber)', padding: '1px 6px', borderRadius: 4, border: '1px solid var(--orange-border)' }}>
                                     ⚠ {c.conflictCount} conflict{c.conflictCount > 1 ? 's' : ''}
                                   </span>
                                 )}

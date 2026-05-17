@@ -30,7 +30,7 @@ function SchemaPanel({
       {tables.map((t) => (
         <div key={t.name} style={{ marginBottom: 2 }}>
           <div
-            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: open[t.name] ? '#f1f5f9' : undefined }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', padding: '4px 6px', borderRadius: 4, background: open[t.name] ? 'var(--surface-muted)' : undefined }}
             onClick={() => toggle(t.name)}
           >
             <span style={{ fontSize: 10, color: 'var(--muted)', userSelect: 'none' }}>{open[t.name] ? '▾' : '▸'}</span>
@@ -40,7 +40,7 @@ function SchemaPanel({
             >
               {t.name}
             </span>
-            <span style={{ fontSize: 10, color: 'var(--muted)', background: '#e2e8f0', padding: '1px 5px', borderRadius: 99 }}>
+            <span style={{ fontSize: 10, color: 'var(--muted)', background: 'var(--border)', padding: '1px 5px', borderRadius: 99 }}>
               {t.rowCount}
             </span>
           </div>
@@ -122,10 +122,10 @@ function PresetsPanel({
                       borderRadius: 4,
                       cursor: avail ? 'pointer' : 'default',
                       fontSize: 12,
-                      color: avail ? 'var(--text)' : '#cbd5e1',
+                      color: avail ? 'var(--text)' : 'var(--border-strong)',
                       marginBottom: 1,
                     }}
-                    onMouseEnter={(e) => { if (avail) (e.target as HTMLElement).style.background = '#f1f5f9'; }}
+                    onMouseEnter={(e) => { if (avail) (e.target as HTMLElement).style.background = 'var(--surface-muted)'; }}
                     onMouseLeave={(e) => { (e.target as HTMLElement).style.background = 'none'; }}
                   >
                     {q.label}
@@ -148,7 +148,7 @@ function ResultsTable({ result }: { result: QueryResult }) {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div style={{
         padding: '7px 12px',
-        background: '#f8fafc',
+        background: 'var(--surface-muted)',
         borderBottom: '1px solid var(--border)',
         fontSize: 12,
         color: 'var(--muted)',
@@ -166,14 +166,14 @@ function ResultsTable({ result }: { result: QueryResult }) {
             <tr>
               {result.columns.map((col) => (
                 <th key={col} style={{
-                  background: '#f8fafc',
+                  background: 'var(--surface-muted)',
                   padding: '6px 12px',
                   textAlign: 'left',
                   fontWeight: 700,
                   fontFamily: 'monospace',
                   fontSize: 11,
                   borderBottom: '2px solid var(--border)',
-                  borderRight: '1px solid #e2e8f0',
+                  borderRight: '1px solid var(--border)',
                   whiteSpace: 'nowrap',
                 }}>
                   {col}
@@ -183,20 +183,20 @@ function ResultsTable({ result }: { result: QueryResult }) {
           </thead>
           <tbody>
             {result.rows.map((row, i) => (
-              <tr key={i} style={{ background: i % 2 === 1 ? '#fafafa' : undefined }}>
+              <tr key={i} style={{ background: i % 2 === 1 ? 'var(--surface-muted)' : undefined }}>
                 {row.map((cell, j) => {
                   const isNull = cell === null;
                   const isNum = typeof cell === 'number';
                   return (
                     <td key={j} style={{
                       padding: '5px 12px',
-                      borderBottom: '1px solid #f1f5f9',
-                      borderRight: '1px solid #f8fafc',
+                      borderBottom: '1px solid var(--surface-muted)',
+                      borderRight: '1px solid var(--surface-muted)',
                       fontFamily: 'monospace',
                       fontSize: 12,
                       whiteSpace: 'nowrap',
                       textAlign: isNum ? 'right' : undefined,
-                      color: isNull ? '#cbd5e1' : isNum ? '#334155' : undefined,
+                      color: isNull ? 'var(--border-strong)' : isNum ? 'var(--text)' : undefined,
                     }}>
                       {isNull ? 'NULL' : String(cell)}
                     </td>
@@ -321,7 +321,7 @@ export function QueryTab({ fileBytes }: Props) {
     return (
       <div style={{ padding: 24, color: 'var(--muted)', fontSize: 13 }}>
         <div style={{ marginBottom: 8, fontStyle: 'italic' }}>{initMsg || 'Loading…'}</div>
-        <div style={{ width: 200, height: 4, background: '#e2e8f0', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ width: 200, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
           <div style={{ height: '100%', background: 'var(--navy)', animation: 'pulse 1.5s ease-in-out infinite', width: '60%' }} />
         </div>
       </div>
@@ -330,7 +330,7 @@ export function QueryTab({ fileBytes }: Props) {
 
   if (initState === 'error') {
     return (
-      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)' }}>
+      <div style={{ background: 'var(--red-soft)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)' }}>
         Failed to initialise DuckDB: {initMsg}
       </div>
     );
@@ -350,7 +350,7 @@ export function QueryTab({ fileBytes }: Props) {
         flexDirection: 'column',
         gap: 0,
       }}>
-        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', background: '#f8fafc' }}>
+        <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)' }}>
           <SchemaPanel tables={tables} onTableClick={handleTableClick} />
         </div>
         <div style={{ padding: '10px 12px' }}>
@@ -375,7 +375,7 @@ export function QueryTab({ fileBytes }: Props) {
             gap: 10,
             padding: '8px 12px',
             borderBottom: '1px solid var(--border)',
-            background: '#f8fafc',
+            background: 'var(--surface-muted)',
           }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)' }}>
               SQL Editor
@@ -386,7 +386,7 @@ export function QueryTab({ fileBytes }: Props) {
               disabled={running || initState !== 'ready'}
               style={{
                 marginLeft: 'auto',
-                background: running ? '#e2e8f0' : 'var(--navy)',
+                background: running ? 'var(--border)' : 'var(--navy)',
                 color: running ? 'var(--muted)' : '#fff',
                 fontSize: 12,
                 padding: '5px 14px',
@@ -423,8 +423,8 @@ export function QueryTab({ fileBytes }: Props) {
         {/* Error banner */}
         {error && (
           <div style={{
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
+            background: 'var(--red-soft)',
+            border: '1px solid var(--red-border)',
             borderRadius: 'var(--radius)',
             padding: '10px 14px',
             color: 'var(--red)',

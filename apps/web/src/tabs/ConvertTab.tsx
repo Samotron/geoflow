@@ -41,7 +41,7 @@ function Section({
       <div style={{
         padding: '10px 16px',
         borderBottom: '1px solid var(--border)',
-        background: '#f8fafc',
+        background: 'var(--surface-muted)',
         fontSize: 11,
         fontWeight: 700,
         textTransform: 'uppercase',
@@ -84,7 +84,7 @@ function ExportButton({
         alignItems: 'flex-start',
         gap: 4,
         padding: '12px 16px',
-        background: disabled ? '#f1f5f9' : color,
+        background: disabled ? 'var(--surface-muted)' : color,
         color: disabled ? 'var(--muted)' : '#fff',
         border: 'none',
         borderRadius: 'var(--radius)',
@@ -239,7 +239,7 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
               label="CSV"
               ext=".csv"
               description="One file per group"
-              color="#0f766e"
+              color="var(--green)"
               onClick={handleCsv}
               disabled={running}
             />
@@ -247,7 +247,7 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
               label="Excel"
               ext=".xlsx"
               description="All groups, one workbook"
-              color="#15803d"
+              color="var(--green)"
               onClick={handleExcel}
               disabled={running}
             />
@@ -255,7 +255,7 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
               label="GeoPackage"
               ext=".gpkg"
               description="Spatial SQLite + styles"
-              color="#b45309"
+              color="var(--amber)"
               onClick={handleGeopackage}
               disabled={running}
             />
@@ -263,7 +263,7 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
               label="DuckDB"
               ext=".duckdb"
               description="Queryable analytics file"
-              color="#7c3aed"
+              color="var(--accent)"
               onClick={handleDuckDb}
               disabled={running}
             />
@@ -283,7 +283,7 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
               { label: 'DuckDB', detail: 'Native DuckDB database file. Open directly in DuckDB CLI, DuckDB Desktop, or any DuckDB client. All groups as tables with full SQL support.' },
             ].map(({ label, detail }) => (
               <div key={label} style={{
-                background: '#f8fafc',
+                background: 'var(--surface-muted)',
                 border: '1px solid var(--border)',
                 borderRadius: 6,
                 padding: '10px 12px',
@@ -308,8 +308,8 @@ export function ConvertTab({ fileBytes, fileName }: Props) {
       {status && (
         <div style={{
           marginTop: 12,
-          background: status.ok ? '#f0fdf4' : '#fef2f2',
-          border: `1px solid ${status.ok ? '#bbf7d0' : '#fecaca'}`,
+          background: status.ok ? 'var(--green-soft)' : 'var(--red-soft)',
+          border: `1px solid ${status.ok ? 'var(--green-border)' : 'var(--red-border)'}`,
           borderRadius: 'var(--radius)',
           padding: '10px 14px',
           color: status.ok ? 'var(--green)' : 'var(--red)',

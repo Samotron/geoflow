@@ -220,7 +220,7 @@ const S = {
   table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 12 },
   th: { background: 'var(--navy)', color: '#fff', padding: '6px 10px', textAlign: 'left' as const, fontWeight: 600, fontSize: 11 },
   td:    { padding: '5px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' as const } as React.CSSProperties,
-  tdAlt: { padding: '5px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' as const, background: '#f8fafc' } as React.CSSProperties,
+  tdAlt: { padding: '5px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' as const, background: 'var(--surface-muted)' } as React.CSSProperties,
   kvLabel: { color: 'var(--muted)', fontWeight: 600 } as React.CSSProperties,
   pill: (color: string) => ({ display: 'inline-block', padding: '2px 8px', borderRadius: 99, background: color + '22', color, fontWeight: 700, fontSize: 11 }),
 } as const;
@@ -271,11 +271,11 @@ const PRINT_CSS = `
 function exportHtml(el: HTMLElement, baseName: string) {
   const inlineStyles = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; color: #0f172a; }
-    :root { --navy: #0f2644; --blue: #1a4080; --border: #cbd5e1; --card: #ffffff; --muted: #64748b; --text: #0f172a; --radius: 8px; }
+    body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; color: var(--text); }
+    :root { --navy: var(--navy); --blue: var(--blue); --border: var(--border-strong); --card: #ffffff; --muted: var(--muted); --text: var(--text); --radius: 8px; }
     table { border-collapse: collapse; width: 100%; font-size: 12px; }
-    th { background: #0f2644; color: #fff; padding: 6px 10px; text-align: left; font-size: 11px; }
-    td { padding: 5px 10px; border-bottom: 1px solid #cbd5e1; }
+    th { background: var(--navy); color: #fff; padding: 6px 10px; text-align: left; font-size: 11px; }
+    td { padding: 5px 10px; border-bottom: 1px solid var(--border-strong); }
     .report-actions { display: none; }
     ${PRINT_CSS}
   `;
@@ -436,7 +436,7 @@ export function ReportTab({ fileBytes, fileName }: Props) {
         <button onClick={() => window.print()} style={{ background: 'var(--navy)', color: '#fff', padding: '8px 16px' }}>
           Print / Save PDF
         </button>
-        <button onClick={() => reportRef.current && exportHtml(reportRef.current, baseName)} style={{ background: '#e2e8f0', color: 'var(--text)', padding: '8px 16px' }}>
+        <button onClick={() => reportRef.current && exportHtml(reportRef.current, baseName)} style={{ background: 'var(--border)', color: 'var(--text)', padding: '8px 16px' }}>
           Export HTML
         </button>
       </div>
@@ -477,7 +477,7 @@ export function ReportTab({ fileBytes, fileName }: Props) {
                 ...typeCounts.map(([t, n]) => ({ label: TYPE_LABELS[t] ?? t, value: `${n} ${t}` })),
                 ...(sampSum.length > 0 ? [{ label: 'Total samples', value: sampSum.reduce((s, x) => s + x.count, 0).toString() }] : []),
               ].map(({ label, value }) => (
-                <div key={label} style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 16px' }}>
+                <div key={label} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 16px' }}>
                   <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 3 }}>{label}</div>
                   <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy)' }}>{value}</div>
                 </div>

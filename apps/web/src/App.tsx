@@ -34,12 +34,23 @@ const GLOBAL_STYLE = `
     --blue: #7a93bd;
     --accent: #7a9ee0;        /* soft sky-blue */
     --accent-soft: #e8eef9;
+    --accent-border: #c8d5ee;
     --amber: #d9a05a;
+    --amber-soft: #fbf3e2;
+    --amber-border: #ecd5a3;
     --red: #d57878;
+    --red-soft: #fbecec;
+    --red-border: #efcfcf;
     --orange: #e8a070;
+    --orange-soft: #fbeee0;
+    --orange-border: #f2d2b0;
     --green: #82c096;
+    --green-soft: #ecf4ee;
+    --green-border: #c4dccb;
     --bg: #faf7f2;            /* warm cream */
     --card: #ffffff;
+    --surface-muted: #f4f0e9; /* faint cream inset (panel headers, code blocks) */
+    --surface-hover: #ece6db;
     --sidebar: #ffffff;
     --sidebar-fg: #334155;
     --sidebar-muted: #7c8b9b;
@@ -48,6 +59,7 @@ const GLOBAL_STYLE = `
     --border: #e8e3dc;        /* warm grey border */
     --border-strong: #d4ccc0;
     --text: #334155;
+    --text-dim: #5a6878;      /* secondary text */
     --muted: #7c8b9b;
     --radius: 8px;
     --radius-sm: 6px;
@@ -85,8 +97,8 @@ const GLOBAL_STYLE = `
   }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; border: 2px solid var(--bg); }
-  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
   .gf-nav-item {
     display: flex;
     align-items: center;
@@ -106,7 +118,7 @@ const GLOBAL_STYLE = `
   .gf-nav-item.active {
     background: var(--sidebar-active);
     color: var(--accent);
-    border-color: #bfdbfe;
+    border-color: var(--accent-border);
     font-weight: 600;
   }
   .gf-nav-item.disabled { opacity: 0.45; cursor: not-allowed; }
@@ -148,7 +160,7 @@ export type SevFilter = 'all' | 'error' | 'warning' | 'info';
 function sevColor(sev: string): string {
   if (sev === 'error') return 'var(--red)';
   if (sev === 'warning') return 'var(--orange)';
-  return '#2563eb';
+  return 'var(--accent)';
 }
 
 // ── DiagnosticsPanel ─────────────────────────────────────────────────────────
@@ -190,7 +202,7 @@ export function DiagnosticsPanel({ items, title = 'Diagnostics' }: DiagnosticsPa
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: '1px solid var(--border)', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', position: 'sticky', top: 0, zIndex: 1 }}>
         <h2 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>{title}</h2>
         <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
           <button style={pillStyle(filter === 'all')} onClick={() => setFilter('all')}>ALL {items.length}</button>
@@ -211,7 +223,7 @@ export function DiagnosticsPanel({ items, title = 'Diagnostics' }: DiagnosticsPa
           </div>
         )}
         {visible.map((d, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 100px 120px 1fr', alignItems: 'baseline', gap: '0 10px', padding: '7px 16px', borderBottom: '1px solid #f1f5f9', fontFamily: "'Menlo', 'Consolas', monospace", fontSize: 12, lineHeight: 1.5 }}>
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 100px 120px 1fr', alignItems: 'baseline', gap: '0 10px', padding: '7px 16px', borderBottom: '1px solid var(--surface-muted)', fontFamily: "'Menlo', 'Consolas', monospace", fontSize: 12, lineHeight: 1.5 }}>
             <span style={{ fontWeight: 700, fontSize: 10, letterSpacing: '0.5px', textTransform: 'uppercase', color: sevColor(d.severity) }}>
               {d.severity === 'error' ? 'ERR' : d.severity === 'warning' ? 'WARN' : 'INFO'}
             </span>
@@ -278,7 +290,7 @@ export function DropZone({ onFile, fileName, fileSize, accept = '.ags,.xml,.digg
       style={{
         border: `2px dashed ${dragging ? 'var(--accent)' : loaded ? 'var(--green)' : 'var(--border-strong)'}`,
         borderRadius: 'var(--radius)',
-        background: dragging ? '#eff6ff' : loaded ? '#f0fdf4' : 'var(--card)',
+        background: dragging ? 'var(--accent-soft)' : loaded ? 'var(--green-soft)' : 'var(--card)',
         padding: pad,
         textAlign: 'center',
         cursor: 'pointer',
@@ -531,7 +543,7 @@ function Sidebar(props: SidebarProps) {
 
           {currentProject && (
             <div style={{
-              padding: '8px 10px', marginBottom: 8, background: '#f8fafc',
+              padding: '8px 10px', marginBottom: 8, background: 'var(--surface-muted)',
               borderRadius: 6, border: '1px solid var(--border)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, color: 'var(--navy)' }}>
@@ -557,7 +569,7 @@ function Sidebar(props: SidebarProps) {
                       key={i}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '6px 8px', background: '#f8fafc',
+                        padding: '6px 8px', background: 'var(--surface-muted)',
                         border: '1px solid var(--border)', borderRadius: 6, fontSize: 12,
                       }}
                     >
@@ -871,8 +883,8 @@ export default function App() {
           Load an AGS file to begin
         </h2>
         <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
-          Drop an <code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>.ags</code> or
-          {' '}<code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>.xml</code> file into the panel on the left,
+          Drop an <code style={{ background: 'var(--surface-muted)', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>.ags</code> or
+          {' '}<code style={{ background: 'var(--surface-muted)', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>.xml</code> file into the panel on the left,
           or open the <strong>Projects</strong> menu to restore a saved session.
         </p>
         <p style={{ color: 'var(--muted)', fontSize: 12 }}>
@@ -1074,7 +1086,7 @@ export default function App() {
 function StatusItem({ children, icon, color }: { children: ReactNode; icon?: string; color?: string }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-      {icon && <span style={{ color: color ?? '#cbd5e1', fontSize: 9 }}>{icon}</span>}
+      {icon && <span style={{ color: color ?? 'var(--border-strong)', fontSize: 9 }}>{icon}</span>}
       <span>{children}</span>
     </span>
   );
