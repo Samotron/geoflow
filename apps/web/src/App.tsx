@@ -949,7 +949,7 @@ export default function App() {
           }}
         >
           {(!hasFile && TABS_NEED_FILE.has(tab)) ? welcomePane : (
-            <div style={{ padding: '20px 24px 32px', maxWidth: 1600, margin: '0 auto' }}>
+            <div style={{ padding: '20px 24px 32px' }}>
               {tab === 'inspect' && <InspectTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
               {/* EditTab stays mounted to preserve edit session state across tab switches */}
