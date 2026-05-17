@@ -16,8 +16,11 @@ import { VoxelTab } from './tabs/VoxelTab.js';
 import { PlotsTab } from './tabs/PlotsTab.js';
 import { ReportTab } from './tabs/ReportTab.js';
 import { ProjectManager } from './components/ProjectManager.js';
-import type { Project } from './storage/types.js';
-import { saveProject, saveProjectFile } from './storage/db.js';
+import { ConflictResolver } from './components/ConflictResolver.js';
+import type { Project, Commit } from './storage/types.js';
+import { saveProject, saveCommit, getCommit } from './storage/db.js';
+import { mergeAgsFiles, applyConflictResolutions } from './merge.js';
+import type { MergeResult, MergeConflict } from './merge.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 
@@ -269,17 +272,31 @@ function mergeAgsBytes(files: LoadedFile[]): Uint8Array {
 
 export default function App() {
   const [tab, setTab] = useState<TabId>(hashTab);
+
+  // ── No-project state: naive multi-file merge ──────────────────────────────
   const [loadedFiles, setLoadedFiles] = useState<LoadedFile[]>([]);
+
+  // ── Project state: git-model commit chain ─────────────────────────────────
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [headCommit, setHeadCommit] = useState<Commit | null>(null);
+  // Bytes for the current editing session (set on load/import, NOT updated on auto-commit
+  // so that EditTab is not forced to re-parse during an active session).
+  const [projectBytes, setProjectBytes] = useState<Uint8Array | null>(null);
+  const [sessionFileName, setSessionFileName] = useState<string | undefined>();
+  const [pendingMerge, setPendingMerge] = useState<{ result: MergeResult; incomingName: string } | null>(null);
+
   const [showProjectManager, setShowProjectManager] = useState(false);
   const pendingHoleRef = useRef<string | null>(null);
 
-  const fileBytes = useMemo(
-    () => (loadedFiles.length === 0 ? null : mergeAgsBytes(loadedFiles)),
-    [loadedFiles],
-  );
-  const fileName =
-    loadedFiles.length === 0 ? undefined
+  // ── Derived values passed to tabs ─────────────────────────────────────────
+  const fileBytes = useMemo(() => {
+    if (currentProject) return projectBytes;
+    return loadedFiles.length === 0 ? null : mergeAgsBytes(loadedFiles);
+  }, [currentProject, projectBytes, loadedFiles]);
+
+  const fileName = currentProject
+    ? (sessionFileName ?? currentProject.name)
+    : loadedFiles.length === 0 ? undefined
     : loadedFiles.length === 1 ? loadedFiles[0]!.name
     : `${loadedFiles[0]!.name} +${loadedFiles.length - 1} more`;
 
@@ -294,31 +311,110 @@ export default function App() {
     setTab(id);
   };
 
-  async function saveToProject(name: string, bytes: Uint8Array) {
-    if (!currentProject) return;
-    const now = Date.now();
-    await saveProjectFile({ id: crypto.randomUUID(), projectId: currentProject.id, name, bytes, addedAt: now });
-    await saveProject({ ...currentProject, updatedAt: now });
+  // ── Project commit helpers ────────────────────────────────────────────────
+
+  async function createCommit(
+    project: Project,
+    parent: Commit | null,
+    message: string,
+    bytes: Uint8Array,
+    conflictCount = 0,
+  ): Promise<Commit> {
+    const commit: Commit = {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      parentId: parent?.id ?? null,
+      message,
+      agsBytes: bytes,
+      timestamp: Date.now(),
+      conflictCount,
+    };
+    await saveCommit(commit);
+    const updated = { ...project, headCommitId: commit.id, updatedAt: Date.now() };
+    await saveProject(updated);
+    setCurrentProject(updated);
+    setHeadCommit(commit);
+    return commit;
   }
 
-  // Replaces all loaded files (primary drop zone behaviour)
-  const onFile = useCallback(async (name: string, bytes: Uint8Array) => {
-    setLoadedFiles([{ name, bytes }]);
-    await saveToProject(name, bytes);
-  }, [currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Handles any file dropped/added when a project is active.
+  // First drop → initial import commit. Subsequent drops → git merge.
+  async function handleProjectFile(name: string, bytes: Uint8Array) {
+    if (!currentProject) return;
+    if (!headCommit) {
+      // Initial import
+      await createCommit(currentProject, null, `Import ${name}`, bytes);
+      setProjectBytes(bytes);
+      setSessionFileName(name);
+    } else {
+      // Merge into HEAD
+      const currentAgs = parseStr(decodeBytes(headCommit.agsBytes)).file;
+      const incomingAgs = parseStr(decodeBytes(bytes)).file;
+      if (!currentAgs || !incomingAgs) return;
+      const result = mergeAgsFiles(currentAgs, incomingAgs);
+      if (result.conflicts.length === 0) {
+        const mergedBytes = new TextEncoder().encode(serialize(result.merged));
+        await createCommit(currentProject, headCommit, `Merge ${name}`, mergedBytes);
+        setProjectBytes(mergedBytes);
+        setSessionFileName(name);
+      } else {
+        setPendingMerge({ result, incomingName: name });
+      }
+    }
+  }
 
-  // Appends without replacing
+  async function onResolveConflicts(resolved: MergeConflict[]) {
+    if (!pendingMerge || !currentProject) return;
+    const finalFile = applyConflictResolutions(pendingMerge.result.merged, resolved);
+    const bytes = new TextEncoder().encode(serialize(finalFile));
+    const n = pendingMerge.result.conflicts.length;
+    const msg = `Merge ${pendingMerge.incomingName}${n > 0 ? ` (${n} conflict${n > 1 ? 's' : ''} resolved)` : ''}`;
+    await createCommit(currentProject, headCommit, msg, bytes, n);
+    setProjectBytes(bytes);
+    setSessionFileName(pendingMerge.incomingName);
+    setPendingMerge(null);
+  }
+
+  // Called by EditTab after 30 s of idle: creates a commit but does NOT
+  // update projectBytes, so the editing session continues uninterrupted.
+  async function handleAutoCommit(bytes: Uint8Array, editCount: number) {
+    if (!currentProject) return;
+    const msg = `Edit: ${editCount} cell${editCount !== 1 ? 's' : ''} changed`;
+    await createCommit(currentProject, headCommit, msg, bytes);
+    // Intentionally do NOT call setProjectBytes — EditTab keeps its in-memory state.
+  }
+
+  // ── Drop zone handlers ────────────────────────────────────────────────────
+
+  // Primary zone: replaces session (no-project) or imports/merges (project)
+  const onFile = useCallback(async (name: string, bytes: Uint8Array) => {
+    if (currentProject) {
+      await handleProjectFile(name, bytes);
+    } else {
+      setLoadedFiles([{ name, bytes }]);
+    }
+  }, [currentProject, headCommit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Secondary zone: appends (no-project) or merges (project)
   const onAddFile = useCallback(async (name: string, bytes: Uint8Array) => {
-    setLoadedFiles((prev) => [...prev, { name, bytes }]);
-    await saveToProject(name, bytes);
-  }, [currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (currentProject) {
+      await handleProjectFile(name, bytes);
+    } else {
+      setLoadedFiles((prev) => [...prev, { name, bytes }]);
+    }
+  }, [currentProject, headCommit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onRemoveFile = useCallback((index: number) => {
     setLoadedFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const onLoadFromProject = useCallback((name: string, bytes: Uint8Array, project: Project) => {
-    setLoadedFiles([{ name, bytes }]);
+  // Called from ProjectManager when user opens a commit
+  const onLoadFromProject = useCallback(async (commitId: string, name: string, project: Project) => {
+    const commit = await getCommit(commitId);
+    if (!commit) return;
+    setProjectBytes(commit.agsBytes);
+    setSessionFileName(name);
+    setHeadCommit(commit);
     setCurrentProject(project);
   }, []);
 
@@ -357,8 +453,17 @@ export default function App() {
       {showProjectManager && (
         <ProjectManager
           onClose={() => setShowProjectManager(false)}
-          onLoadFile={onLoadFromProject}
+          onLoadCommit={onLoadFromProject}
           currentProjectId={currentProject?.id}
+        />
+      )}
+
+      {pendingMerge && (
+        <ConflictResolver
+          result={pendingMerge.result}
+          sourceName={pendingMerge.incomingName}
+          onResolve={(resolved) => { void onResolveConflicts(resolved); }}
+          onCancel={() => setPendingMerge(null)}
         />
       )}
 
@@ -430,7 +535,11 @@ export default function App() {
         {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
         {/* EditTab stays mounted to preserve edit session state across tab switches */}
         <div style={{ display: tab === 'edit' ? 'block' : 'none' }}>
-          <EditTab fileBytes={fileBytes} fileName={fileName} />
+          <EditTab
+            fileBytes={fileBytes}
+            fileName={fileName}
+            onAutoCommit={currentProject ? (b, n) => { void handleAutoCommit(b, n); } : undefined}
+          />
         </div>
         {tab === 'map' && (
           <MapTab

@@ -13,7 +13,7 @@
 
 import { Option } from 'effect';
 import type { AgsFile, AgsRow } from '../core.js';
-import type { Project, ProjectFile } from '../storage/types.js';
+import type { Project, Commit } from '../storage/types.js';
 import { downloadBlob, exportBaseName, exportDatePrefix } from './utils.js';
 
 // ── sql.js type shim (avoids importing the full @types/sql.js at build time) ──
@@ -559,7 +559,7 @@ export async function exportGeopackage(
 
 export async function exportProjectGeoPackage(
   project: Project,
-  files: ProjectFile[],
+  commits: Commit[],
 ): Promise<void> {
   const SQL = await loadSql();
   const db: SqlDatabase = new SQL.Database();
@@ -615,18 +615,20 @@ export async function exportProjectGeoPackage(
       exported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S.000Z','now'))
     );
 
-    CREATE TABLE geoflow_project_files (
+    CREATE TABLE geoflow_project_commits (
       id TEXT NOT NULL PRIMARY KEY,
       project_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      bytes BLOB NOT NULL,
-      added_at TEXT NOT NULL
+      parent_id TEXT,
+      message TEXT NOT NULL,
+      ags_bytes BLOB NOT NULL,
+      timestamp TEXT NOT NULL,
+      conflict_count INTEGER NOT NULL DEFAULT 0
     );
 
     INSERT INTO gpkg_contents VALUES
       ('geoflow_project', 'attributes', 'geoflow_project', 'GeoFlow project metadata',
        strftime('%Y-%m-%dT%H:%M:%S.000Z','now'), NULL, NULL, NULL, NULL, NULL),
-      ('geoflow_project_files', 'attributes', 'geoflow_project_files', 'GeoFlow project file store',
+      ('geoflow_project_commits', 'attributes', 'geoflow_project_commits', 'GeoFlow project commit history',
        strftime('%Y-%m-%dT%H:%M:%S.000Z','now'), NULL, NULL, NULL, NULL, NULL);
   `);
 
@@ -636,10 +638,11 @@ export async function exportProjectGeoPackage(
     new Date(project.createdAt).toISOString(),
   ]);
 
-  for (const f of files) {
+  // Store commits oldest-first so import can replay in order
+  for (const c of [...commits].reverse()) {
     db.run(
-      'INSERT INTO geoflow_project_files (id, project_id, name, bytes, added_at) VALUES (?, ?, ?, ?, ?)',
-      [f.id, f.projectId, f.name, f.bytes, new Date(f.addedAt).toISOString()],
+      'INSERT INTO geoflow_project_commits (id, project_id, parent_id, message, ags_bytes, timestamp, conflict_count) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [c.id, c.projectId, c.parentId ?? null, c.message, c.agsBytes, new Date(c.timestamp).toISOString(), c.conflictCount],
     );
   }
 
@@ -656,7 +659,7 @@ export async function exportProjectGeoPackage(
 
 export async function importProjectGeoPackage(
   bytes: Uint8Array,
-): Promise<{ project: Project; files: ProjectFile[] } | null> {
+): Promise<{ project: Project; commits: Commit[] } | null> {
   const SQL = await loadSql();
   const db: SqlDatabase = new SQL.Database(bytes);
 
@@ -673,34 +676,39 @@ export async function importProjectGeoPackage(
     if (!projFirst || !projFirst.values.length) return null;
 
     const [id, name, created_at] = projFirst.values[0] as [string, string, string];
+
+    const commitRows = db.exec(
+      'SELECT id, project_id, parent_id, message, ags_bytes, timestamp, conflict_count FROM geoflow_project_commits ORDER BY timestamp ASC',
+    );
+    const commits: Commit[] = [];
+    const commitFirst = commitRows[0];
+    if (commitFirst && commitFirst.values.length) {
+      for (const row of commitFirst.values) {
+        const [cId, cProjectId, cParentId, cMessage, cBytes, cTimestamp, cConflictCount] = row as [
+          string, string, string | null, string, Uint8Array, string, number,
+        ];
+        commits.push({
+          id: cId,
+          projectId: cProjectId,
+          parentId: cParentId ?? null,
+          message: cMessage,
+          agsBytes: cBytes instanceof Uint8Array ? cBytes : new Uint8Array(cBytes as ArrayBuffer),
+          timestamp: new Date(cTimestamp).getTime(),
+          conflictCount: cConflictCount ?? 0,
+        });
+      }
+    }
+
+    const lastCommit = commits[commits.length - 1];
     const project: Project = {
       id,
       name,
       createdAt: new Date(created_at).getTime(),
       updatedAt: Date.now(),
+      headCommitId: lastCommit?.id ?? null,
     };
 
-    const fileRows = db.exec(
-      'SELECT id, project_id, name, bytes, added_at FROM geoflow_project_files',
-    );
-    const files: ProjectFile[] = [];
-    const fileFirst = fileRows[0];
-    if (fileFirst && fileFirst.values.length) {
-      for (const row of fileFirst.values) {
-        const [fId, fProjectId, fName, fBytes, fAddedAt] = row as [
-          string, string, string, Uint8Array, string,
-        ];
-        files.push({
-          id: fId,
-          projectId: fProjectId,
-          name: fName,
-          bytes: fBytes instanceof Uint8Array ? fBytes : new Uint8Array(fBytes as ArrayBuffer),
-          addedAt: new Date(fAddedAt).getTime(),
-        });
-      }
-    }
-
-    return { project, files };
+    return { project, commits };
   } finally {
     db.close();
   }

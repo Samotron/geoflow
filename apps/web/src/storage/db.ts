@@ -1,7 +1,7 @@
-import type { Project, ProjectFile } from './types.js';
+import type { Project, Commit } from './types.js';
 
 const DB_NAME = 'geoflow';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let _db: IDBDatabase | null = null;
 
@@ -11,13 +11,21 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = (e.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains('projects')) {
+      const oldVersion = e.oldVersion;
+
+      if (oldVersion < 1) {
         const ps = db.createObjectStore('projects', { keyPath: 'id' });
         ps.createIndex('updatedAt', 'updatedAt');
       }
-      if (!db.objectStoreNames.contains('project_files')) {
-        const pf = db.createObjectStore('project_files', { keyPath: 'id' });
-        pf.createIndex('projectId', 'projectId');
+
+      // v2: drop project_files, add commits
+      if (oldVersion < 2) {
+        if (db.objectStoreNames.contains('project_files')) {
+          db.deleteObjectStore('project_files');
+        }
+        const cs = db.createObjectStore('commits', { keyPath: 'id' });
+        cs.createIndex('projectId', 'projectId');
+        cs.createIndex('timestamp', 'timestamp');
       }
     };
     req.onsuccess = (e) => {
@@ -60,12 +68,19 @@ function idbDelete(store: IDBObjectStore, key: IDBValidKey): Promise<void> {
   });
 }
 
+// ── Projects ──────────────────────────────────────────────────────────────────
+
 export async function getProjects(): Promise<Project[]> {
   const db = await openDb();
   const t = db.transaction('projects', 'readonly');
-  const idx = t.objectStore('projects').index('updatedAt');
-  const all = await idbGetAll<Project>(idx);
-  return all.reverse(); // most recently updated first
+  const all = await idbGetAll<Project>(t.objectStore('projects').index('updatedAt'));
+  return all.reverse();
+}
+
+export async function getProject(id: string): Promise<Project | undefined> {
+  const db = await openDb();
+  const t = db.transaction('projects', 'readonly');
+  return idbGet<Project>(t.objectStore('projects'), id);
 }
 
 export async function saveProject(project: Project): Promise<void> {
@@ -75,36 +90,34 @@ export async function saveProject(project: Project): Promise<void> {
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  const files = await getProjectFiles(id);
   const db = await openDb();
-  const t = db.transaction(['projects', 'project_files'], 'readwrite');
-  const fileStore = t.objectStore('project_files');
-  await Promise.all(files.map((f) => idbDelete(fileStore, f.id)));
+  const commits = await getProjectCommits(id);
+  const t = db.transaction(['projects', 'commits'], 'readwrite');
+  const commitStore = t.objectStore('commits');
+  await Promise.all(commits.map((c) => idbDelete(commitStore, c.id)));
   await idbDelete(t.objectStore('projects'), id);
 }
 
-export async function getProjectFiles(projectId: string): Promise<ProjectFile[]> {
+// ── Commits ───────────────────────────────────────────────────────────────────
+
+export async function getProjectCommits(projectId: string): Promise<Commit[]> {
   const db = await openDb();
-  const t = db.transaction('project_files', 'readonly');
-  const idx = t.objectStore('project_files').index('projectId');
-  const all = await idbGetAll<ProjectFile>(idx, IDBKeyRange.only(projectId));
-  return all.sort((a, b) => b.addedAt - a.addedAt);
+  const t = db.transaction('commits', 'readonly');
+  const all = await idbGetAll<Commit>(
+    t.objectStore('commits').index('projectId'),
+    IDBKeyRange.only(projectId),
+  );
+  return all.sort((a, b) => b.timestamp - a.timestamp); // newest first
 }
 
-export async function saveProjectFile(file: ProjectFile): Promise<void> {
+export async function getCommit(id: string): Promise<Commit | undefined> {
   const db = await openDb();
-  const t = db.transaction('project_files', 'readwrite');
-  await idbPut(t.objectStore('project_files'), file);
+  const t = db.transaction('commits', 'readonly');
+  return idbGet<Commit>(t.objectStore('commits'), id);
 }
 
-export async function deleteProjectFile(id: string): Promise<void> {
+export async function saveCommit(commit: Commit): Promise<void> {
   const db = await openDb();
-  const t = db.transaction('project_files', 'readwrite');
-  await idbDelete(t.objectStore('project_files'), id);
-}
-
-export async function getProjectFile(id: string): Promise<ProjectFile | undefined> {
-  const db = await openDb();
-  const t = db.transaction('project_files', 'readonly');
-  return idbGet<ProjectFile>(t.objectStore('project_files'), id);
+  const t = db.transaction('commits', 'readwrite');
+  await idbPut(t.objectStore('commits'), commit);
 }

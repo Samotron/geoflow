@@ -3,12 +3,15 @@ export interface Project {
   name: string;
   createdAt: number;
   updatedAt: number;
+  headCommitId: string | null;
 }
 
-export interface ProjectFile {
+export interface Commit {
   id: string;
   projectId: string;
-  name: string;
-  bytes: Uint8Array;
-  addedAt: number;
+  parentId: string | null;
+  message: string;
+  agsBytes: Uint8Array;
+  timestamp: number;
+  conflictCount: number;
 }
