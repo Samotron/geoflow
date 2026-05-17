@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo, type DragEvent } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, type DragEvent, type ReactNode } from 'react';
 import { Option } from 'effect';
 import type { TabId, PackDiagnostic } from './types.js';
 import { parseStr, decodeBytes, serialize } from './core.js';
@@ -28,16 +28,42 @@ import { compress, computeDelta, reconstructAgsBytes } from './delta.js';
 const GLOBAL_STYLE = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --navy: #0f2644; --blue: #1a4080; --amber: #d97706; --red: #dc2626;
-    --orange: #ea580c; --green: #16a34a; --bg: #f1f5f9; --card: #ffffff;
-    --border: #cbd5e1; --text: #0f172a; --muted: #64748b; --radius: 8px;
+    --navy: #0f2644;
+    --navy-2: #1a3563;
+    --blue: #1a4080;
+    --accent: #2563eb;
+    --accent-soft: #dbeafe;
+    --amber: #d97706;
+    --red: #dc2626;
+    --orange: #ea580c;
+    --green: #16a34a;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --sidebar: #ffffff;
+    --sidebar-fg: #1e293b;
+    --sidebar-muted: #64748b;
+    --sidebar-hover: #f1f5f9;
+    --sidebar-active: #eff6ff;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --text: #0f172a;
+    --muted: #64748b;
+    --radius: 8px;
+    --radius-sm: 6px;
+    --header-h: 48px;
+    --status-h: 26px;
+    --sidebar-w: 240px;
+    --sidebar-w-collapsed: 52px;
+  }
+  html, body, #root {
+    height: 100%;
   }
   body {
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     font-size: 14px;
     background: var(--bg);
     color: var(--text);
-    min-height: 100vh;
+    overflow: hidden;
   }
   button {
     padding: 9px 18px;
@@ -46,11 +72,72 @@ const GLOBAL_STYLE = `
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity .15s, background .15s;
+    transition: opacity .15s, background .15s, color .15s, border-color .15s;
     font-family: inherit;
   }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
   pre { white-space: pre-wrap; word-break: break-word; }
+  input, select, textarea { font-family: inherit; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .gf-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    margin: 1px 8px;
+    border-radius: 6px;
+    color: var(--sidebar-fg);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    user-select: none;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .gf-nav-item:hover { background: var(--sidebar-hover); }
+  .gf-nav-item.active {
+    background: var(--sidebar-active);
+    color: var(--accent);
+    border-color: #bfdbfe;
+    font-weight: 600;
+  }
+  .gf-nav-item.disabled { opacity: 0.45; cursor: not-allowed; }
+  .gf-nav-item.disabled:hover { background: transparent; }
+  .gf-nav-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: currentColor;
+  }
+  .gf-nav-group-label {
+    padding: 14px 20px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--sidebar-muted);
+  }
+  .gf-iconbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+  }
+  .gf-iconbtn:hover { background: rgba(255,255,255,0.10); }
 `;
 
 // ── Severity helpers ──────────────────────────────────────────────────────────
@@ -147,9 +234,10 @@ interface DropZoneProps {
   fileSize?: number | undefined;
   accept?: string | undefined;
   label?: string | undefined;
+  compact?: boolean | undefined;
 }
 
-export function DropZone({ onFile, fileName, fileSize, accept = '.ags,.xml,.diggs', label }: DropZoneProps) {
+export function DropZone({ onFile, fileName, fileSize, accept = '.ags,.xml,.diggs', label, compact }: DropZoneProps) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -177,6 +265,9 @@ export function DropZone({ onFile, fileName, fileSize, accept = '.ags,.xml,.digg
 
   const loaded = !!fileName;
 
+  const pad = compact ? '14px 12px' : '32px 24px';
+  const iconSize = compact ? 24 : 36;
+
   return (
     <div
       onClick={() => inputRef.current?.click()}
@@ -184,10 +275,10 @@ export function DropZone({ onFile, fileName, fileSize, accept = '.ags,.xml,.digg
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       style={{
-        border: `2px dashed ${dragging ? 'var(--blue)' : loaded ? 'var(--green)' : 'var(--border)'}`,
+        border: `2px dashed ${dragging ? 'var(--accent)' : loaded ? 'var(--green)' : 'var(--border-strong)'}`,
         borderRadius: 'var(--radius)',
         background: dragging ? '#eff6ff' : loaded ? '#f0fdf4' : 'var(--card)',
-        padding: '32px 24px',
+        padding: pad,
         textAlign: 'center',
         cursor: 'pointer',
         transition: 'border-color .15s, background .15s',
@@ -200,20 +291,22 @@ export function DropZone({ onFile, fileName, fileSize, accept = '.ags,.xml,.digg
         style={{ display: 'none' }}
         onChange={(e) => handleFiles(e.target.files)}
       />
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: '0 auto 10px', display: 'block', color: 'var(--muted)' }}>
+      <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: `0 auto ${compact ? 6 : 10}px`, display: 'block', color: 'var(--muted)' }}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
       </svg>
-      {label && <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: 6 }}>{label}</p>}
+      {label && <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: compact ? 2 : 6 }}>{label}</p>}
       {fileName ? (
-        <p style={{ fontWeight: 600, color: 'var(--blue)', fontSize: 13 }}>
+        <p style={{ fontWeight: 600, color: 'var(--blue)', fontSize: compact ? 12 : 13, wordBreak: 'break-all' }}>
           {fileName}
           {fileSize !== undefined && <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8 }}>({formatBytes(fileSize)})</span>}
         </p>
       ) : (
-        <p style={{ color: 'var(--muted)', lineHeight: 1.6 }}>
+        <p style={{ color: 'var(--muted)', lineHeight: 1.6, fontSize: compact ? 12 : 14 }}>
           <strong style={{ color: 'var(--text)' }}>Drop a file</strong> or click to browse
-          <br />
-          <span style={{ fontSize: 12 }}>Accepts .ags, .xml, .diggs</span>
+          {!compact && (<>
+            <br />
+            <span style={{ fontSize: 12 }}>Accepts .ags, .xml, .diggs</span>
+          </>)}
         </p>
       )}
     </div>
@@ -226,26 +319,79 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// ── App ───────────────────────────────────────────────────────────────────────
+// ── Icons ────────────────────────────────────────────────────────────────────
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'inspect', label: 'Inspect' },
-  { id: 'data', label: 'Data' },
-  { id: 'edit', label: 'Edit' },
-  { id: 'map', label: 'Map' },
-  { id: '3d', label: '3D View' },
-  { id: 'voxel', label: 'Voxels' },
-  { id: 'plots', label: 'Plots' },
-  { id: 'report', label: 'Report' },
-  { id: 'diff', label: 'Diff' },
-  { id: 'convert', label: 'Convert' },
-  { id: 'query', label: 'Query' },
-  { id: 'rules', label: 'Rules' },
+function Icon({ d, size = 18 }: { d: string; size?: number }) {
+  return (
+    <svg className="gf-nav-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  );
+}
+
+const ICONS: Record<TabId, ReactNode> = {
+  inspect: <Icon d="M11 4a7 7 0 015.74 11.01l3.62 3.62a1 1 0 01-1.41 1.41l-3.62-3.62A7 7 0 1111 4zm0 2a5 5 0 100 10 5 5 0 000-10z" />,
+  data: <Icon d="M3 5h18M3 12h18M3 19h18M9 5v14M15 5v14" />,
+  edit: <Icon d="M4 20h4l10.5-10.5a2.83 2.83 0 00-4-4L4 16v4z M13.5 6.5l4 4" />,
+  map: <Icon d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z M9 3v15 M15 6v15" />,
+  '3d': <Icon d="M12 3l9 5v8l-9 5-9-5V8l9-5z M3 8l9 5 9-5 M12 13v10" />,
+  voxel: <Icon d="M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4" />,
+  plots: <Icon d="M3 3v18h18 M7 15l4-4 3 3 5-6" />,
+  report: <Icon d="M7 3h7l5 5v13H7V3z M14 3v6h6 M9 13h8 M9 17h8 M9 9h3" />,
+  diff: <Icon d="M5 4v16 M12 2v20 M19 4v16 M5 12h14" />,
+  convert: <Icon d="M7 7h11l-3-3 M17 17H6l3 3" />,
+  query: <Icon d="M3 6h18 M6 12h12 M10 18h4" />,
+  rules: <Icon d="M9 12l2 2 4-4 M12 22s8-4 8-12V5l-8-3-8 3v5c0 8 8 12 8 12z" />,
+};
+
+// ── Nav structure ────────────────────────────────────────────────────────────
+
+interface NavItem { id: TabId; label: string }
+interface NavGroup { title: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    title: 'Review',
+    items: [
+      { id: 'inspect', label: 'Inspect' },
+      { id: 'data', label: 'Data' },
+      { id: 'edit', label: 'Edit' },
+    ],
+  },
+  {
+    title: 'Visualize',
+    items: [
+      { id: 'map', label: 'Map' },
+      { id: '3d', label: '3D View' },
+      { id: 'voxel', label: 'Voxels' },
+      { id: 'plots', label: 'Plots' },
+    ],
+  },
+  {
+    title: 'Analyze',
+    items: [
+      { id: 'diff', label: 'Diff' },
+      { id: 'query', label: 'Query' },
+      { id: 'rules', label: 'Rules' },
+    ],
+  },
+  {
+    title: 'Output',
+    items: [
+      { id: 'report', label: 'Report' },
+      { id: 'convert', label: 'Convert' },
+    ],
+  },
 ];
+
+const ALL_TAB_IDS: TabId[] = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.id));
+
+// Tabs that need a file loaded to be useful (diff is the only exception).
+const TABS_NEED_FILE = new Set<TabId>(ALL_TAB_IDS.filter((t) => t !== 'diff'));
 
 function hashTab(): TabId {
   const hash = window.location.hash.replace('#', '') as TabId;
-  return TABS.some((t) => t.id === hash) ? hash : 'inspect';
+  return ALL_TAB_IDS.includes(hash) ? hash : 'inspect';
 }
 
 interface LoadedFile { name: string; bytes: Uint8Array }
@@ -271,6 +417,213 @@ function mergeAgsBytes(files: LoadedFile[]): Uint8Array {
   return new TextEncoder().encode(serialize(merged));
 }
 
+// Lightweight summary for status bar (avoids re-parsing whole file in tabs).
+interface FileSummary {
+  agsVersion: string;
+  groupCount: number;
+  rowCount: number;
+  hasLoca: boolean;
+  locaCount: number;
+}
+
+function summarizeFile(bytes: Uint8Array): FileSummary | null {
+  try {
+    const f = parseStr(decodeBytes(bytes)).file;
+    if (!f) return null;
+    let rows = 0;
+    let groups = 0;
+    let locaCount = 0;
+    for (const [name, g] of Object.entries(f.groups)) {
+      if (!g) continue;
+      groups += 1;
+      rows += g.rows.length;
+      if (name === 'LOCA') locaCount = g.rows.length;
+    }
+    const versionOpt = f.ags_version as { _tag: string; value?: string };
+    const agsVersion = versionOpt._tag === 'Some' ? (versionOpt.value ?? '?') : '?';
+    return {
+      agsVersion,
+      groupCount: groups,
+      rowCount: rows,
+      hasLoca: locaCount > 0,
+      locaCount,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+
+interface SidebarProps {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  tab: TabId;
+  onTab: (id: TabId) => void;
+  hasFile: boolean;
+  loadedFiles: LoadedFile[];
+  currentProject: Project | null;
+  headCommit: Commit | null;
+  onFile: (name: string, bytes: Uint8Array) => void;
+  onAddFile: (name: string, bytes: Uint8Array) => void;
+  onRemoveFile: (index: number) => void;
+  onClearSession: () => void;
+}
+
+function Sidebar(props: SidebarProps) {
+  const {
+    collapsed, onToggleCollapsed, tab, onTab, hasFile,
+    loadedFiles, currentProject, headCommit,
+    onFile, onAddFile, onRemoveFile, onClearSession,
+  } = props;
+
+  return (
+    <aside
+      style={{
+        gridArea: 'sidebar',
+        background: 'var(--sidebar)',
+        borderRight: '1px solid var(--border)',
+        display: 'flex',
+        flexDirection: 'column',
+        width: collapsed ? 'var(--sidebar-w-collapsed)' : 'var(--sidebar-w)',
+        transition: 'width .18s ease',
+        overflow: 'hidden',
+      }}
+    >
+      {/* File / project block */}
+      {!collapsed && (
+        <div style={{ padding: 12, borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--sidebar-muted)', marginBottom: 8, paddingLeft: 4 }}>
+            {currentProject ? 'Project' : 'Source'}
+          </div>
+
+          {currentProject && (
+            <div style={{
+              padding: '8px 10px', marginBottom: 8, background: '#f8fafc',
+              borderRadius: 6, border: '1px solid var(--border)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, color: 'var(--navy)' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+                </svg>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentProject.name}</span>
+              </div>
+              {headCommit && (
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, fontFamily: 'monospace' }}>
+                  HEAD · {headCommit.id.slice(0, 7)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasFile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {loadedFiles.length > 0 ? (
+                <>
+                  {loadedFiles.map((f, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '6px 8px', background: '#f8fafc',
+                        border: '1px solid var(--border)', borderRadius: 6, fontSize: 12,
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5" style={{ flexShrink: 0 }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                      </svg>
+                      <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }} title={f.name}>{f.name}</span>
+                      <span style={{ color: 'var(--muted)', fontSize: 11 }}>{formatBytes(f.bytes.length)}</span>
+                      {loadedFiles.length > 1 && (
+                        <button
+                          onClick={() => onRemoveFile(i)}
+                          title="Remove"
+                          style={{ padding: '1px 6px', fontSize: 11, background: 'transparent', color: 'var(--muted)', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                        >✕</button>
+                      )}
+                    </div>
+                  ))}
+                  <DropZone
+                    onFile={onAddFile}
+                    label="+ Add another"
+                    compact
+                  />
+                  {!currentProject && (
+                    <button
+                      onClick={onClearSession}
+                      style={{
+                        marginTop: 2, padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                        background: 'transparent', color: 'var(--muted)',
+                        border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
+                      }}
+                    >Clear session</button>
+                  )}
+                </>
+              ) : (
+                <DropZone onFile={onFile} compact />
+              )}
+            </div>
+          ) : (
+            <DropZone onFile={onFile} compact />
+          )}
+        </div>
+      )}
+
+      {/* Nav */}
+      <nav style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+        {NAV_GROUPS.map((group) => (
+          <div key={group.title}>
+            {!collapsed && (
+              <div className="gf-nav-group-label">{group.title}</div>
+            )}
+            {collapsed && (
+              <div style={{ borderTop: '1px solid var(--border)', margin: '6px 8px 4px' }} />
+            )}
+            {group.items.map((item) => {
+              const disabled = !hasFile && TABS_NEED_FILE.has(item.id);
+              const active = tab === item.id;
+              return (
+                <div
+                  key={item.id}
+                  className={`gf-nav-item ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+                  onClick={() => { if (!disabled) onTab(item.id); }}
+                  title={collapsed ? item.label : undefined}
+                  style={{ justifyContent: collapsed ? 'center' : 'flex-start', padding: collapsed ? '8px 0' : '7px 12px' }}
+                >
+                  {ICONS[item.id]}
+                  {!collapsed && <span>{item.label}</span>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      {/* Collapse toggle */}
+      <div style={{ borderTop: '1px solid var(--border)', padding: 8, display: 'flex', justifyContent: collapsed ? 'center' : 'flex-end' }}>
+        <button
+          onClick={onToggleCollapsed}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 30, height: 30, padding: 0,
+            background: 'transparent', color: 'var(--muted)',
+            border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: collapsed ? 'rotate(180deg)' : 'none', transition: 'transform .18s' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 6l-6 6 6 6" />
+          </svg>
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+// ── App ──────────────────────────────────────────────────────────────────────
+
+const SIDEBAR_STATE_KEY = 'geoflow:sidebar-collapsed';
+
 export default function App() {
   const [tab, setTab] = useState<TabId>(hashTab);
 
@@ -291,6 +644,17 @@ export default function App() {
   // Tracks the last committed AgsFile so edit deltas are computed incrementally.
   const lastCommittedFileRef = useRef<AgsFile | null>(null);
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(SIDEBAR_STATE_KEY) === '1'; } catch { return false; }
+  });
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem(SIDEBAR_STATE_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
   // ── Derived values passed to tabs ─────────────────────────────────────────
   const fileBytes = useMemo(() => {
     if (currentProject) return projectBytes;
@@ -303,16 +667,21 @@ export default function App() {
     : loadedFiles.length === 1 ? loadedFiles[0]!.name
     : `${loadedFiles[0]!.name} +${loadedFiles.length - 1} more`;
 
+  const fileSummary = useMemo(() => fileBytes ? summarizeFile(fileBytes) : null, [fileBytes]);
+  const totalBytes = fileBytes?.length ?? 0;
+
+  const hasFile = fileBytes !== null;
+
   useEffect(() => {
     const onHash = () => setTab(hashTab());
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  const switchTab = (id: TabId) => {
+  const switchTab = useCallback((id: TabId) => {
     window.location.hash = id;
     setTab(id);
-  };
+  }, []);
 
   // ── Project commit helpers ────────────────────────────────────────────────
 
@@ -373,7 +742,7 @@ export default function App() {
     if (!headCommit) {
       const commit = await createSnapshotCommit(currentProject, null, `Import ${name}`, bytes);
       lastCommittedFileRef.current = parseStr(decodeBytes(bytes)).file;
-      void commit; // commit is already stored; HEAD updated in createSnapshotCommit
+      void commit;
       setProjectBytes(bytes);
       setSessionFileName(name);
     } else {
@@ -442,6 +811,10 @@ export default function App() {
     setLoadedFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const onClearSession = useCallback(() => {
+    setLoadedFiles([]);
+  }, []);
+
   // Called from ProjectManager when user opens a commit
   const onLoadFromProject = useCallback(async (commitId: string, name: string, project: Project) => {
     const commit = await getCommit(commitId);
@@ -455,37 +828,198 @@ export default function App() {
     setCurrentProject(project);
   }, []);
 
+  // Welcome message when nothing is loaded
+  const welcomePane = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', padding: 32 }}>
+      <div style={{ textAlign: 'center', maxWidth: 520 }}>
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--border-strong)" strokeWidth="1.4" style={{ margin: '0 auto 18px' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+        </svg>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+          Load an AGS file to begin
+        </h2>
+        <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
+          Drop an <code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>.ags</code> or
+          {' '}<code style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: 4, fontSize: 12 }}>.xml</code> file into the panel on the left,
+          or open the <strong>Projects</strong> menu to restore a saved session.
+        </p>
+        <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+          The <strong>Diff</strong> tab works without a loaded file.
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <style>{GLOBAL_STYLE}</style>
-      <header style={{ background: 'var(--navy)', color: '#fff', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px' }}>GeoFlow</h1>
-        {currentProject && (
-          <span style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateAreas: '"header header" "sidebar main" "status status"',
+          gridTemplateRows: 'var(--header-h) 1fr var(--status-h)',
+          gridTemplateColumns: 'auto 1fr',
+          height: '100vh',
+          width: '100vw',
+        }}
+      >
+        {/* ── Header ───────────────────────────────────────────────────────── */}
+        <header
+          style={{
+            gridArea: 'header',
+            background: 'var(--navy)',
+            color: '#fff',
+            padding: '0 14px 0 18px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            borderBottom: '1px solid #000',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4" />
             </svg>
-            {currentProject.name}
-          </span>
-        )}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            onClick={() => setShowProjectManager(true)}
-            style={{
-              padding: '6px 14px', fontSize: 12, fontWeight: 600,
-              background: 'rgba(255,255,255,0.12)', color: '#fff',
-              border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
-            </svg>
-            Projects
-          </button>
-          <span style={{ fontSize: 12, opacity: 0.45 }}>AGS Validator &amp; Converter</span>
-        </div>
-      </header>
+            <h1 style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.2px' }}>GeoFlow</h1>
+          </div>
+
+          {/* Breadcrumb */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#cbd5e1', marginLeft: 4, overflow: 'hidden' }}>
+            <span style={{ color: '#475569' }}>/</span>
+            {currentProject ? (
+              <>
+                <span style={{ fontWeight: 600, color: '#e2e8f0' }}>{currentProject.name}</span>
+                <span style={{ color: '#475569' }}>/</span>
+                <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  {fileName ?? '(no file)'}
+                </span>
+              </>
+            ) : (
+              <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                {fileName ?? 'No file loaded'}
+              </span>
+            )}
+          </div>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => setShowProjectManager(true)}
+              title="Manage projects"
+              style={{
+                padding: '6px 12px', fontSize: 12, fontWeight: 600,
+                background: 'rgba(255,255,255,0.10)', color: '#fff',
+                border: '1px solid rgba(255,255,255,0.18)', borderRadius: 6,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+              </svg>
+              Projects
+            </button>
+            <span style={{ fontSize: 11, color: '#64748b', borderLeft: '1px solid #334155', paddingLeft: 12 }}>
+              AGS Validator &amp; Converter
+            </span>
+          </div>
+        </header>
+
+        {/* ── Sidebar ──────────────────────────────────────────────────────── */}
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={toggleSidebar}
+          tab={tab}
+          onTab={switchTab}
+          hasFile={hasFile}
+          loadedFiles={loadedFiles}
+          currentProject={currentProject}
+          headCommit={headCommit}
+          onFile={(n, b) => { void onFile(n, b); }}
+          onAddFile={(n, b) => { void onAddFile(n, b); }}
+          onRemoveFile={onRemoveFile}
+          onClearSession={onClearSession}
+        />
+
+        {/* ── Main content ─────────────────────────────────────────────────── */}
+        <main
+          style={{
+            gridArea: 'main',
+            overflow: 'auto',
+            background: 'var(--bg)',
+            position: 'relative',
+          }}
+        >
+          {(!hasFile && TABS_NEED_FILE.has(tab)) ? welcomePane : (
+            <div style={{ padding: '20px 24px 32px', maxWidth: 1600, margin: '0 auto' }}>
+              {tab === 'inspect' && <InspectTab fileBytes={fileBytes} fileName={fileName} />}
+              {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
+              {/* EditTab stays mounted to preserve edit session state across tab switches */}
+              <div style={{ display: tab === 'edit' ? 'block' : 'none' }}>
+                <EditTab
+                  fileBytes={fileBytes}
+                  fileName={fileName}
+                  onAutoCommit={currentProject ? (b, n) => { void handleAutoCommit(b, n); } : undefined}
+                />
+              </div>
+              {tab === 'map' && (
+                <MapTab
+                  fileBytes={fileBytes}
+                  fileName={fileName}
+                  onLocaClick={(id) => { pendingHoleRef.current = id; switchTab('data'); }}
+                />
+              )}
+              {tab === '3d' && <ThreeDTab fileBytes={fileBytes} fileName={fileName} />}
+              {tab === 'voxel' && <VoxelTab fileBytes={fileBytes} fileName={fileName} />}
+              {tab === 'plots' && <PlotsTab fileBytes={fileBytes} />}
+              {tab === 'report' && <ReportTab fileBytes={fileBytes} fileName={fileName} />}
+              {tab === 'diff' && <DiffTab />}
+              {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
+              {tab === 'query' && <QueryTab fileBytes={fileBytes} />}
+              {tab === 'rules' && <RulesTab fileBytes={fileBytes} />}
+            </div>
+          )}
+        </main>
+
+        {/* ── Status bar ───────────────────────────────────────────────────── */}
+        <footer
+          style={{
+            gridArea: 'status',
+            background: '#1e293b',
+            color: '#cbd5e1',
+            padding: '0 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            fontSize: 11,
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            borderTop: '1px solid #0f172a',
+          }}
+        >
+          <StatusItem icon="●" color={hasFile ? '#22c55e' : '#64748b'}>
+            {hasFile ? 'Ready' : 'No file'}
+          </StatusItem>
+          {hasFile && fileSummary && (
+            <>
+              <StatusDivider />
+              <StatusItem>AGS {fileSummary.agsVersion}</StatusItem>
+              <StatusDivider />
+              <StatusItem>{fileSummary.groupCount} group{fileSummary.groupCount !== 1 ? 's' : ''}</StatusItem>
+              <StatusDivider />
+              <StatusItem>{fileSummary.rowCount.toLocaleString()} row{fileSummary.rowCount !== 1 ? 's' : ''}</StatusItem>
+              {fileSummary.locaCount > 0 && (
+                <>
+                  <StatusDivider />
+                  <StatusItem>{fileSummary.locaCount} location{fileSummary.locaCount !== 1 ? 's' : ''}</StatusItem>
+                </>
+              )}
+              <StatusDivider />
+              <StatusItem>{formatBytes(totalBytes)}</StatusItem>
+            </>
+          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
+            <span>{tab}</span>
+          </div>
+        </footer>
+      </div>
 
       {showProjectManager && (
         <ProjectManager
@@ -503,97 +1037,19 @@ export default function App() {
           onCancel={() => setPendingMerge(null)}
         />
       )}
-
-      <main style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 24px 60px' }}>
-        {/* Primary drop zone — replaces all loaded files */}
-        <DropZone
-          onFile={(n, b) => { void onFile(n, b); }}
-          fileName={loadedFiles.length === 1 ? loadedFiles[0]!.name : fileName}
-          fileSize={loadedFiles.length === 1 ? loadedFiles[0]!.bytes.length : undefined}
-        />
-
-        {/* Loaded-file list + add-file row */}
-        {loadedFiles.length > 0 && (
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {loadedFiles.length > 1 && loadedFiles.map((f, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '6px 12px', background: 'var(--card)',
-                  border: '1px solid var(--border)', borderRadius: 6, fontSize: 13,
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-                </svg>
-                <span style={{ flex: 1, fontWeight: 500 }}>{f.name}</span>
-                <span style={{ color: 'var(--muted)', fontSize: 12 }}>{formatBytes(f.bytes.length)}</span>
-                <button
-                  onClick={() => onRemoveFile(i)}
-                  title="Remove this file"
-                  style={{ padding: '2px 8px', fontSize: 12, background: '#fee2e2', color: 'var(--red)', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
-                >✕</button>
-              </div>
-            ))}
-            <DropZone
-              onFile={(n, b) => { void onAddFile(n, b); }}
-              label={`Add another AGS file${loadedFiles.length > 1 ? ` (${loadedFiles.length} loaded)` : ''}`}
-            />
-          </div>
-        )}
-
-        {/* Tab bar */}
-        <div style={{ display: 'flex', gap: 2, borderBottom: '2px solid var(--border)', marginBottom: 24, marginTop: 20 }}>
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => switchTab(t.id)}
-              style={{
-                padding: '10px 20px',
-                fontSize: 13,
-                fontWeight: 600,
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                color: tab === t.id ? 'var(--navy)' : 'var(--muted)',
-                borderBottom: `2px solid ${tab === t.id ? 'var(--navy)' : 'transparent'}`,
-                marginBottom: -2,
-                transition: 'color .12s, border-color .12s',
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        {tab === 'inspect' && <InspectTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
-        {/* EditTab stays mounted to preserve edit session state across tab switches */}
-        <div style={{ display: tab === 'edit' ? 'block' : 'none' }}>
-          <EditTab
-            fileBytes={fileBytes}
-            fileName={fileName}
-            onAutoCommit={currentProject ? (b, n) => { void handleAutoCommit(b, n); } : undefined}
-          />
-        </div>
-        {tab === 'map' && (
-          <MapTab
-            fileBytes={fileBytes}
-            fileName={fileName}
-            onLocaClick={(id) => { pendingHoleRef.current = id; switchTab('data'); }}
-          />
-        )}
-        {tab === '3d' && <ThreeDTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'voxel' && <VoxelTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'plots' && <PlotsTab fileBytes={fileBytes} />}
-        {tab === 'report' && <ReportTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'diff' && <DiffTab />}
-        {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
-        {tab === 'query' && <QueryTab fileBytes={fileBytes} />}
-        {tab === 'rules' && <RulesTab fileBytes={fileBytes} />}
-      </main>
     </>
   );
+}
+
+function StatusItem({ children, icon, color }: { children: ReactNode; icon?: string; color?: string }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      {icon && <span style={{ color: color ?? '#cbd5e1', fontSize: 9 }}>{icon}</span>}
+      <span>{children}</span>
+    </span>
+  );
+}
+
+function StatusDivider() {
+  return <span style={{ color: '#334155' }}>│</span>;
 }
