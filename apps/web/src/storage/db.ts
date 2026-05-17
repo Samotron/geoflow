@@ -3,6 +3,20 @@ import type { Project, Commit } from './types.js';
 const DB_NAME = 'geoflow';
 const DB_VERSION = 2;
 
+// Transparently upgrade commits written by the old schema (agsBytes field)
+// to the new storage union without requiring a DB version bump.
+function normalizeCommit(raw: Record<string, unknown>): Commit {
+  if (raw['storage']) return raw as unknown as Commit;
+  const bytes = raw['agsBytes'];
+  return {
+    ...(raw as unknown as Commit),
+    storage: {
+      kind: 'raw',
+      bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer),
+    },
+  };
+}
+
 let _db: IDBDatabase | null = null;
 
 function openDb(): Promise<IDBDatabase> {
@@ -103,17 +117,18 @@ export async function deleteProject(id: string): Promise<void> {
 export async function getProjectCommits(projectId: string): Promise<Commit[]> {
   const db = await openDb();
   const t = db.transaction('commits', 'readonly');
-  const all = await idbGetAll<Commit>(
+  const all = await idbGetAll<Record<string, unknown>>(
     t.objectStore('commits').index('projectId'),
     IDBKeyRange.only(projectId),
   );
-  return all.sort((a, b) => b.timestamp - a.timestamp); // newest first
+  return all.map(normalizeCommit).sort((a, b) => b.timestamp - a.timestamp);
 }
 
 export async function getCommit(id: string): Promise<Commit | undefined> {
   const db = await openDb();
   const t = db.transaction('commits', 'readonly');
-  return idbGet<Commit>(t.objectStore('commits'), id);
+  const raw = await idbGet<Record<string, unknown>>(t.objectStore('commits'), id);
+  return raw ? normalizeCommit(raw) : undefined;
 }
 
 export async function saveCommit(commit: Commit): Promise<void> {

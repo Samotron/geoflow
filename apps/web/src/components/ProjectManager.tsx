@@ -93,7 +93,7 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
       projectId: project.id,
       parentId: project.headCommitId,
       message: `Restore to: ${commit.message}`,
-      agsBytes: commit.agsBytes,
+      storage: commit.storage,
       timestamp: Date.now(),
       conflictCount: 0,
     };
@@ -299,7 +299,7 @@ export function ProjectManager({ onClose, onLoadCommit, currentProjectId }: Proj
                               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                                 {timeAgo(c.timestamp)}
                                 <span style={{ margin: '0 6px' }}>·</span>
-                                {(c.agsBytes.length / 1024).toFixed(1)} KB
+                                {c.storage.kind === 'delta' ? 'Δ delta' : c.storage.kind === 'snapshot' ? `~${(c.storage.gz.length * 3.5 / 1024).toFixed(0)} KB` : `${(c.storage.bytes.length / 1024).toFixed(1)} KB`}
                               </div>
                             </div>
 

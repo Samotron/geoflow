@@ -21,6 +21,7 @@ import type { Project, Commit } from './storage/types.js';
 import { saveProject, saveCommit, getCommit } from './storage/db.js';
 import { mergeAgsFiles, applyConflictResolutions } from './merge.js';
 import type { MergeResult, MergeConflict } from './merge.js';
+import { compress, computeDelta, reconstructAgsBytes } from './delta.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 
@@ -287,6 +288,8 @@ export default function App() {
 
   const [showProjectManager, setShowProjectManager] = useState(false);
   const pendingHoleRef = useRef<string | null>(null);
+  // Tracks the last committed AgsFile so edit deltas are computed incrementally.
+  const lastCommittedFileRef = useRef<AgsFile | null>(null);
 
   // ── Derived values passed to tabs ─────────────────────────────────────────
   const fileBytes = useMemo(() => {
@@ -313,48 +316,76 @@ export default function App() {
 
   // ── Project commit helpers ────────────────────────────────────────────────
 
-  async function createCommit(
+  async function persistCommit(commit: Commit, project: Project): Promise<void> {
+    await saveCommit(commit);
+    const updated = { ...project, headCommitId: commit.id, updatedAt: Date.now() };
+    await saveProject(updated);
+    setCurrentProject(updated);
+    setHeadCommit(commit);
+  }
+
+  async function createSnapshotCommit(
     project: Project,
     parent: Commit | null,
     message: string,
     bytes: Uint8Array,
     conflictCount = 0,
   ): Promise<Commit> {
+    const gz = await compress(bytes);
     const commit: Commit = {
       id: crypto.randomUUID(),
       projectId: project.id,
       parentId: parent?.id ?? null,
       message,
-      agsBytes: bytes,
+      storage: { kind: 'snapshot', gz },
       timestamp: Date.now(),
       conflictCount,
     };
-    await saveCommit(commit);
-    const updated = { ...project, headCommitId: commit.id, updatedAt: Date.now() };
-    await saveProject(updated);
-    setCurrentProject(updated);
-    setHeadCommit(commit);
+    await persistCommit(commit, project);
+    return commit;
+  }
+
+  async function createDeltaCommit(
+    project: Project,
+    parent: Commit | null,
+    message: string,
+    before: AgsFile,
+    after: AgsFile,
+  ): Promise<Commit> {
+    const delta = computeDelta(before, after);
+    const commit: Commit = {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      parentId: parent?.id ?? null,
+      message,
+      storage: { kind: 'delta', delta },
+      timestamp: Date.now(),
+      conflictCount: 0,
+    };
+    await persistCommit(commit, project);
     return commit;
   }
 
   // Handles any file dropped/added when a project is active.
-  // First drop → initial import commit. Subsequent drops → git merge.
+  // First drop → initial import commit (snapshot). Subsequent drops → git merge (snapshot).
   async function handleProjectFile(name: string, bytes: Uint8Array) {
     if (!currentProject) return;
     if (!headCommit) {
-      // Initial import
-      await createCommit(currentProject, null, `Import ${name}`, bytes);
+      const commit = await createSnapshotCommit(currentProject, null, `Import ${name}`, bytes);
+      lastCommittedFileRef.current = parseStr(decodeBytes(bytes)).file;
+      void commit; // commit is already stored; HEAD updated in createSnapshotCommit
       setProjectBytes(bytes);
       setSessionFileName(name);
     } else {
-      // Merge into HEAD
-      const currentAgs = parseStr(decodeBytes(headCommit.agsBytes)).file;
+      const headBytes = await reconstructAgsBytes(headCommit, getCommit);
+      const currentAgs = parseStr(decodeBytes(headBytes)).file;
       const incomingAgs = parseStr(decodeBytes(bytes)).file;
       if (!currentAgs || !incomingAgs) return;
       const result = mergeAgsFiles(currentAgs, incomingAgs);
       if (result.conflicts.length === 0) {
         const mergedBytes = new TextEncoder().encode(serialize(result.merged));
-        await createCommit(currentProject, headCommit, `Merge ${name}`, mergedBytes);
+        await createSnapshotCommit(currentProject, headCommit, `Merge ${name}`, mergedBytes);
+        lastCommittedFileRef.current = result.merged;
         setProjectBytes(mergedBytes);
         setSessionFileName(name);
       } else {
@@ -369,19 +400,22 @@ export default function App() {
     const bytes = new TextEncoder().encode(serialize(finalFile));
     const n = pendingMerge.result.conflicts.length;
     const msg = `Merge ${pendingMerge.incomingName}${n > 0 ? ` (${n} conflict${n > 1 ? 's' : ''} resolved)` : ''}`;
-    await createCommit(currentProject, headCommit, msg, bytes, n);
+    await createSnapshotCommit(currentProject, headCommit, msg, bytes, n);
+    lastCommittedFileRef.current = finalFile;
     setProjectBytes(bytes);
     setSessionFileName(pendingMerge.incomingName);
     setPendingMerge(null);
   }
 
-  // Called by EditTab after 30 s of idle: creates a commit but does NOT
-  // update projectBytes, so the editing session continues uninterrupted.
+  // Called by EditTab after 30 s of idle. Stores a delta commit so storage
+  // stays small. Does NOT call setProjectBytes — EditTab keeps its session.
   async function handleAutoCommit(bytes: Uint8Array, editCount: number) {
-    if (!currentProject) return;
+    if (!currentProject || !lastCommittedFileRef.current) return;
+    const afterFile = parseStr(decodeBytes(bytes)).file;
+    if (!afterFile) return;
     const msg = `Edit: ${editCount} cell${editCount !== 1 ? 's' : ''} changed`;
-    await createCommit(currentProject, headCommit, msg, bytes);
-    // Intentionally do NOT call setProjectBytes — EditTab keeps its in-memory state.
+    await createDeltaCommit(currentProject, headCommit, msg, lastCommittedFileRef.current, afterFile);
+    lastCommittedFileRef.current = afterFile;
   }
 
   // ── Drop zone handlers ────────────────────────────────────────────────────
@@ -412,7 +446,10 @@ export default function App() {
   const onLoadFromProject = useCallback(async (commitId: string, name: string, project: Project) => {
     const commit = await getCommit(commitId);
     if (!commit) return;
-    setProjectBytes(commit.agsBytes);
+    const bytes = await reconstructAgsBytes(commit, getCommit);
+    const agsFile = parseStr(decodeBytes(bytes)).file;
+    lastCommittedFileRef.current = agsFile;
+    setProjectBytes(bytes);
     setSessionFileName(name);
     setHeadCommit(commit);
     setCurrentProject(project);

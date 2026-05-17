@@ -13,7 +13,7 @@
 
 import { Option } from 'effect';
 import type { AgsFile, AgsRow } from '../core.js';
-import type { Project, Commit } from '../storage/types.js';
+import type { Project, Commit, AgsFileDelta } from '../storage/types.js';
 import { downloadBlob, exportBaseName, exportDatePrefix } from './utils.js';
 
 // ── sql.js type shim (avoids importing the full @types/sql.js at build time) ──
@@ -620,7 +620,9 @@ export async function exportProjectGeoPackage(
       project_id TEXT NOT NULL,
       parent_id TEXT,
       message TEXT NOT NULL,
-      ags_bytes BLOB NOT NULL,
+      storage_kind TEXT NOT NULL,
+      storage_data BLOB,
+      storage_delta TEXT,
       timestamp TEXT NOT NULL,
       conflict_count INTEGER NOT NULL DEFAULT 0
     );
@@ -640,9 +642,16 @@ export async function exportProjectGeoPackage(
 
   // Store commits oldest-first so import can replay in order
   for (const c of [...commits].reverse()) {
+    const kind = c.storage.kind;
+    const storageData: Uint8Array | null =
+      kind === 'snapshot' ? c.storage.gz :
+      kind === 'raw' ? c.storage.bytes :
+      null;
+    const storageDelta: string | null =
+      kind === 'delta' ? JSON.stringify(c.storage.delta) : null;
     db.run(
-      'INSERT INTO geoflow_project_commits (id, project_id, parent_id, message, ags_bytes, timestamp, conflict_count) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [c.id, c.projectId, c.parentId ?? null, c.message, c.agsBytes, new Date(c.timestamp).toISOString(), c.conflictCount],
+      'INSERT INTO geoflow_project_commits (id, project_id, parent_id, message, storage_kind, storage_data, storage_delta, timestamp, conflict_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [c.id, c.projectId, c.parentId ?? null, c.message, kind, storageData, storageDelta, new Date(c.timestamp).toISOString(), c.conflictCount],
     );
   }
 
@@ -677,25 +686,58 @@ export async function importProjectGeoPackage(
 
     const [id, name, created_at] = projFirst.values[0] as [string, string, string];
 
-    const commitRows = db.exec(
-      'SELECT id, project_id, parent_id, message, ags_bytes, timestamp, conflict_count FROM geoflow_project_commits ORDER BY timestamp ASC',
-    );
+    // Detect legacy schema (has ags_bytes column) vs new schema (has storage_kind)
+    const colCheck = db.exec("PRAGMA table_info(geoflow_project_commits)");
+    const colFirst = colCheck[0];
+    const colNames = colFirst ? colFirst.values.map((r) => r[1] as string) : [];
+    const isLegacy = colNames.includes('ags_bytes') && !colNames.includes('storage_kind');
+
+    const commitRows = isLegacy
+      ? db.exec('SELECT id, project_id, parent_id, message, ags_bytes, timestamp, conflict_count FROM geoflow_project_commits ORDER BY timestamp ASC')
+      : db.exec('SELECT id, project_id, parent_id, message, storage_kind, storage_data, storage_delta, timestamp, conflict_count FROM geoflow_project_commits ORDER BY timestamp ASC');
+
     const commits: Commit[] = [];
     const commitFirst = commitRows[0];
     if (commitFirst && commitFirst.values.length) {
       for (const row of commitFirst.values) {
-        const [cId, cProjectId, cParentId, cMessage, cBytes, cTimestamp, cConflictCount] = row as [
-          string, string, string | null, string, Uint8Array, string, number,
-        ];
-        commits.push({
-          id: cId,
-          projectId: cProjectId,
-          parentId: cParentId ?? null,
-          message: cMessage,
-          agsBytes: cBytes instanceof Uint8Array ? cBytes : new Uint8Array(cBytes as ArrayBuffer),
-          timestamp: new Date(cTimestamp).getTime(),
-          conflictCount: cConflictCount ?? 0,
-        });
+        if (isLegacy) {
+          const [cId, cProjectId, cParentId, cMessage, cBytes, cTimestamp, cConflictCount] = row as [
+            string, string, string | null, string, Uint8Array, string, number,
+          ];
+          const rawBytes = cBytes instanceof Uint8Array ? cBytes : new Uint8Array(cBytes as ArrayBuffer);
+          commits.push({
+            id: cId,
+            projectId: cProjectId,
+            parentId: cParentId ?? null,
+            message: cMessage,
+            storage: { kind: 'raw', bytes: rawBytes },
+            timestamp: new Date(cTimestamp).getTime(),
+            conflictCount: cConflictCount ?? 0,
+          });
+        } else {
+          const [cId, cProjectId, cParentId, cMessage, cKind, cData, cDeltaJson, cTimestamp, cConflictCount] = row as [
+            string, string, string | null, string, string, Uint8Array | null, string | null, string, number,
+          ];
+          let storage: Commit['storage'];
+          if (cKind === 'snapshot') {
+            const gz = cData instanceof Uint8Array ? cData : new Uint8Array((cData as unknown as ArrayBuffer) ?? new ArrayBuffer(0));
+            storage = { kind: 'snapshot', gz };
+          } else if (cKind === 'raw') {
+            const bytes = cData instanceof Uint8Array ? cData : new Uint8Array((cData as unknown as ArrayBuffer) ?? new ArrayBuffer(0));
+            storage = { kind: 'raw', bytes };
+          } else {
+            storage = { kind: 'delta', delta: JSON.parse(cDeltaJson ?? '{"groups":{}}') as AgsFileDelta };
+          }
+          commits.push({
+            id: cId,
+            projectId: cProjectId,
+            parentId: cParentId ?? null,
+            message: cMessage,
+            storage,
+            timestamp: new Date(cTimestamp).getTime(),
+            conflictCount: cConflictCount ?? 0,
+          });
+        }
       }
     }
 
