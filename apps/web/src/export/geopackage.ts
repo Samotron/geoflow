@@ -13,17 +13,22 @@
 
 import { Option } from 'effect';
 import type { AgsFile, AgsRow } from '../core.js';
+import type { Project, Commit, AgsFileDelta } from '../storage/types.js';
 import { downloadBlob, exportBaseName, exportDatePrefix } from './utils.js';
 
 // ── sql.js type shim (avoids importing the full @types/sql.js at build time) ──
+interface SqlQueryResult {
+  columns: string[];
+  values: (string | number | null | Uint8Array)[][];
+}
 interface SqlDatabase {
   run(sql: string, params?: (string | number | null | Uint8Array)[]): void;
-  exec(sql: string): void;
+  exec(sql: string): SqlQueryResult[];
   export(): Uint8Array;
   close(): void;
 }
 interface SqlJsStatic {
-  Database: new () => SqlDatabase;
+  Database: new (data?: Uint8Array | null) => SqlDatabase;
 }
 
 async function loadSql(): Promise<SqlJsStatic> {
@@ -545,4 +550,208 @@ export async function exportGeopackage(
   const bytes = db.export();
   db.close();
   downloadBlob(bytes, `${date}-${base}.gpkg`, 'application/geopackage+sqlite3');
+}
+
+// ── Project GeoPackage export ─────────────────────────────────────────────────
+// Creates a minimal valid GeoPackage that embeds raw AGS file bytes for
+// lossless project round-trip. The file is named .gpkgz by convention to
+// signal it is a GeoFlow project container rather than a standard spatial file.
+
+export async function exportProjectGeoPackage(
+  project: Project,
+  commits: Commit[],
+): Promise<void> {
+  const SQL = await loadSql();
+  const db: SqlDatabase = new SQL.Database();
+
+  db.exec(`
+    PRAGMA application_id = 1196444487;
+    PRAGMA user_version = 10300;
+
+    CREATE TABLE gpkg_spatial_ref_sys (
+      srs_name TEXT NOT NULL,
+      srs_id INTEGER NOT NULL PRIMARY KEY,
+      organization TEXT NOT NULL,
+      organization_coordsys_id INTEGER NOT NULL,
+      definition TEXT NOT NULL,
+      description TEXT
+    );
+
+    INSERT INTO gpkg_spatial_ref_sys VALUES
+      ('Undefined Cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined Cartesian coordinate reference system'),
+      ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system'),
+      ('WGS 84 geographic 2D', 4326, 'EPSG', 4326,
+        'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',
+        'WGS 84');
+
+    CREATE TABLE gpkg_contents (
+      table_name TEXT NOT NULL PRIMARY KEY,
+      data_type TEXT NOT NULL,
+      identifier TEXT,
+      description TEXT DEFAULT '',
+      last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S.000Z','now')),
+      min_x REAL, min_y REAL, max_x REAL, max_y REAL,
+      srs_id INTEGER,
+      CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+    );
+
+    CREATE TABLE gpkg_geometry_columns (
+      table_name TEXT NOT NULL, column_name TEXT NOT NULL,
+      geometry_type_name TEXT NOT NULL, srs_id INTEGER NOT NULL,
+      z TINYINT NOT NULL, m TINYINT NOT NULL,
+      CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name)
+    );
+
+    CREATE TABLE gpkg_extensions (
+      table_name TEXT, column_name TEXT,
+      extension_name TEXT NOT NULL, definition TEXT NOT NULL, scope TEXT NOT NULL,
+      CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
+    );
+
+    CREATE TABLE geoflow_project (
+      id TEXT NOT NULL PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      exported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%S.000Z','now'))
+    );
+
+    CREATE TABLE geoflow_project_commits (
+      id TEXT NOT NULL PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      parent_id TEXT,
+      message TEXT NOT NULL,
+      storage_kind TEXT NOT NULL,
+      storage_data BLOB,
+      storage_delta TEXT,
+      timestamp TEXT NOT NULL,
+      conflict_count INTEGER NOT NULL DEFAULT 0
+    );
+
+    INSERT INTO gpkg_contents VALUES
+      ('geoflow_project', 'attributes', 'geoflow_project', 'GeoFlow project metadata',
+       strftime('%Y-%m-%dT%H:%M:%S.000Z','now'), NULL, NULL, NULL, NULL, NULL),
+      ('geoflow_project_commits', 'attributes', 'geoflow_project_commits', 'GeoFlow project commit history',
+       strftime('%Y-%m-%dT%H:%M:%S.000Z','now'), NULL, NULL, NULL, NULL, NULL);
+  `);
+
+  db.run('INSERT INTO geoflow_project (id, name, created_at) VALUES (?, ?, ?)', [
+    project.id,
+    project.name,
+    new Date(project.createdAt).toISOString(),
+  ]);
+
+  // Store commits oldest-first so import can replay in order
+  for (const c of [...commits].reverse()) {
+    const kind = c.storage.kind;
+    const storageData: Uint8Array | null =
+      kind === 'snapshot' ? c.storage.gz :
+      kind === 'raw' ? c.storage.bytes :
+      null;
+    const storageDelta: string | null =
+      kind === 'delta' ? JSON.stringify(c.storage.delta) : null;
+    db.run(
+      'INSERT INTO geoflow_project_commits (id, project_id, parent_id, message, storage_kind, storage_data, storage_delta, timestamp, conflict_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [c.id, c.projectId, c.parentId ?? null, c.message, kind, storageData, storageDelta, new Date(c.timestamp).toISOString(), c.conflictCount],
+    );
+  }
+
+  const bytes = db.export();
+  db.close();
+
+  const date = exportDatePrefix();
+  const safeName = project.name.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+  downloadBlob(bytes, `${date}-${safeName}.gpkgz`, 'application/geopackage+sqlite3');
+}
+
+// ── Project GeoPackage import ─────────────────────────────────────────────────
+// Returns null if the file is not a GeoFlow project container.
+
+export async function importProjectGeoPackage(
+  bytes: Uint8Array,
+): Promise<{ project: Project; commits: Commit[] } | null> {
+  const SQL = await loadSql();
+  const db: SqlDatabase = new SQL.Database(bytes);
+
+  try {
+    // Check for geoflow_project table
+    const check = db.exec(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='geoflow_project'",
+    );
+    const checkFirst = check[0];
+    if (!checkFirst || !checkFirst.values.length) return null;
+
+    const projRows = db.exec('SELECT id, name, created_at FROM geoflow_project LIMIT 1');
+    const projFirst = projRows[0];
+    if (!projFirst || !projFirst.values.length) return null;
+
+    const [id, name, created_at] = projFirst.values[0] as [string, string, string];
+
+    // Detect legacy schema (has ags_bytes column) vs new schema (has storage_kind)
+    const colCheck = db.exec("PRAGMA table_info(geoflow_project_commits)");
+    const colFirst = colCheck[0];
+    const colNames = colFirst ? colFirst.values.map((r) => r[1] as string) : [];
+    const isLegacy = colNames.includes('ags_bytes') && !colNames.includes('storage_kind');
+
+    const commitRows = isLegacy
+      ? db.exec('SELECT id, project_id, parent_id, message, ags_bytes, timestamp, conflict_count FROM geoflow_project_commits ORDER BY timestamp ASC')
+      : db.exec('SELECT id, project_id, parent_id, message, storage_kind, storage_data, storage_delta, timestamp, conflict_count FROM geoflow_project_commits ORDER BY timestamp ASC');
+
+    const commits: Commit[] = [];
+    const commitFirst = commitRows[0];
+    if (commitFirst && commitFirst.values.length) {
+      for (const row of commitFirst.values) {
+        if (isLegacy) {
+          const [cId, cProjectId, cParentId, cMessage, cBytes, cTimestamp, cConflictCount] = row as [
+            string, string, string | null, string, Uint8Array, string, number,
+          ];
+          const rawBytes = cBytes instanceof Uint8Array ? cBytes : new Uint8Array(cBytes as ArrayBuffer);
+          commits.push({
+            id: cId,
+            projectId: cProjectId,
+            parentId: cParentId ?? null,
+            message: cMessage,
+            storage: { kind: 'raw', bytes: rawBytes },
+            timestamp: new Date(cTimestamp).getTime(),
+            conflictCount: cConflictCount ?? 0,
+          });
+        } else {
+          const [cId, cProjectId, cParentId, cMessage, cKind, cData, cDeltaJson, cTimestamp, cConflictCount] = row as [
+            string, string, string | null, string, string, Uint8Array | null, string | null, string, number,
+          ];
+          let storage: Commit['storage'];
+          if (cKind === 'snapshot') {
+            const gz = cData instanceof Uint8Array ? cData : new Uint8Array((cData as unknown as ArrayBuffer) ?? new ArrayBuffer(0));
+            storage = { kind: 'snapshot', gz };
+          } else if (cKind === 'raw') {
+            const bytes = cData instanceof Uint8Array ? cData : new Uint8Array((cData as unknown as ArrayBuffer) ?? new ArrayBuffer(0));
+            storage = { kind: 'raw', bytes };
+          } else {
+            storage = { kind: 'delta', delta: JSON.parse(cDeltaJson ?? '{"groups":{}}') as AgsFileDelta };
+          }
+          commits.push({
+            id: cId,
+            projectId: cProjectId,
+            parentId: cParentId ?? null,
+            message: cMessage,
+            storage,
+            timestamp: new Date(cTimestamp).getTime(),
+            conflictCount: cConflictCount ?? 0,
+          });
+        }
+      }
+    }
+
+    const lastCommit = commits[commits.length - 1];
+    const project: Project = {
+      id,
+      name,
+      createdAt: new Date(created_at).getTime(),
+      updatedAt: Date.now(),
+      headCommitId: lastCommit?.id ?? null,
+    };
+
+    return { project, commits };
+  } finally {
+    db.close();
+  }
 }

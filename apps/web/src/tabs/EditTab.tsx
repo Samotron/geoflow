@@ -41,6 +41,7 @@ interface EditingCell {
 interface Props {
   fileBytes: Uint8Array | null;
   fileName?: string | undefined;
+  onAutoCommit?: ((bytes: Uint8Array, editCount: number) => void) | undefined;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -519,7 +520,7 @@ function diffAgsFilesForHistory(before: AgsFile, after: AgsFile): EditEntry[] {
 
 // ── Main EditTab ───────────────────────────────────────────────────────────────
 
-export function EditTab({ fileBytes, fileName }: Props) {
+export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
   const [agsFile, setAgsFile] = useState<AgsFile | null>(null);
   const [editHistory, setEditHistory] = useState<EditEntry[]>([]);
   const [initialMetrics, setInitialMetrics] = useState<{ score: number; count: number } | null>(null);
@@ -528,7 +529,34 @@ export function EditTab({ fileBytes, fileName }: Props) {
   const [focusedRowKey, setFocusedRowKey] = useState<string | null>(null);
   const [focusedCellHeading, setFocusedCellHeading] = useState<string | null>(null);
   const [fixNotice, setFixNotice] = useState<FixNotice | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saved'>('idle');
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+
+  // Auto-commit: fire onAutoCommit 30 s after the last edit, using refs to
+  // avoid stale closures without needing useCallback dependencies.
+  const autoCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onAutoCommitRef = useRef(onAutoCommit);
+  useEffect(() => { onAutoCommitRef.current = onAutoCommit; }, [onAutoCommit]);
+  const latestAgsFileRef = useRef(agsFile);
+  useEffect(() => { latestAgsFileRef.current = agsFile; }, [agsFile]);
+  const latestEditCountRef = useRef(0);
+  useEffect(() => { latestEditCountRef.current = editHistory.length; }, [editHistory]);
+
+  const scheduleAutoCommit = useCallback(() => {
+    if (!onAutoCommitRef.current) return;
+    setAutoSaveStatus('pending');
+    if (autoCommitTimerRef.current) clearTimeout(autoCommitTimerRef.current);
+    autoCommitTimerRef.current = setTimeout(() => {
+      const file = latestAgsFileRef.current;
+      const count = latestEditCountRef.current;
+      const cb = onAutoCommitRef.current;
+      if (file && count > 0 && cb) {
+        cb(new TextEncoder().encode(serialize(file)), count);
+        setAutoSaveStatus('saved');
+        setTimeout(() => setAutoSaveStatus('idle'), 4000);
+      }
+    }, 30_000);
+  }, []);
 
   // Parse on file change
   useEffect(() => {
@@ -630,8 +658,9 @@ export function EditTab({ fileBytes, fileName }: Props) {
           newValue,
         },
       ]);
+      scheduleAutoCommit();
     },
-    [agsFile]
+    [agsFile, scheduleAutoCommit]
   );
 
   // Undo the most recent edit
@@ -672,7 +701,8 @@ export function EditTab({ fileBytes, fileName }: Props) {
     setAgsFile(fixedFile);
     setEditHistory((prev) => [...prev, ...newEdits]);
     setFixNotice({ applied: result.applied, editCount: newEdits.length });
-  }, [agsFile]);
+    scheduleAutoCommit();
+  }, [agsFile, scheduleAutoCommit]);
 
   // Jump to a row from the issue sidebar
   const handleIssueSelect = useCallback(
@@ -801,6 +831,13 @@ export function EditTab({ fileBytes, fileName }: Props) {
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)', marginBottom: 4 }}>Edits Made</div>
           <span style={{ fontSize: 16, fontWeight: 700, color: editHistory.length > 0 ? 'var(--blue)' : 'var(--muted)' }}>{editHistory.length}</span>
         </div>
+
+        {/* Auto-save status */}
+        {autoSaveStatus !== 'idle' && (
+          <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, border: '1px solid', ...(autoSaveStatus === 'saved' ? { color: 'var(--green)', background: '#f0fdf4', borderColor: '#bbf7d0' } : { color: 'var(--muted)', background: '#f8fafc', borderColor: 'var(--border)' }) }}>
+            {autoSaveStatus === 'pending' ? '● Unsaved edits…' : '✓ Auto-committed'}
+          </span>
+        )}
 
         {/* Auto-fix + Downloads */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

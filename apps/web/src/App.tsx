@@ -1,5 +1,8 @@
-import { useState, useCallback, useEffect, useRef, type DragEvent } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, type DragEvent } from 'react';
+import { Option } from 'effect';
 import type { TabId, PackDiagnostic } from './types.js';
+import { parseStr, decodeBytes, serialize } from './core.js';
+import type { AgsFile, AgsGroup } from './core.js';
 import { InspectTab } from './tabs/InspectTab.js';
 import { ConvertTab } from './tabs/ConvertTab.js';
 import { DataTab } from './tabs/DataTab.js';
@@ -12,6 +15,13 @@ import { ThreeDTab } from './tabs/ThreeDTab.js';
 import { VoxelTab } from './tabs/VoxelTab.js';
 import { PlotsTab } from './tabs/PlotsTab.js';
 import { ReportTab } from './tabs/ReportTab.js';
+import { ProjectManager } from './components/ProjectManager.js';
+import { ConflictResolver } from './components/ConflictResolver.js';
+import type { Project, Commit } from './storage/types.js';
+import { saveProject, saveCommit, getCommit } from './storage/db.js';
+import { mergeAgsFiles, applyConflictResolutions } from './merge.js';
+import type { MergeResult, MergeConflict } from './merge.js';
+import { compress, computeDelta, reconstructAgsBytes } from './delta.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 
@@ -238,11 +248,60 @@ function hashTab(): TabId {
   return TABS.some((t) => t.id === hash) ? hash : 'inspect';
 }
 
+interface LoadedFile { name: string; bytes: Uint8Array }
+
+function mergeAgsBytes(files: LoadedFile[]): Uint8Array {
+  if (files.length === 1) return files[0]!.bytes;
+  const parsed = files
+    .map((f) => parseStr(decodeBytes(f.bytes)).file)
+    .filter((f): f is AgsFile => f !== null);
+  if (parsed.length === 0) return files[0]!.bytes;
+  const groups: Record<string, AgsGroup> = {};
+  for (const ags of parsed) {
+    for (const [name, group] of Object.entries(ags.groups)) {
+      if (!group) continue;
+      if (!groups[name]) {
+        groups[name] = { ...group, rows: [...group.rows] };
+      } else {
+        groups[name] = { ...groups[name], rows: [...groups[name].rows, ...group.rows] };
+      }
+    }
+  }
+  const merged: AgsFile = { groups, source_path: Option.none(), ags_version: parsed[0]!.ags_version };
+  return new TextEncoder().encode(serialize(merged));
+}
+
 export default function App() {
   const [tab, setTab] = useState<TabId>(hashTab);
-  const [fileName, setFileName] = useState<string | undefined>();
-  const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
+
+  // ── No-project state: naive multi-file merge ──────────────────────────────
+  const [loadedFiles, setLoadedFiles] = useState<LoadedFile[]>([]);
+
+  // ── Project state: git-model commit chain ─────────────────────────────────
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [headCommit, setHeadCommit] = useState<Commit | null>(null);
+  // Bytes for the current editing session (set on load/import, NOT updated on auto-commit
+  // so that EditTab is not forced to re-parse during an active session).
+  const [projectBytes, setProjectBytes] = useState<Uint8Array | null>(null);
+  const [sessionFileName, setSessionFileName] = useState<string | undefined>();
+  const [pendingMerge, setPendingMerge] = useState<{ result: MergeResult; incomingName: string } | null>(null);
+
+  const [showProjectManager, setShowProjectManager] = useState(false);
   const pendingHoleRef = useRef<string | null>(null);
+  // Tracks the last committed AgsFile so edit deltas are computed incrementally.
+  const lastCommittedFileRef = useRef<AgsFile | null>(null);
+
+  // ── Derived values passed to tabs ─────────────────────────────────────────
+  const fileBytes = useMemo(() => {
+    if (currentProject) return projectBytes;
+    return loadedFiles.length === 0 ? null : mergeAgsBytes(loadedFiles);
+  }, [currentProject, projectBytes, loadedFiles]);
+
+  const fileName = currentProject
+    ? (sessionFileName ?? currentProject.name)
+    : loadedFiles.length === 0 ? undefined
+    : loadedFiles.length === 1 ? loadedFiles[0]!.name
+    : `${loadedFiles[0]!.name} +${loadedFiles.length - 1} more`;
 
   useEffect(() => {
     const onHash = () => setTab(hashTab());
@@ -255,22 +314,234 @@ export default function App() {
     setTab(id);
   };
 
-  const onFile = (name: string, bytes: Uint8Array) => {
-    setFileName(name);
-    setFileBytes(bytes);
-  };
+  // ── Project commit helpers ────────────────────────────────────────────────
+
+  async function persistCommit(commit: Commit, project: Project): Promise<void> {
+    await saveCommit(commit);
+    const updated = { ...project, headCommitId: commit.id, updatedAt: Date.now() };
+    await saveProject(updated);
+    setCurrentProject(updated);
+    setHeadCommit(commit);
+  }
+
+  async function createSnapshotCommit(
+    project: Project,
+    parent: Commit | null,
+    message: string,
+    bytes: Uint8Array,
+    conflictCount = 0,
+  ): Promise<Commit> {
+    const gz = await compress(bytes);
+    const commit: Commit = {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      parentId: parent?.id ?? null,
+      message,
+      storage: { kind: 'snapshot', gz },
+      timestamp: Date.now(),
+      conflictCount,
+    };
+    await persistCommit(commit, project);
+    return commit;
+  }
+
+  async function createDeltaCommit(
+    project: Project,
+    parent: Commit | null,
+    message: string,
+    before: AgsFile,
+    after: AgsFile,
+  ): Promise<Commit> {
+    const delta = computeDelta(before, after);
+    const commit: Commit = {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      parentId: parent?.id ?? null,
+      message,
+      storage: { kind: 'delta', delta },
+      timestamp: Date.now(),
+      conflictCount: 0,
+    };
+    await persistCommit(commit, project);
+    return commit;
+  }
+
+  // Handles any file dropped/added when a project is active.
+  // First drop → initial import commit (snapshot). Subsequent drops → git merge (snapshot).
+  async function handleProjectFile(name: string, bytes: Uint8Array) {
+    if (!currentProject) return;
+    if (!headCommit) {
+      const commit = await createSnapshotCommit(currentProject, null, `Import ${name}`, bytes);
+      lastCommittedFileRef.current = parseStr(decodeBytes(bytes)).file;
+      void commit; // commit is already stored; HEAD updated in createSnapshotCommit
+      setProjectBytes(bytes);
+      setSessionFileName(name);
+    } else {
+      const headBytes = await reconstructAgsBytes(headCommit, getCommit);
+      const currentAgs = parseStr(decodeBytes(headBytes)).file;
+      const incomingAgs = parseStr(decodeBytes(bytes)).file;
+      if (!currentAgs || !incomingAgs) return;
+      const result = mergeAgsFiles(currentAgs, incomingAgs);
+      if (result.conflicts.length === 0) {
+        const mergedBytes = new TextEncoder().encode(serialize(result.merged));
+        await createSnapshotCommit(currentProject, headCommit, `Merge ${name}`, mergedBytes);
+        lastCommittedFileRef.current = result.merged;
+        setProjectBytes(mergedBytes);
+        setSessionFileName(name);
+      } else {
+        setPendingMerge({ result, incomingName: name });
+      }
+    }
+  }
+
+  async function onResolveConflicts(resolved: MergeConflict[]) {
+    if (!pendingMerge || !currentProject) return;
+    const finalFile = applyConflictResolutions(pendingMerge.result.merged, resolved);
+    const bytes = new TextEncoder().encode(serialize(finalFile));
+    const n = pendingMerge.result.conflicts.length;
+    const msg = `Merge ${pendingMerge.incomingName}${n > 0 ? ` (${n} conflict${n > 1 ? 's' : ''} resolved)` : ''}`;
+    await createSnapshotCommit(currentProject, headCommit, msg, bytes, n);
+    lastCommittedFileRef.current = finalFile;
+    setProjectBytes(bytes);
+    setSessionFileName(pendingMerge.incomingName);
+    setPendingMerge(null);
+  }
+
+  // Called by EditTab after 30 s of idle. Stores a delta commit so storage
+  // stays small. Does NOT call setProjectBytes — EditTab keeps its session.
+  async function handleAutoCommit(bytes: Uint8Array, editCount: number) {
+    if (!currentProject || !lastCommittedFileRef.current) return;
+    const afterFile = parseStr(decodeBytes(bytes)).file;
+    if (!afterFile) return;
+    const msg = `Edit: ${editCount} cell${editCount !== 1 ? 's' : ''} changed`;
+    await createDeltaCommit(currentProject, headCommit, msg, lastCommittedFileRef.current, afterFile);
+    lastCommittedFileRef.current = afterFile;
+  }
+
+  // ── Drop zone handlers ────────────────────────────────────────────────────
+
+  // Primary zone: replaces session (no-project) or imports/merges (project)
+  const onFile = useCallback(async (name: string, bytes: Uint8Array) => {
+    if (currentProject) {
+      await handleProjectFile(name, bytes);
+    } else {
+      setLoadedFiles([{ name, bytes }]);
+    }
+  }, [currentProject, headCommit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Secondary zone: appends (no-project) or merges (project)
+  const onAddFile = useCallback(async (name: string, bytes: Uint8Array) => {
+    if (currentProject) {
+      await handleProjectFile(name, bytes);
+    } else {
+      setLoadedFiles((prev) => [...prev, { name, bytes }]);
+    }
+  }, [currentProject, headCommit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onRemoveFile = useCallback((index: number) => {
+    setLoadedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Called from ProjectManager when user opens a commit
+  const onLoadFromProject = useCallback(async (commitId: string, name: string, project: Project) => {
+    const commit = await getCommit(commitId);
+    if (!commit) return;
+    const bytes = await reconstructAgsBytes(commit, getCommit);
+    const agsFile = parseStr(decodeBytes(bytes)).file;
+    lastCommittedFileRef.current = agsFile;
+    setProjectBytes(bytes);
+    setSessionFileName(name);
+    setHeadCommit(commit);
+    setCurrentProject(project);
+  }, []);
 
   return (
     <>
       <style>{GLOBAL_STYLE}</style>
       <header style={{ background: 'var(--navy)', color: '#fff', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
         <h1 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px' }}>GeoFlow</h1>
-        <span style={{ fontSize: 12, opacity: 0.55, marginLeft: 'auto' }}>AGS Validator &amp; Converter</span>
+        {currentProject && (
+          <span style={{ fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
+            {currentProject.name}
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setShowProjectManager(true)}
+            style={{
+              padding: '6px 14px', fontSize: 12, fontWeight: 600,
+              background: 'rgba(255,255,255,0.12)', color: '#fff',
+              border: '1px solid rgba(255,255,255,0.2)', borderRadius: 6,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+            </svg>
+            Projects
+          </button>
+          <span style={{ fontSize: 12, opacity: 0.45 }}>AGS Validator &amp; Converter</span>
+        </div>
       </header>
 
+      {showProjectManager && (
+        <ProjectManager
+          onClose={() => setShowProjectManager(false)}
+          onLoadCommit={onLoadFromProject}
+          currentProjectId={currentProject?.id}
+        />
+      )}
+
+      {pendingMerge && (
+        <ConflictResolver
+          result={pendingMerge.result}
+          sourceName={pendingMerge.incomingName}
+          onResolve={(resolved) => { void onResolveConflicts(resolved); }}
+          onCancel={() => setPendingMerge(null)}
+        />
+      )}
+
       <main style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 24px 60px' }}>
-        {/* Drop zone */}
-        <DropZone onFile={onFile} fileName={fileName} fileSize={fileBytes?.length} />
+        {/* Primary drop zone — replaces all loaded files */}
+        <DropZone
+          onFile={(n, b) => { void onFile(n, b); }}
+          fileName={loadedFiles.length === 1 ? loadedFiles[0]!.name : fileName}
+          fileSize={loadedFiles.length === 1 ? loadedFiles[0]!.bytes.length : undefined}
+        />
+
+        {/* Loaded-file list + add-file row */}
+        {loadedFiles.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {loadedFiles.length > 1 && loadedFiles.map((f, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '6px 12px', background: 'var(--card)',
+                  border: '1px solid var(--border)', borderRadius: 6, fontSize: 13,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                </svg>
+                <span style={{ flex: 1, fontWeight: 500 }}>{f.name}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 12 }}>{formatBytes(f.bytes.length)}</span>
+                <button
+                  onClick={() => onRemoveFile(i)}
+                  title="Remove this file"
+                  style={{ padding: '2px 8px', fontSize: 12, background: '#fee2e2', color: 'var(--red)', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+                >✕</button>
+              </div>
+            ))}
+            <DropZone
+              onFile={(n, b) => { void onAddFile(n, b); }}
+              label={`Add another AGS file${loadedFiles.length > 1 ? ` (${loadedFiles.length} loaded)` : ''}`}
+            />
+          </div>
+        )}
 
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 2, borderBottom: '2px solid var(--border)', marginBottom: 24, marginTop: 20 }}>
@@ -301,7 +572,11 @@ export default function App() {
         {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
         {/* EditTab stays mounted to preserve edit session state across tab switches */}
         <div style={{ display: tab === 'edit' ? 'block' : 'none' }}>
-          <EditTab fileBytes={fileBytes} fileName={fileName} />
+          <EditTab
+            fileBytes={fileBytes}
+            fileName={fileName}
+            onAutoCommit={currentProject ? (b, n) => { void handleAutoCommit(b, n); } : undefined}
+          />
         </div>
         {tab === 'map' && (
           <MapTab
