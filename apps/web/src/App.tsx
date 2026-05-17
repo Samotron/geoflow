@@ -319,6 +319,37 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// ── Logo ─────────────────────────────────────────────────────────────────────
+
+// A chibi sauropod mascot for GeoFlow — flat-fill silhouette in the style of
+// the Bun mark, sitting on the strata. Back spikes hint at geological layers.
+function Logo({ size = 26 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      {/* Tail */}
+      <path d="M6 19 Q2 19 2.5 22 Q4 22 6 21 Z" fill="#4ade80" />
+      {/* Body */}
+      <rect x="5" y="15" width="18" height="11" rx="5.5" fill="#4ade80" />
+      {/* Back spikes (geological strata cue) */}
+      <path d="M8 15 L10 11 L12 15 Z M12 15 L14.5 10 L17 15 Z M17 15 L19 11.5 L21 15 Z" fill="#22c55e" />
+      {/* Neck */}
+      <path d="M19 15 Q21 13 22 11 L26 12 Q25 15 23 16 Z" fill="#4ade80" />
+      {/* Head */}
+      <circle cx="26" cy="10" r="4.2" fill="#4ade80" />
+      {/* Cheek highlight */}
+      <ellipse cx="24.5" cy="11.6" rx="1.1" ry="0.6" fill="#86efac" opacity="0.8" />
+      {/* Eye */}
+      <circle cx="27.2" cy="9" r="1" fill="#0f172a" />
+      <circle cx="27.5" cy="8.6" r="0.3" fill="#fff" />
+      {/* Tiny smile */}
+      <path d="M25.2 11.4 Q26.2 12.2 27.4 11.6" stroke="#0f172a" strokeWidth="0.55" fill="none" strokeLinecap="round" />
+      {/* Feet */}
+      <rect x="8" y="24" width="3.2" height="2.5" rx="0.8" fill="#16a34a" />
+      <rect x="16.5" y="24" width="3.2" height="2.5" rx="0.8" fill="#16a34a" />
+    </svg>
+  );
+}
+
 // ── Icons ────────────────────────────────────────────────────────────────────
 
 function Icon({ d, size = 18 }: { d: string; size?: number }) {
@@ -877,9 +908,7 @@ export default function App() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 7l9-4 9 4-9 4-9-4z M3 12l9 4 9-4 M3 17l9 4 9-4" />
-            </svg>
+            <Logo size={26} />
             <h1 style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.2px' }}>GeoFlow</h1>
           </div>
 
