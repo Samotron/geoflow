@@ -71,13 +71,13 @@ function optVal<T>(opt: { _tag: string; value?: T }): T | null {
 function sevColor(sev: string): string {
   if (sev === 'error') return 'var(--red)';
   if (sev === 'warning') return 'var(--orange)';
-  return '#2563eb';
+  return 'var(--accent)';
 }
 
 function sevBg(sev: string): string {
-  if (sev === 'error') return '#fef2f2';
-  if (sev === 'warning') return '#fff7ed';
-  return '#eff6ff';
+  if (sev === 'error') return 'var(--red-soft)';
+  if (sev === 'warning') return 'var(--orange-soft)';
+  return 'var(--accent-soft)';
 }
 
 function worstSev(diags: Diagnostic[]): string {
@@ -89,7 +89,7 @@ function worstSev(diags: Diagnostic[]): string {
 
 function scoreColor(score: number): string {
   if (score >= 90) return 'var(--green)';
-  if (score >= 75) return '#2563eb';
+  if (score >= 75) return 'var(--accent)';
   if (score >= 60) return 'var(--amber)';
   if (score >= 40) return 'var(--orange)';
   return 'var(--red)';
@@ -134,7 +134,7 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
         {label}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ flex: 1, height: 6, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' }}>
+        <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${score}%`, background: scoreColor(score), borderRadius: 99, transition: 'width 0.4s ease, background 0.4s ease' }} />
         </div>
         <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor(score), minWidth: 32 }}>{score}</span>
@@ -175,7 +175,7 @@ function IssuesSidebar({ diagnostics, focusedKey, onSelect }: IssuesSidebarProps
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', background: '#f8fafc', flexShrink: 0 }}>
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', flexShrink: 0 }}>
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: 6 }}>
           Issues ({diagnostics.length})
         </div>
@@ -183,7 +183,7 @@ function IssuesSidebar({ diagnostics, focusedKey, onSelect }: IssuesSidebarProps
           <button style={pill(filter === 'all')} onClick={() => setFilter('all')}>ALL</button>
           <button style={{ ...pill(filter === 'error'), color: filter === 'error' ? '#fff' : 'var(--red)' }} onClick={() => setFilter('error')}>ERR {counts.error}</button>
           <button style={{ ...pill(filter === 'warning'), color: filter === 'warning' ? '#fff' : 'var(--orange)' }} onClick={() => setFilter('warning')}>WARN {counts.warning}</button>
-          <button style={{ ...pill(filter === 'info'), color: filter === 'info' ? '#fff' : '#2563eb' }} onClick={() => setFilter('info')}>INFO {counts.info}</button>
+          <button style={{ ...pill(filter === 'info'), color: filter === 'info' ? '#fff' : 'var(--accent)' }} onClick={() => setFilter('info')}>INFO {counts.info}</button>
         </div>
       </div>
       {/* List */}
@@ -214,7 +214,7 @@ function IssuesSidebar({ diagnostics, focusedKey, onSelect }: IssuesSidebarProps
                 padding: '8px 12px',
                 background: isFocused ? sevBg(d.severity) : 'transparent',
                 border: 'none',
-                borderBottom: '1px solid #f1f5f9',
+                borderBottom: '1px solid var(--surface-muted)',
                 borderLeft: `3px solid ${isFocused ? sevColor(d.severity) : 'transparent'}`,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -227,12 +227,12 @@ function IssuesSidebar({ diagnostics, focusedKey, onSelect }: IssuesSidebarProps
                 </span>
                 <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'ui-monospace, monospace' }}>{d.rule_id}</span>
                 {group && (
-                  <span style={{ fontSize: 9, color: 'var(--muted)', background: '#f1f5f9', padding: '1px 5px', borderRadius: 99, fontFamily: 'ui-monospace, monospace' }}>
+                  <span style={{ fontSize: 9, color: 'var(--muted)', background: 'var(--surface-muted)', padding: '1px 5px', borderRadius: 99, fontFamily: 'ui-monospace, monospace' }}>
                     {group}{rowIdx !== null ? ` ·${rowIdx}` : ''}
                   </span>
                 )}
                 {d.fix_id._tag === 'Some' && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--green)', background: '#f0fdf4', padding: '1px 5px', borderRadius: 99, border: '1px solid #bbf7d0' }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--green)', background: 'var(--green-soft)', padding: '1px 5px', borderRadius: 99, border: '1px solid var(--green-border)' }}>
                     ⚡ auto-fixable
                   </span>
                 )}
@@ -279,7 +279,7 @@ function EditHistoryPanel({ history, onUndo }: { history: EditEntry[]; onUndo: (
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>{open ? '▲' : '▼'}</span>
         <button
           onClick={(e) => { e.stopPropagation(); onUndo(); }}
-          style={{ padding: '3px 10px', fontSize: 11, background: '#fef2f2', color: 'var(--red)', border: '1px solid #fecaca', borderRadius: 4, fontWeight: 600 }}
+          style={{ padding: '3px 10px', fontSize: 11, background: 'var(--red-soft)', color: 'var(--red)', border: '1px solid var(--red-border)', borderRadius: 4, fontWeight: 600 }}
         >
           ↩ Undo
         </button>
@@ -288,7 +288,7 @@ function EditHistoryPanel({ history, onUndo }: { history: EditEntry[]; onUndo: (
         <div style={{ borderTop: '1px solid var(--border)', maxHeight: 200, overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'ui-monospace, monospace' }}>
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
+              <tr style={{ background: 'var(--surface-muted)' }}>
                 {['Time', 'Group', 'Heading', 'Row', 'Old', 'New'].map((h) => (
                   <th key={h} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
@@ -296,7 +296,7 @@ function EditHistoryPanel({ history, onUndo }: { history: EditEntry[]; onUndo: (
             </thead>
             <tbody>
               {[...history].reverse().map((e) => (
-                <tr key={e.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <tr key={e.id} style={{ borderBottom: '1px solid var(--surface-muted)' }}>
                   <td style={{ padding: '4px 10px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>{e.timestamp.slice(11, 19)}</td>
                   <td style={{ padding: '4px 10px' }}>{e.group}</td>
                   <td style={{ padding: '4px 10px', color: 'var(--blue)' }}>{e.heading}</td>
@@ -358,13 +358,13 @@ function EditableTable({
     <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 340px)', minHeight: 200 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}>
         <thead>
-          <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 }}>
+          <tr style={{ background: 'var(--surface-muted)', position: 'sticky', top: 0, zIndex: 2 }}>
             <th style={thStyle}>#</th>
             {group.headings.map((h) => (
               <th key={h.name} style={thStyle}>
                 <div style={{ color: 'var(--navy)' }}>{h.name}</div>
                 {h.unit && <div style={{ fontWeight: 400, fontSize: 9, color: 'var(--muted)', textTransform: 'none', letterSpacing: 0 }}>{h.unit}</div>}
-                <div style={{ fontWeight: 400, fontSize: 9, color: '#94a3b8', textTransform: 'none', letterSpacing: 0 }}>
+                <div style={{ fontWeight: 400, fontSize: 9, color: 'var(--muted)', textTransform: 'none', letterSpacing: 0 }}>
                   {AgsTypeFunctions.toString(h.data_type)}
                 </div>
               </th>
@@ -387,11 +387,11 @@ function EditableTable({
                 }}
                 style={{
                   borderLeft: worst ? `4px solid ${sevColor(worst)}` : '4px solid transparent',
-                  background: isFocused ? '#eff6ff' : rowIdx % 2 === 0 ? 'var(--card)' : '#fafafa',
+                  background: isFocused ? 'var(--accent-soft)' : rowIdx % 2 === 0 ? 'var(--card)' : 'var(--surface-muted)',
                   transition: 'background 0.25s',
                 }}
               >
-                <td style={{ padding: '5px 8px', color: '#94a3b8', borderBottom: '1px solid #f1f5f9', userSelect: 'none', fontSize: 10, textAlign: 'right' }}>{rowIdx}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--muted)', borderBottom: '1px solid var(--surface-muted)', userSelect: 'none', fontSize: 10, textAlign: 'right' }}>{rowIdx}</td>
                 {group.headings.map((h) => {
                   const cellVal: AgsValue = (row as Record<string, AgsValue>)[h.name] ?? null;
                   const isEditing =
@@ -414,11 +414,11 @@ function EditableTable({
                       title={cellWorst ? `${cellDiags.map((d) => d.message).join(' | ')}` : undefined}
                       style={{
                         padding: '5px 8px',
-                        borderBottom: '1px solid #f1f5f9',
+                        borderBottom: '1px solid var(--surface-muted)',
                         cursor: 'text',
                         maxWidth: 220,
-                        background: isFocusedCell ? '#dbeafe' : cellWorst ? sevBg(cellWorst) : undefined,
-                        outline: isFocusedCell ? '2px solid #2563eb' : cellWorst ? `1px solid ${sevColor(cellWorst)}55` : undefined,
+                        background: isFocusedCell ? 'var(--accent-soft)' : cellWorst ? sevBg(cellWorst) : undefined,
+                        outline: isFocusedCell ? '2px solid var(--accent)' : cellWorst ? `1px solid ${sevColor(cellWorst)}55` : undefined,
                         outlineOffset: isFocusedCell ? -2 : -1,
                         boxShadow: isFocusedCell ? '0 0 0 3px rgba(37,99,235,0.2)' : undefined,
                         position: 'relative',
@@ -442,7 +442,7 @@ function EditableTable({
                             padding: '2px 5px',
                             fontFamily: 'inherit',
                             fontSize: 12,
-                            background: '#eff6ff',
+                            background: 'var(--accent-soft)',
                             outline: '2px solid rgba(26,64,128,0.25)',
                           }}
                         />
@@ -452,7 +452,7 @@ function EditableTable({
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
-                          color: cellVal === null ? '#cbd5e1' : 'var(--text)',
+                          color: cellVal === null ? 'var(--border-strong)' : 'var(--text)',
                           fontStyle: cellVal === null ? 'italic' : undefined,
                         }}>
                           {cellVal === null ? '—' : displayVal(cellVal)}
@@ -798,7 +798,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
         {/* Score */}
         <ScoreBar score={currentScore} label="Quality Score" />
         {initialMetrics && initialMetrics.score !== currentScore && (
-          <div style={{ fontSize: 12, color: 'var(--green)', background: '#f0fdf4', padding: '4px 10px', borderRadius: 99, fontWeight: 600, border: '1px solid #bbf7d0' }}>
+          <div style={{ fontSize: 12, color: 'var(--green)', background: 'var(--green-soft)', padding: '4px 10px', borderRadius: 99, fontWeight: 600, border: '1px solid var(--green-border)' }}>
             ↑ {initialMetrics.score} → {currentScore}
           </div>
         )}
@@ -834,7 +834,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
 
         {/* Auto-save status */}
         {autoSaveStatus !== 'idle' && (
-          <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, border: '1px solid', ...(autoSaveStatus === 'saved' ? { color: 'var(--green)', background: '#f0fdf4', borderColor: '#bbf7d0' } : { color: 'var(--muted)', background: '#f8fafc', borderColor: 'var(--border)' }) }}>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, border: '1px solid', ...(autoSaveStatus === 'saved' ? { color: 'var(--green)', background: 'var(--green-soft)', borderColor: 'var(--green-border)' } : { color: 'var(--muted)', background: 'var(--surface-muted)', borderColor: 'var(--border)' }) }}>
             {autoSaveStatus === 'pending' ? '● Unsaved edits…' : '✓ Auto-committed'}
           </span>
         )}
@@ -843,7 +843,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Fix notice toast */}
           {fixNotice && (
-            <span style={{ fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 6, border: '1px solid', ...(fixNotice.applied.length === 0 ? { color: 'var(--green)', background: '#f0fdf4', borderColor: '#bbf7d0' } : { color: '#1e40af', background: '#eff6ff', borderColor: '#bfdbfe' }) }}>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 6, border: '1px solid', ...(fixNotice.applied.length === 0 ? { color: 'var(--green)', background: 'var(--green-soft)', borderColor: 'var(--green-border)' } : { color: 'var(--accent)', background: 'var(--accent-soft)', borderColor: 'var(--accent-border)' }) }}>
               {fixNotice.applied.length === 0
                 ? '✓ Nothing to auto-fix'
                 : `⚡ ${fixNotice.editCount} cell${fixNotice.editCount !== 1 ? 's' : ''} fixed (${fixNotice.applied.join(', ')})`}
@@ -852,7 +852,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
           <button
             onClick={applyAutoFixes}
             title="Apply all standard auto-fixes: whitespace, units, Y/N values, date formats, numeric coercion…"
-            style={{ background: '#f0fdf4', color: 'var(--green)', border: '1px solid #bbf7d0', fontSize: 12, padding: '8px 14px', fontWeight: 700 }}
+            style={{ background: 'var(--green-soft)', color: 'var(--green)', border: '1px solid var(--green-border)', fontSize: 12, padding: '8px 14px', fontWeight: 700 }}
           >
             ⚡ Auto-Fix All
           </button>
@@ -863,7 +863,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
           <button
             onClick={downloadSummary}
             disabled={editHistory.length === 0}
-            style={{ background: editHistory.length > 0 ? 'var(--blue)' : '#e2e8f0', color: editHistory.length > 0 ? '#fff' : 'var(--muted)', fontSize: 12, padding: '8px 14px' }}
+            style={{ background: editHistory.length > 0 ? 'var(--blue)' : 'var(--border)', color: editHistory.length > 0 ? '#fff' : 'var(--muted)', fontSize: 12, padding: '8px 14px' }}
           >
             ↓ Edit Summary JSON
           </button>
@@ -893,7 +893,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
                     <span style={{ fontSize: 11, color: 'var(--text)' }}>{dim.name}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: scoreColor(dim.score) }}>{dim.score}</span>
                   </div>
-                  <div style={{ height: 4, background: '#e2e8f0', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ height: 4, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${dim.score}%`, background: scoreColor(dim.score), borderRadius: 99, transition: 'width 0.4s' }} />
                   </div>
                 </div>
@@ -905,7 +905,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
         {/* Table editor */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
           {/* Group tabs */}
-          <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid var(--border)', background: '#f8fafc', padding: '8px 12px 0', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', padding: '8px 12px 0', gap: 4, flexWrap: 'wrap' }}>
             {groups.map((g) => {
               const count = groupIssueCounts.get(g) ?? 0;
               const isActive = activeGroup === g;
@@ -930,7 +930,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
                 >
                   {g}
                   {count > 0 && (
-                    <span style={{ marginLeft: 5, fontSize: 9, background: count > 0 ? (isActive ? 'var(--navy)' : 'var(--orange)') : '#e2e8f0', color: '#fff', borderRadius: 99, padding: '1px 5px', fontWeight: 800 }}>
+                    <span style={{ marginLeft: 5, fontSize: 9, background: count > 0 ? (isActive ? 'var(--navy)' : 'var(--orange)') : 'var(--border)', color: '#fff', borderRadius: 99, padding: '1px 5px', fontWeight: 800 }}>
                       {count}
                     </span>
                   )}
@@ -940,12 +940,12 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
           </div>
 
           {/* Hint bar */}
-          <div style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', display: 'flex', gap: 12 }}>
+          <div style={{ padding: '6px 12px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', display: 'flex', gap: 12 }}>
             <span>Click a cell to edit</span>
             <span>·</span>
-            <span><kbd style={{ background: '#e2e8f0', padding: '1px 4px', borderRadius: 3, fontFamily: 'ui-monospace, monospace', fontSize: 10 }}>Enter</kbd> confirm</span>
+            <span><kbd style={{ background: 'var(--border)', padding: '1px 4px', borderRadius: 3, fontFamily: 'ui-monospace, monospace', fontSize: 10 }}>Enter</kbd> confirm</span>
             <span>·</span>
-            <span><kbd style={{ background: '#e2e8f0', padding: '1px 4px', borderRadius: 3, fontFamily: 'ui-monospace, monospace', fontSize: 10 }}>Esc</kbd> cancel</span>
+            <span><kbd style={{ background: 'var(--border)', padding: '1px 4px', borderRadius: 3, fontFamily: 'ui-monospace, monospace', fontSize: 10 }}>Esc</kbd> cancel</span>
             <span style={{ marginLeft: 'auto' }}>
               Highlighted cells have quality issues — hover for details
             </span>

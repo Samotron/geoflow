@@ -95,13 +95,13 @@ export function DiffTab() {
       </div>
 
       {error && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)', marginBottom: 16 }}>
+        <div style={{ background: 'var(--red-soft)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)', marginBottom: 16 }}>
           {error}
         </div>
       )}
 
       {diffResult !== null && identical && (
-        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius)', padding: '20px 24px', textAlign: 'center', color: 'var(--green)', fontWeight: 600 }}>
+        <div style={{ background: 'var(--green-soft)', border: '1px solid var(--green-border)', borderRadius: 'var(--radius)', padding: '20px 24px', textAlign: 'center', color: 'var(--green)', fontWeight: 600 }}>
           ✓ Files are identical
         </div>
       )}
@@ -111,7 +111,7 @@ export function DiffTab() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {(summary.only_in_a.length > 0 || summary.only_in_b.length > 0) && (
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-              <div style={{ padding: '10px 16px', background: '#f8fafc', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>
+              <div style={{ padding: '10px 16px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>
                 Groups only in one file
               </div>
               <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -167,20 +167,20 @@ export function DiffTab() {
             styles={{
               variables: {
                 light: {
-                  addedBackground: '#f0fdf4',
-                  addedColor: '#166534',
-                  removedBackground: '#fef2f2',
-                  removedColor: '#991b1b',
-                  wordAddedBackground: '#bbf7d0',
-                  wordRemovedBackground: '#fecaca',
-                  addedGutterBackground: '#dcfce7',
-                  removedGutterBackground: '#fee2e2',
-                  gutterBackground: '#f8fafc',
-                  gutterBackgroundDark: '#f1f5f9',
-                  highlightBackground: '#fffbeb',
-                  highlightGutterBackground: '#fef9c3',
-                  codeFoldGutterBackground: '#e2e8f0',
-                  codeFoldBackground: '#f1f5f9',
+                  addedBackground: 'var(--green-soft)',
+                  addedColor: 'var(--green)',
+                  removedBackground: 'var(--red-soft)',
+                  removedColor: 'var(--red)',
+                  wordAddedBackground: 'var(--green-border)',
+                  wordRemovedBackground: 'var(--red-border)',
+                  addedGutterBackground: 'var(--green-soft)',
+                  removedGutterBackground: 'var(--red-soft)',
+                  gutterBackground: 'var(--surface-muted)',
+                  gutterBackgroundDark: 'var(--surface-muted)',
+                  highlightBackground: 'var(--amber-soft)',
+                  highlightGutterBackground: 'var(--amber-soft)',
+                  codeFoldGutterBackground: 'var(--border)',
+                  codeFoldBackground: 'var(--surface-muted)',
                 },
               },
             }}
@@ -217,7 +217,7 @@ function GroupDiffCard({ group, added, removed, modified, unchanged, groupDetail
   const pillStyle = (active: boolean): React.CSSProperties => ({
     padding: '2px 8px', fontSize: 10, fontWeight: 600, borderRadius: 4,
     border: '1px solid var(--border)',
-    background: active ? 'var(--navy)' : '#f1f5f9',
+    background: active ? 'var(--navy)' : 'var(--surface-muted)',
     color: active ? '#fff' : 'var(--muted)',
     cursor: 'pointer',
   });
@@ -226,7 +226,7 @@ function GroupDiffCard({ group, added, removed, modified, unchanged, groupDetail
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
       <div
         onClick={() => setExpanded((e) => !e)}
-        style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', background: '#f8fafc', borderBottom: expanded ? '1px solid var(--border)' : undefined }}
+        style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', background: 'var(--surface-muted)', borderBottom: expanded ? '1px solid var(--border)' : undefined }}
       >
         <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{group}</span>
         <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
@@ -253,20 +253,20 @@ function GroupDiffCard({ group, added, removed, modified, unchanged, groupDetail
       {expanded && groupDetail && groupView === 'list' && (
         <div style={{ fontSize: 12, fontFamily: 'monospace' }}>
           {groupDetail.rows_added.map((row, i) => (
-            <div key={`add-${i}`} style={{ padding: '6px 16px', background: '#f0fdf4', borderBottom: '1px solid #dcfce7', color: 'var(--green)' }}>
+            <div key={`add-${i}`} style={{ padding: '6px 16px', background: 'var(--green-soft)', borderBottom: '1px solid var(--green-soft)', color: 'var(--green)' }}>
               <span style={{ fontWeight: 700, marginRight: 8 }}>+</span>
               {Object.entries(row).slice(0, 4).map(([k, v]) => `${k}=${String(v ?? '')}`).join('  ')}
             </div>
           ))}
           {groupDetail.rows_removed.map((row, i) => (
-            <div key={`rem-${i}`} style={{ padding: '6px 16px', background: '#fef2f2', borderBottom: '1px solid #fecaca', color: 'var(--red)' }}>
+            <div key={`rem-${i}`} style={{ padding: '6px 16px', background: 'var(--red-soft)', borderBottom: '1px solid var(--red-border)', color: 'var(--red)' }}>
               <span style={{ fontWeight: 700, marginRight: 8 }}>−</span>
               {Object.entries(row).slice(0, 4).map(([k, v]) => `${k}=${String(v ?? '')}`).join('  ')}
             </div>
           ))}
           {groupDetail.rows_changed.map((change, i) => (
-            <div key={`chg-${i}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
-              <div style={{ padding: '6px 16px', background: '#fffbeb', color: 'var(--amber)', fontWeight: 600 }}>
+            <div key={`chg-${i}`} style={{ borderBottom: '1px solid var(--surface-muted)' }}>
+              <div style={{ padding: '6px 16px', background: 'var(--amber-soft)', color: 'var(--amber)', fontWeight: 600 }}>
                 ~ {change.key}
               </div>
               {change.changes.map((fc, j) => (
@@ -289,23 +289,23 @@ function GroupDiffCard({ group, added, removed, modified, unchanged, groupDetail
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {groupDetail.rows_changed.map((change, i) => (
             <div key={`tbl-chg-${i}`} style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ padding: '5px 12px', background: '#fffbeb', fontSize: 11, fontWeight: 700, color: 'var(--amber)', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ padding: '5px 12px', background: 'var(--amber-soft)', fontSize: 11, fontWeight: 700, color: 'var(--amber)', borderBottom: '1px solid var(--border)' }}>
                 ~ {change.key}
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace' }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: '5px 12px', textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600 }}>Field</th>
-                    <th style={{ padding: '5px 12px', textAlign: 'left', background: '#fef2f2', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600, color: 'var(--red)' }}>File A</th>
-                    <th style={{ padding: '5px 12px', textAlign: 'left', background: '#f0fdf4', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600, color: 'var(--green)' }}>File B</th>
+                    <th style={{ padding: '5px 12px', textAlign: 'left', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600 }}>Field</th>
+                    <th style={{ padding: '5px 12px', textAlign: 'left', background: 'var(--red-soft)', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600, color: 'var(--red)' }}>File A</th>
+                    <th style={{ padding: '5px 12px', textAlign: 'left', background: 'var(--green-soft)', borderBottom: '1px solid var(--border)', width: '33%', fontWeight: 600, color: 'var(--green)' }}>File B</th>
                   </tr>
                 </thead>
                 <tbody>
                   {change.changes.map((fc, j) => (
                     <tr key={j}>
-                      <td style={{ padding: '4px 12px', borderBottom: '1px solid #f1f5f9', color: 'var(--muted)' }}>{fc.heading}</td>
-                      <td style={{ padding: '4px 12px', borderBottom: '1px solid #f1f5f9', background: '#fef9f9', color: 'var(--red)' }}>{fc.before}</td>
-                      <td style={{ padding: '4px 12px', borderBottom: '1px solid #f1f5f9', background: '#f7fef9', color: 'var(--green)' }}>{fc.after}</td>
+                      <td style={{ padding: '4px 12px', borderBottom: '1px solid var(--surface-muted)', color: 'var(--muted)' }}>{fc.heading}</td>
+                      <td style={{ padding: '4px 12px', borderBottom: '1px solid var(--surface-muted)', background: 'var(--red-soft)', color: 'var(--red)' }}>{fc.before}</td>
+                      <td style={{ padding: '4px 12px', borderBottom: '1px solid var(--surface-muted)', background: 'var(--green-soft)', color: 'var(--green)' }}>{fc.after}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -313,40 +313,40 @@ function GroupDiffCard({ group, added, removed, modified, unchanged, groupDetail
             </div>
           ))}
           {groupDetail.rows_added.map((row, i) => (
-            <div key={`tbl-add-${i}`} style={{ border: '1px solid #bbf7d0', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ padding: '5px 12px', background: '#f0fdf4', fontSize: 11, fontWeight: 700, color: 'var(--green)', borderBottom: '1px solid #bbf7d0' }}>
+            <div key={`tbl-add-${i}`} style={{ border: '1px solid var(--green-border)', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ padding: '5px 12px', background: 'var(--green-soft)', fontSize: 11, fontWeight: 700, color: 'var(--green)', borderBottom: '1px solid var(--green-border)' }}>
                 + Added row
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace' }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: '4px 12px', textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #dcfce7', width: '40%' }}>Field</th>
-                    <th style={{ padding: '4px 12px', textAlign: 'left', background: '#f0fdf4', borderBottom: '1px solid #dcfce7', color: 'var(--green)' }}>Value</th>
+                    <th style={{ padding: '4px 12px', textAlign: 'left', background: 'var(--surface-muted)', borderBottom: '1px solid var(--green-soft)', width: '40%' }}>Field</th>
+                    <th style={{ padding: '4px 12px', textAlign: 'left', background: 'var(--green-soft)', borderBottom: '1px solid var(--green-soft)', color: 'var(--green)' }}>Value</th>
                   </tr>
                 </thead>
                 <tbody>
                   {Object.entries(row).map(([k, v], j) => (
-                    <tr key={j}><td style={{ padding: '3px 12px', borderBottom: '1px solid #f0fdf4', color: 'var(--muted)' }}>{k}</td><td style={{ padding: '3px 12px', borderBottom: '1px solid #f0fdf4', color: 'var(--green)' }}>{String(v ?? '')}</td></tr>
+                    <tr key={j}><td style={{ padding: '3px 12px', borderBottom: '1px solid var(--green-soft)', color: 'var(--muted)' }}>{k}</td><td style={{ padding: '3px 12px', borderBottom: '1px solid var(--green-soft)', color: 'var(--green)' }}>{String(v ?? '')}</td></tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ))}
           {groupDetail.rows_removed.map((row, i) => (
-            <div key={`tbl-rem-${i}`} style={{ border: '1px solid #fecaca', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ padding: '5px 12px', background: '#fef2f2', fontSize: 11, fontWeight: 700, color: 'var(--red)', borderBottom: '1px solid #fecaca' }}>
+            <div key={`tbl-rem-${i}`} style={{ border: '1px solid var(--red-border)', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ padding: '5px 12px', background: 'var(--red-soft)', fontSize: 11, fontWeight: 700, color: 'var(--red)', borderBottom: '1px solid var(--red-border)' }}>
                 − Removed row
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace' }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: '4px 12px', textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #fecaca', width: '40%' }}>Field</th>
-                    <th style={{ padding: '4px 12px', textAlign: 'left', background: '#fef2f2', borderBottom: '1px solid #fecaca', color: 'var(--red)' }}>Value</th>
+                    <th style={{ padding: '4px 12px', textAlign: 'left', background: 'var(--surface-muted)', borderBottom: '1px solid var(--red-border)', width: '40%' }}>Field</th>
+                    <th style={{ padding: '4px 12px', textAlign: 'left', background: 'var(--red-soft)', borderBottom: '1px solid var(--red-border)', color: 'var(--red)' }}>Value</th>
                   </tr>
                 </thead>
                 <tbody>
                   {Object.entries(row).map(([k, v], j) => (
-                    <tr key={j}><td style={{ padding: '3px 12px', borderBottom: '1px solid #fef2f2', color: 'var(--muted)' }}>{k}</td><td style={{ padding: '3px 12px', borderBottom: '1px solid #fef2f2', color: 'var(--red)' }}>{String(v ?? '')}</td></tr>
+                    <tr key={j}><td style={{ padding: '3px 12px', borderBottom: '1px solid var(--red-soft)', color: 'var(--muted)' }}>{k}</td><td style={{ padding: '3px 12px', borderBottom: '1px solid var(--red-soft)', color: 'var(--red)' }}>{String(v ?? '')}</td></tr>
                   ))}
                 </tbody>
               </table>

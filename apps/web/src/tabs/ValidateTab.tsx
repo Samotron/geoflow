@@ -83,7 +83,7 @@ export function ValidateTab({ fileBytes, fileName }: Props) {
       )}
 
       {output !== null && exitCode === 0 && (
-        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius)', padding: '16px 20px', color: 'var(--green)', fontWeight: 600, marginBottom: 16 }}>
+        <div style={{ background: 'var(--green-soft)', border: '1px solid var(--green-border)', borderRadius: 'var(--radius)', padding: '16px 20px', color: 'var(--green)', fontWeight: 600, marginBottom: 16 }}>
           ✓ No issues found
         </div>
       )}
@@ -92,17 +92,17 @@ export function ValidateTab({ fileBytes, fileName }: Props) {
         <>
           <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
             {counts.error > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: '#fef2f2', color: 'var(--red)', border: '1px solid #fecaca' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: 'var(--red-soft)', color: 'var(--red)', border: '1px solid var(--red-border)' }}>
                 {counts.error} error{counts.error !== 1 ? 's' : ''}
               </span>
             )}
             {counts.warning > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: '#fff7ed', color: 'var(--orange)', border: '1px solid #fed7aa' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: 'var(--orange-soft)', color: 'var(--orange)', border: '1px solid var(--orange-border)' }}>
                 {counts.warning} warning{counts.warning !== 1 ? 's' : ''}
               </span>
             )}
             {counts.info > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 13, fontWeight: 600, background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--accent-border)' }}>
                 {counts.info} info
               </span>
             )}
@@ -116,7 +116,7 @@ export function ValidateTab({ fileBytes, fileName }: Props) {
 
           <details style={{ marginTop: 16 }}>
             <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)', userSelect: 'none', marginBottom: 8 }}>Raw output</summary>
-            <pre style={{ background: '#0f172a', color: '#e2e8f0', padding: 16, borderRadius: 'var(--radius)', fontSize: 12, lineHeight: 1.5, overflowX: 'auto', marginTop: 8 }}>{output}</pre>
+            <pre style={{ background: 'var(--text)', color: 'var(--border)', padding: 16, borderRadius: 'var(--radius)', fontSize: 12, lineHeight: 1.5, overflowX: 'auto', marginTop: 8 }}>{output}</pre>
           </details>
         </>
       )}

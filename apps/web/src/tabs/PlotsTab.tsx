@@ -110,7 +110,7 @@ export function PlotsTab({ fileBytes }: Props) {
     <div style={{ display: 'flex', gap: 0, minHeight: '70vh' }}>
 
       {/* ── Sidebar ── */}
-      <aside style={{ width: 230, flexShrink: 0, borderRight: '1px solid var(--border)', padding: '16px 14px', overflowY: 'auto', background: '#fafbfc', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <aside style={{ width: 230, flexShrink: 0, borderRight: '1px solid var(--border)', padding: '16px 14px', overflowY: 'auto', background: 'var(--surface-muted)', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         <div>
           <span style={LABEL_STYLE}>Colour by</span>
@@ -131,7 +131,7 @@ export function PlotsTab({ fileBytes }: Props) {
             <span style={LABEL_STYLE}>Filter boreholes</span>
             <button
               onClick={() => setBoreholeFilter(new Set())}
-              style={{ width: '100%', marginBottom: 6, padding: '5px 8px', background: '#e2e8f0', color: 'var(--text)', fontSize: 11, borderRadius: 5, cursor: 'pointer', border: 'none' }}
+              style={{ width: '100%', marginBottom: 6, padding: '5px 8px', background: 'var(--border)', color: 'var(--text)', fontSize: 11, borderRadius: 5, cursor: 'pointer', border: 'none' }}
             >
               Show all ({allLocas.length})
             </button>

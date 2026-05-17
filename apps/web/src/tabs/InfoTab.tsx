@@ -36,7 +36,7 @@ export function InfoTab({ fileBytes, fileName }: Props) {
 
   if (error) {
     return (
-      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)' }}>
+      <div style={{ background: 'var(--red-soft)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)' }}>
         {error}
       </div>
     );
@@ -44,7 +44,7 @@ export function InfoTab({ fileBytes, fileName }: Props) {
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: '#f8fafc', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>
         File Info
       </div>
       <pre style={{ padding: 16, fontSize: 13, lineHeight: 1.7, fontFamily: 'monospace', background: 'var(--card)', color: 'var(--text)' }}>

@@ -149,7 +149,7 @@ export function RulesTab({ fileBytes }: Props) {
           onClick={() => setBuilderOpen(o => !o)}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-            padding: '9px 14px', background: '#f8fafc', border: 'none', cursor: 'pointer',
+            padding: '9px 14px', background: 'var(--surface-muted)', border: 'none', cursor: 'pointer',
             fontSize: 12, fontWeight: 700, color: 'var(--text)', textAlign: 'left',
           }}
         >
@@ -242,7 +242,7 @@ export function RulesTab({ fileBytes }: Props) {
               </button>
               <button
                 onClick={() => setForm(BLANK_FORM)}
-                style={{ background: '#f1f5f9', color: 'var(--text)', fontSize: 12, padding: '6px 14px', border: '1px solid var(--border)' }}
+                style={{ background: 'var(--surface-muted)', color: 'var(--text)', fontSize: 12, padding: '6px 14px', border: '1px solid var(--border)' }}
               >
                 Reset
               </button>
@@ -264,8 +264,8 @@ export function RulesTab({ fileBytes }: Props) {
           padding: 12,
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
-          background: '#0f172a',
-          color: '#e2e8f0',
+          background: 'var(--text)',
+          color: 'var(--border)',
           resize: 'vertical',
           outline: 'none',
           marginBottom: 12,
@@ -289,13 +289,13 @@ export function RulesTab({ fileBytes }: Props) {
       )}
 
       {status.kind === 'unavailable' && (
-        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--orange)', fontSize: 13 }}>
+        <div style={{ background: 'var(--orange-soft)', border: '1px solid var(--orange-border)', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--orange)', fontSize: 13 }}>
           Rules engine not available — <code>@geoflow/rules-engine</code> is not yet implemented (Milestone 3).
         </div>
       )}
 
       {status.kind === 'error' && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)', fontSize: 13, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+        <div style={{ background: 'var(--red-soft)', border: '1px solid var(--red-border)', borderRadius: 'var(--radius)', padding: '12px 16px', color: 'var(--red)', fontSize: 13, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
           {status.message}
         </div>
       )}
