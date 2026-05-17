@@ -467,6 +467,71 @@ describe("@geoflow/cli", () => {
     });
   });
 
+  // ── enhance command ─────────────────────────────────────────────────────────
+
+  describe("enhance command", () => {
+    const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+
+    it("succeeds with exit code 0 on a file", () => {
+      const result = runCli(["enhance", fixture]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+    });
+
+    it("includes GEOL row content in text output", () => {
+      const result = runCli(["enhance", fixture]);
+      expect(result.stdout).toContain("BH01");
+      expect(result.stdout).toContain("CLAY");
+    });
+
+    it("parses --text inline description", () => {
+      const result = runCli([
+        "enhance",
+        "--text",
+        "Soft brown sandy CLAY with trace of gravel",
+      ]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("primary soil: clay");
+      expect(result.stdout).toContain("consistency:  soft");
+    });
+
+    it("produces valid JSON with --format json on --text input", () => {
+      const result = runCli([
+        "enhance",
+        "--text",
+        "Stiff grey CLAY",
+        "--format",
+        "json",
+      ]);
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      expect(parsed.primary_soil_type).toBe("clay");
+      expect(parsed.consistency).toBe("stiff");
+      expect(parsed.uscs).toBe("CL");
+    });
+
+    it("produces valid JSON array with --format json on a file", () => {
+      const result = runCli(["enhance", fixture, "--format", "json"]);
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed.length).toBeGreaterThan(0);
+      expect(parsed[0]).toHaveProperty("parsed");
+      expect(parsed[0]).toHaveProperty("loca_id");
+    });
+
+    it("returns exit code 2 with usage on missing argument", () => {
+      const result = runCli(["enhance"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("enhance requires");
+    });
+
+    it("returns exit code 2 for unknown flag", () => {
+      const result = runCli(["enhance", fixture, "--unknown"]);
+      expect(result.exitCode).toBe(2);
+    });
+  });
+
   // ── export command ──────────────────────────────────────────────────────────
 
   describe("export command", () => {

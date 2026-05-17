@@ -10,8 +10,10 @@ import {
   decodeBytes,
   diffFiles,
   diffToSummary,
+  enhanceGeol,
   fixBytes,
   isIdentical,
+  parseDescription,
   parseStr,
   readDiggs,
   renderDiffText,
@@ -78,6 +80,8 @@ export function runCli(argv: readonly string[]): RunResult {
       return runReport(argv.slice(1));
     case "export":
       return runExport(argv.slice(1));
+    case "enhance":
+      return runEnhance(argv.slice(1));
     case "db":
       return runDb(argv.slice(1));
     case "--help":
@@ -665,6 +669,155 @@ function runExport(argv: readonly string[]): RunResult {
   }
 }
 
+function runEnhance(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("enhance requires a file path or --text \"<description>\"");
+  }
+
+  let format: "text" | "json" = "text";
+  let outPath: string | null = null;
+  let inlineText: string | null = null;
+  let filePath: string | null = null;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--format") {
+      const value = argv[++i];
+      if (!value) return usageError("--format requires a value");
+      if (value !== "text" && value !== "json") return usageError(`unsupported format: ${value}`);
+      format = value;
+      continue;
+    }
+    if (arg === "--out") {
+      const value = argv[++i];
+      if (!value) return usageError("--out requires a path");
+      outPath = value;
+      continue;
+    }
+    if (arg === "--text") {
+      const value = argv[++i];
+      if (value === undefined) return usageError("--text requires a description string");
+      inlineText = value;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      return usageError(`unknown enhance option: ${arg}`);
+    }
+    filePath = arg;
+  }
+
+  try {
+    if (inlineText !== null) {
+      const parsed = parseDescription(inlineText);
+      const output = format === "json"
+        ? JSON.stringify(parsed, null, 2) + "\n"
+        : renderDescriptionText(parsed);
+      if (outPath !== null) {
+        writeFileSync(resolve(outPath), output);
+        return { exitCode: 0, stdout: `enhance result written to ${resolve(outPath)}\n`, stderr: "" };
+      }
+      return { exitCode: 0, stdout: output, stderr: "" };
+    }
+
+    if (filePath === null) {
+      return usageError("enhance requires a file path or --text \"<description>\"");
+    }
+
+    const resolved = resolve(filePath);
+    const bytes = readFileSync(resolved);
+    const text = decodeBytes(bytes);
+    const { file: agsFile } = parseStr(text);
+    const rows = enhanceGeol(agsFile);
+
+    const output = format === "json"
+      ? JSON.stringify(rows, null, 2) + "\n"
+      : renderEnhanceText(rows, resolved);
+
+    if (outPath !== null) {
+      writeFileSync(resolve(outPath), output);
+      return { exitCode: 0, stdout: `enhance results written to ${resolve(outPath)}\n`, stderr: "" };
+    }
+    return { exitCode: 0, stdout: output, stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function renderDescriptionText(desc: ReturnType<typeof parseDescription>): string {
+  const lines: string[] = [];
+  lines.push(`raw:          ${desc.raw}`);
+  lines.push(`material:     ${desc.material_type}`);
+  if (desc.primary_soil_type) lines.push(`primary soil: ${desc.primary_soil_type}`);
+  if (desc.secondary_soil_type) lines.push(`secondary:    ${desc.secondary_soil_type}`);
+  if (desc.rock_type) lines.push(`rock type:    ${desc.rock_type}`);
+  if (desc.consistency) lines.push(`consistency:  ${desc.consistency}`);
+  if (desc.density) lines.push(`density:      ${desc.density}`);
+  if (desc.moisture) lines.push(`moisture:     ${desc.moisture}`);
+  if (desc.particle_size) lines.push(`particle:     ${desc.particle_size}`);
+  if (desc.plasticity) lines.push(`plasticity:   ${desc.plasticity}`);
+  if (desc.weathering) lines.push(`weathering:   ${desc.weathering}`);
+  if (desc.rock_strength) lines.push(`rock strength:${desc.rock_strength}`);
+  if (desc.bedding_spacing) lines.push(`bedding:      ${desc.bedding_spacing}`);
+  if (desc.colours.length > 0) lines.push(`colours:      ${desc.colours.join(", ")}`);
+  if (desc.structures.length > 0) lines.push(`structure:    ${desc.structures.join(", ")}`);
+  if (desc.inclusions.length > 0) lines.push(`inclusions:   ${desc.inclusions.join(", ")}`);
+  if (desc.secondary_constituents.length > 0) {
+    const parts = desc.secondary_constituents.map((c) => `${c.proportion} ${c.soil_type}`);
+    lines.push(`constituents: ${parts.join(", ")}`);
+  }
+  if (desc.uscs) lines.push(`USCS:         ${desc.uscs}`);
+  if (desc.strength_params) {
+    const sp = desc.strength_params;
+    const params: string[] = [];
+    if (sp.cu_min_kpa !== undefined) params.push(`cu=${sp.cu_min_kpa}–${sp.cu_max_kpa ?? "∞"} kPa`);
+    if (sp.spt_n_min !== undefined) params.push(`N=${sp.spt_n_min}–${sp.spt_n_max} blows/300mm`);
+    if (sp.phi_min_deg !== undefined) params.push(`ϕ'=${sp.phi_min_deg}–${sp.phi_max_deg}°`);
+    if (sp.ucs_min_mpa !== undefined) params.push(`UCS=${sp.ucs_min_mpa}–${sp.ucs_max_mpa ?? "∞"} MPa`);
+    if (sp.unit_weight_min !== undefined) params.push(`γ=${sp.unit_weight_min}–${sp.unit_weight_max} kN/m³`);
+    if (params.length > 0) lines.push(`derived:      ${params.join(", ")}`);
+  }
+  lines.push(`confidence:   ${desc.confidence.toFixed(2)}`);
+  if (desc.warnings.length > 0) {
+    lines.push(`warnings:     ${desc.warnings.join(", ")}`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+function renderEnhanceText(
+  rows: ReturnType<typeof enhanceGeol>,
+  resolved: string
+): string {
+  if (rows.length === 0) {
+    return `no GEOL_DESC rows in ${resolved}\n`;
+  }
+  const out: string[] = [];
+  out.push(`enhanced ${rows.length} GEOL row(s) from ${resolved}`);
+  out.push("");
+  for (const row of rows) {
+    const top = row.geol_top !== undefined ? row.geol_top.toFixed(2) : "?";
+    const base = row.geol_base !== undefined ? row.geol_base.toFixed(2) : "?";
+    out.push(`${row.loca_id} ${top}–${base} m`);
+    out.push(`  ${row.geol_desc}`);
+    const d = row.parsed;
+    const summary: string[] = [];
+    if (d.is_made_ground) summary.push("MADE GROUND");
+    if (d.consistency) summary.push(d.consistency);
+    if (d.density) summary.push(d.density);
+    if (d.rock_strength) summary.push(d.rock_strength);
+    if (d.weathering) summary.push(d.weathering);
+    if (d.colours.length > 0) summary.push(d.colours.join("/"));
+    if (d.primary_soil_type) summary.push(d.primary_soil_type.toUpperCase());
+    if (d.rock_type) summary.push(d.rock_type.toUpperCase());
+    if (d.inclusions.length > 0) summary.push(`+ ${d.inclusions.join(", ")}`);
+    if (d.uscs) summary.push(`[${d.uscs}]`);
+    out.push(`  → ${summary.join(" · ")}  (conf=${d.confidence.toFixed(2)})`);
+    out.push("");
+  }
+  return out.join("\n");
+}
+
 function runDb(argv: readonly string[]): RunResult {
   const subcommand = argv[0];
   if (!subcommand || subcommand === "help") {
@@ -812,6 +965,8 @@ function usageText(): string {
     "  geoflow report <file> [--format text|json] [--out <path>]",
     "  geoflow export <file> --group <name> [--format csv|tsv] [--out <path>]",
     "  geoflow explore <file> [--out <path>]",
+    "  geoflow enhance <file> [--format text|json] [--out <path>]",
+    "  geoflow enhance --text \"<description>\" [--format text|json]",
     "  geoflow rules list",
     "  geoflow rules show <id>",
     "  geoflow db ingest <ags-file> <db-file>",
