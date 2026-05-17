@@ -330,4 +330,40 @@ describe("validate exit codes reflect actual error presence", () => {
     ]);
     expect(result.exitCode).toBe(1);
   });
+
+  it("validate accepts multiple --rules packs and merges their diagnostics", () => {
+    const localTmp = mkdtempSync(join(tmpdir(), "geoflow-rules-"));
+    const customPack = join(localTmp, "custom.yml");
+    writeFileSync(
+      customPack,
+      [
+        "version: 1",
+        "name: custom-multi-test",
+        "rules:",
+        "  - id: CUSTOM-LOCA-REQUIRED",
+        "    severity: error",
+        "    in: LOCA",
+        "    check: { required: [LOCA_NATE] }",
+        "    message: \"custom: LOCA missing LOCA_NATE\"",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runCli([
+      "validate", F("abbr_codelist_invalid.ags"),
+      "--format", "json",
+      "--rules", "rules/specs/ags/standard/4.x/pack.yml",
+      "--rules", customPack,
+    ]);
+
+    expect(result.exitCode).toBe(1);
+    const parsed = JSON.parse(result.stdout) as Array<{ rule_id: string }>;
+    const ruleIds = new Set(parsed.map((d) => d.rule_id));
+    // Custom pack rule should appear alongside built-in + standard-pack rules.
+    expect(ruleIds.has("CUSTOM-LOCA-REQUIRED")).toBe(true);
+    // Standard pack rules should also appear (e.g. one of its declarative checks).
+    expect(parsed.length).toBeGreaterThan(1);
+    rmSync(localTmp, { recursive: true, force: true });
+  });
 });

@@ -172,6 +172,7 @@ interface DiagnosticsItem {
   message: string;
   group?: string | null;
   row_index?: number | null;
+  source?: string | null;
 }
 
 interface DiagnosticsPanelProps {
@@ -181,6 +182,7 @@ interface DiagnosticsPanelProps {
 
 export function DiagnosticsPanel({ items, title = 'Diagnostics' }: DiagnosticsPanelProps) {
   const [filter, setFilter] = useState<SevFilter>('all');
+  const [sourceFilter, setSourceFilter] = useState<string | 'all'>('all');
 
   const counts = {
     error: items.filter((d) => d.severity === 'error').length,
@@ -188,7 +190,14 @@ export function DiagnosticsPanel({ items, title = 'Diagnostics' }: DiagnosticsPa
     info: items.filter((d) => d.severity === 'info').length,
   };
 
-  const visible = filter === 'all' ? items : items.filter((d) => d.severity === filter);
+  const sources = Array.from(new Set(items.map((d) => d.source).filter((s): s is string => !!s)));
+  const showSourceColumn = sources.length > 0;
+
+  const visible = items.filter((d) => {
+    if (filter !== 'all' && d.severity !== filter) return false;
+    if (sourceFilter !== 'all' && (d.source ?? 'built-in') !== sourceFilter) return false;
+    return true;
+  });
 
   const pillStyle = (active: boolean): React.CSSProperties => ({
     padding: '3px 10px',
@@ -201,11 +210,21 @@ export function DiagnosticsPanel({ items, title = 'Diagnostics' }: DiagnosticsPa
     cursor: 'pointer',
   });
 
+  const gridCols = showSourceColumn ? '44px 110px 100px 120px 1fr' : '44px 100px 120px 1fr';
+
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', position: 'sticky', top: 0, zIndex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', position: 'sticky', top: 0, zIndex: 1, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)' }}>{title}</h2>
-        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          {showSourceColumn && (
+            <>
+              <button style={pillStyle(sourceFilter === 'all')} onClick={() => setSourceFilter('all')}>ALL SOURCES</button>
+              {sources.map((s) => (
+                <button key={s} style={pillStyle(sourceFilter === s)} onClick={() => setSourceFilter(s)}>{s}</button>
+              ))}
+            </>
+          )}
           <button style={pillStyle(filter === 'all')} onClick={() => setFilter('all')}>ALL {items.length}</button>
           <button style={pillStyle(filter === 'error')} onClick={() => setFilter('error')}>ERR {counts.error}</button>
           <button style={pillStyle(filter === 'warning')} onClick={() => setFilter('warning')}>WARN {counts.warning}</button>
@@ -224,10 +243,15 @@ export function DiagnosticsPanel({ items, title = 'Diagnostics' }: DiagnosticsPa
           </div>
         )}
         {visible.map((d, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '44px 100px 120px 1fr', alignItems: 'baseline', gap: '0 10px', padding: '7px 16px', borderBottom: '1px solid var(--surface-muted)', fontFamily: "'Menlo', 'Consolas', monospace", fontSize: 12, lineHeight: 1.5 }}>
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: gridCols, alignItems: 'baseline', gap: '0 10px', padding: '7px 16px', borderBottom: '1px solid var(--surface-muted)', fontFamily: "'Menlo', 'Consolas', monospace", fontSize: 12, lineHeight: 1.5 }}>
             <span style={{ fontWeight: 700, fontSize: 10, letterSpacing: '0.5px', textTransform: 'uppercase', color: sevColor(d.severity) }}>
               {d.severity === 'error' ? 'ERR' : d.severity === 'warning' ? 'WARN' : 'INFO'}
             </span>
+            {showSourceColumn && (
+              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3, background: 'var(--surface-muted)', border: '1px solid var(--border)', color: 'var(--muted)', textAlign: 'center', alignSelf: 'center' }}>
+                {d.source ?? 'built-in'}
+              </span>
+            )}
             <span style={{ color: 'var(--muted)', fontSize: 11 }}>{d.rule_id}</span>
             <span style={{ color: 'var(--muted)', fontSize: 11 }}>
               {d.group ? `${d.group}${d.row_index != null ? ` · ${d.row_index}` : ''}` : ''}
