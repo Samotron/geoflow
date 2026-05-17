@@ -25,12 +25,15 @@ export {
   Severity,
   buildGeo3DModel,
   renderBoreholeStripSvg,
+  geolColor,
   discoverVoxelProperties,
   buildVoxelGrid,
   voxelGridToCsv,
+  getVoxelCellLineage,
   parseAscGrid,
   parseXyzPoints,
   sampleTopoAt,
+  ThinPlateSurface,
 } from '@geoflow/core';
 
 export type {
@@ -57,5 +60,9 @@ export type {
   VoxelProperty,
   VoxelCell,
   VoxelGrid,
+  VoxelCellLineage,
+  VoxelObsContribution,
   TopoGrid,
+  ContactPoint,
+  Pt3,
 } from '@geoflow/core';

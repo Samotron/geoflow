@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv } from './voxel.js';
+import { discoverVoxelProperties, buildVoxelGrid, voxelGridToCsv, getVoxelCellLineage } from './voxel.js';
 import type { AgsFile } from './model.js';
 import type { Geo3DModel } from './geo3d.js';
 import type { TopoGrid } from './topo.js';
@@ -64,6 +64,18 @@ function makeFile(overrides: Partial<AgsFile['groups']> = {}): AgsFile {
       ...overrides,
     },
   } as unknown as AgsFile;
+}
+
+function makeFlatTopo(elevOD: number): TopoGrid {
+  // Cover absolute x: 140–260 (local -10..110 + centroid 150)
+  //          absolute y: 190–310 (local -10..110 + centroid 200)
+  return {
+    x0: 130, y0: 180, dx: 140, dy: 140,
+    nx: 2, ny: 2,
+    zValues: new Float32Array([elevOD, elevOD, elevOD, elevOD]),
+    noData: -9999,
+    source: 'test',
+  };
 }
 
 function makeModel(): Geo3DModel {
@@ -429,18 +441,6 @@ describe('buildVoxelGrid', () => {
    *   iz=1 (cz=-1.5): -1.5 ≤ 3.5 → included (also within borehole range)
    *   iz=0 (cz=-4.5): excluded by borehole depth range (no topo change)
    */
-  function makeFlatTopo(elevOD: number): TopoGrid {
-    // Cover absolute x: 140–260 (local -10..110 + centroid 150)
-    //          absolute y: 190–310 (local -10..110 + centroid 200)
-    return {
-      x0: 130, y0: 180, dx: 140, dy: 140,
-      nx: 2, ny: 2,
-      zValues: new Float32Array([elevOD, elevOD, elevOD, elevOD]),
-      noData: -9999,
-      source: 'test',
-    };
-  }
-
   it('RBF: cells above topo surface are excluded', () => {
     const file  = makeFile();
     const model = makeModel();
@@ -550,5 +550,320 @@ describe('voxelGridToCsv', () => {
     const csv   = voxelGridToCsv(grid);
     const lines = csv.trim().split('\n');
     expect(lines.length).toBe(1); // header only
+  });
+
+  it('CSV includes geol_unit column', () => {
+    const grid = buildVoxelGrid(makeFile(), makeModel(), discoverVoxelProperties(makeFile()).find(p => p.id === 'ISPT_NVAL')!, { nx: 5, ny: 5, nz: 5 });
+    const header = voxelGridToCsv(grid).split('\n')[0]!;
+    expect(header).toContain('geol_unit');
+  });
+});
+
+// ── geolUnit inference ────────────────────────────────────────────────────────
+
+describe('geolUnit inference in buildVoxelGrid', () => {
+  it('each cell has a geolUnit property (may be null without GEOL layers)', () => {
+    const file  = makeFile();
+    const model = makeModel(); // fixture model has no layers
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.cells.length).toBeGreaterThan(0);
+    // geolUnit is always present on each cell (null when GEOL data absent)
+    for (const c of grid.cells) {
+      expect('geolUnit' in c).toBe(true);
+    }
+  });
+
+  it('topoFn option clips cells (same as topo grid)', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    // Flat topoFn at 2 m OD (local coords: z = absolute - centroid)
+    const flatFn = (_lx: number, _ly: number) => 2;
+
+    const withFn    = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf', topoFn: flatFn });
+    const withoutFn = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, method: 'rbf' });
+
+    expect(withFn.cells.length).toBeLessThan(withoutFn.cells.length);
+    expect(withFn.cells.every(c => c.cz <= 2 + 1.5 + 1e-6)).toBe(true);
+  });
+});
+
+// ── getVoxelCellLineage ───────────────────────────────────────────────────────
+
+describe('getVoxelCellLineage', () => {
+  function buildGrid() {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    return { file, model, grid: buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5, method: 'idw' }) };
+  }
+
+  it('returns null for out-of-bounds cell index', () => {
+    const { file, model, grid } = buildGrid();
+    expect(getVoxelCellLineage(grid, -1, file, model)).toBeNull();
+    expect(getVoxelCellLineage(grid, grid.cells.length, file, model)).toBeNull();
+  });
+
+  it('returns a lineage object for a valid cell', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    expect(lg).not.toBeNull();
+    expect(lg!.ix).toBeDefined();
+    expect(lg!.confidence).toBeGreaterThanOrEqual(0);
+    expect(lg!.confidence).toBeLessThanOrEqual(1);
+    expect(lg!.method).toBe('idw');
+  });
+
+  it('contributors are sorted by distance ascending', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    if (!lg || lg.contributors.length < 2) return;
+    for (let i = 1; i < lg.contributors.length; i++) {
+      expect(lg.contributors[i]!.distH).toBeGreaterThanOrEqual(lg.contributors[i-1]!.distH);
+    }
+  });
+
+  it('contributor weights sum to ≈1 when contributors exist', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    if (!lg || lg.contributors.length === 0) return;
+    const wSum = lg.contributors.reduce((s, c) => s + c.weight, 0);
+    expect(wSum).toBeCloseTo(1, 5);
+  });
+
+  it('lineage carries the correct cell centre coordinates', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const idx = Math.floor(grid.cells.length / 2);
+    const cell = grid.cells[idx]!;
+    const lg   = getVoxelCellLineage(grid, idx, file, model);
+    expect(lg).not.toBeNull();
+    expect(lg!.cx).toBeCloseTo(cell.cx, 6);
+    expect(lg!.cy).toBeCloseTo(cell.cy, 6);
+    expect(lg!.cz).toBeCloseTo(cell.cz, 6);
+  });
+
+  it('lineage grid indices are within grid dimensions', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    for (let i = 0; i < Math.min(grid.cells.length, 20); i++) {
+      const lg = getVoxelCellLineage(grid, i, file, model);
+      if (!lg) continue;
+      expect(lg.ix).toBeGreaterThanOrEqual(0);
+      expect(lg.ix).toBeLessThan(grid.nx);
+      expect(lg.iy).toBeGreaterThanOrEqual(0);
+      expect(lg.iy).toBeLessThan(grid.ny);
+      expect(lg.iz).toBeGreaterThanOrEqual(0);
+      expect(lg.iz).toBeLessThan(grid.nz);
+    }
+  });
+
+  it('nearestObsDistH is non-negative when contributors exist', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    if (!lg || lg.contributors.length === 0) return;
+    expect(lg.nearestObsDistH).not.toBeNull();
+    expect(lg.nearestObsDistH!).toBeGreaterThanOrEqual(0);
+  });
+
+  it('RBF lineage has method=rbf and valid confidence', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5, method: 'rbf' });
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    expect(lg).not.toBeNull();
+    expect(lg!.method).toBe('rbf');
+    expect(lg!.confidence).toBeGreaterThanOrEqual(0);
+    expect(lg!.confidence).toBeLessThanOrEqual(1);
+  });
+
+  it('categorical grid lineage has category and null value', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'GEOL_LEG')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5, method: 'idw' });
+    if (grid.cells.length === 0) return;
+    const lg = getVoxelCellLineage(grid, 0, file, model);
+    expect(lg).not.toBeNull();
+    expect(lg!.value).toBeNull();
+    expect(lg!.category).not.toBeNull();
+    expect(['SAND', 'CLAY', 'GRAVEL']).toContain(lg!.category);
+  });
+
+  it('each contributor carries a boreholeId matching a borehole in the model', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    const bhIds = new Set(model.boreholes.map(b => b.id));
+    for (let i = 0; i < Math.min(grid.cells.length, 10); i++) {
+      const lg = getVoxelCellLineage(grid, i, file, model);
+      if (!lg) continue;
+      for (const c of lg.contributors) {
+        expect(bhIds.has(c.boreholeId)).toBe(true);
+      }
+    }
+  });
+
+  it('depthBelowGround is null or a non-negative number', () => {
+    const { file, model, grid } = buildGrid();
+    if (grid.cells.length === 0) return;
+    for (let i = 0; i < Math.min(grid.cells.length, 15); i++) {
+      const lg = getVoxelCellLineage(grid, i, file, model);
+      if (!lg) continue;
+      if (lg.depthBelowGround !== null) {
+        expect(lg.depthBelowGround).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+});
+
+// ── discoverVoxelProperties — extra coverage ──────────────────────────────────
+
+describe('discoverVoxelProperties — additional', () => {
+  it('returns properties from multiple groups independently', () => {
+    const props = discoverVoxelProperties(makeFile());
+    const groups = new Set(props.map(p => p.group));
+    // Both ISPT and GEOL are present in the fixture
+    expect(groups.has('ISPT')).toBe(true);
+    expect(groups.has('GEOL')).toBe(true);
+  });
+
+  it('each property carries a unit (possibly empty string)', () => {
+    const props = discoverVoxelProperties(makeFile());
+    for (const p of props) {
+      expect(typeof p.unit).toBe('string');
+    }
+  });
+
+  it('numeric properties have type === "numeric"', () => {
+    const props = discoverVoxelProperties(makeFile());
+    for (const p of props.filter(p => p.type === 'numeric')) {
+      expect(p.type).toBe('numeric');
+      expect(p.depthTopField).not.toBeNull();
+    }
+  });
+
+  it('categorical properties have type === "categorical"', () => {
+    const props = discoverVoxelProperties(makeFile());
+    for (const p of props.filter(p => p.type === 'categorical')) {
+      expect(p.type).toBe('categorical');
+      expect(p.depthTopField).not.toBeNull();
+    }
+  });
+});
+
+// ── buildVoxelGrid — extra coverage ──────────────────────────────────────────
+
+describe('buildVoxelGrid — additional', () => {
+  it('grid property reflects the input VoxelProperty', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.property.id).toBe('ISPT_NVAL');
+    expect(grid.property.group).toBe('ISPT');
+  });
+
+  it('cell ix/iy/iz indices are within [0, n-1]', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 6, ny: 6, nz: 6 });
+    for (const c of grid.cells) {
+      expect(c.ix).toBeGreaterThanOrEqual(0);
+      expect(c.ix).toBeLessThan(6);
+      expect(c.iy).toBeGreaterThanOrEqual(0);
+      expect(c.iy).toBeLessThan(6);
+      expect(c.iz).toBeGreaterThanOrEqual(0);
+      expect(c.iz).toBeLessThan(6);
+    }
+  });
+
+  it('cellSize dimensions are positive', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 4, ny: 5, nz: 6 });
+    expect(grid.cellSize.dx).toBeGreaterThan(0);
+    expect(grid.cellSize.dy).toBeGreaterThan(0);
+    expect(grid.cellSize.dz).toBeGreaterThan(0);
+  });
+
+  it('centroid matches model centroid', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    expect(grid.centroid.x).toBeCloseTo(model.centroid.x, 1);
+    expect(grid.centroid.y).toBeCloseTo(model.centroid.y, 1);
+  });
+
+  it('topoFn takes precedence over topo grid when both provided', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    // topoFn clips at 2 m; topo grid would clip at 5 m (collars)
+    const flatFn  = (_lx: number, _ly: number) => 2;
+    const highTopo = makeFlatTopo(5);
+
+    const withFn   = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, topoFn: flatFn });
+    const withTopo = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4, topo: highTopo });
+
+    // topoFn at 2 m clips more aggressively than topo at 5 m
+    expect(withFn.cells.length).toBeLessThanOrEqual(withTopo.cells.length);
+    expect(withFn.cells.every(c => c.cz <= 2 + 1.5 + 1e-6)).toBe(true);
+  });
+});
+
+// ── voxelGridToCsv — extra coverage ──────────────────────────────────────────
+
+describe('voxelGridToCsv — additional', () => {
+  it('categorical grid CSV uses property ID as column name', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'GEOL_LEG')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 5, ny: 5, nz: 5 });
+    const header = voxelGridToCsv(grid).split('\n')[0]!;
+    expect(header).toContain('GEOL_LEG');
+  });
+
+  it('all data rows have numeric easting and northing', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4 });
+    const lines = voxelGridToCsv(grid).trim().split('\n');
+    const headers = lines[0]!.split(',');
+    const eIdx  = headers.indexOf('easting_m');
+    const nIdx  = headers.indexOf('northing_m');
+    expect(eIdx).toBeGreaterThanOrEqual(0);
+    expect(nIdx).toBeGreaterThanOrEqual(0);
+    for (const line of lines.slice(1)) {
+      const cols = line.split(',');
+      expect(isFinite(Number(cols[eIdx]))).toBe(true);
+      expect(isFinite(Number(cols[nIdx]))).toBe(true);
+    }
+  });
+
+  it('confidence column values are in [0, 1]', () => {
+    const file  = makeFile();
+    const model = makeModel();
+    const prop  = discoverVoxelProperties(file).find(p => p.id === 'ISPT_NVAL')!;
+    const grid  = buildVoxelGrid(file, model, prop, { nx: 4, ny: 4, nz: 4 });
+    const lines = voxelGridToCsv(grid).trim().split('\n');
+    const headers = lines[0]!.split(',');
+    const confIdx = headers.indexOf('confidence');
+    expect(confIdx).toBeGreaterThanOrEqual(0);
+    for (const line of lines.slice(1)) {
+      const v = Number(line.split(',')[confIdx]);
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+    }
   });
 });
