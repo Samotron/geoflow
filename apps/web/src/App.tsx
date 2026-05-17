@@ -28,26 +28,27 @@ import { compress, computeDelta, reconstructAgsBytes } from './delta.js';
 const GLOBAL_STYLE = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --navy: #0f2644;
-    --navy-2: #1a3563;
-    --blue: #1a4080;
-    --accent: #2563eb;
-    --accent-soft: #dbeafe;
-    --amber: #d97706;
-    --red: #dc2626;
-    --orange: #ea580c;
-    --green: #16a34a;
-    --bg: #f1f5f9;
+    /* Pastel palette — desaturated slate-blue chrome on warm cream */
+    --navy: #54678a;          /* dusty slate-blue (header/status chrome) */
+    --navy-2: #6a7fa3;
+    --blue: #7a93bd;
+    --accent: #7a9ee0;        /* soft sky-blue */
+    --accent-soft: #e8eef9;
+    --amber: #d9a05a;
+    --red: #d57878;
+    --orange: #e8a070;
+    --green: #82c096;
+    --bg: #faf7f2;            /* warm cream */
     --card: #ffffff;
     --sidebar: #ffffff;
-    --sidebar-fg: #1e293b;
-    --sidebar-muted: #64748b;
-    --sidebar-hover: #f1f5f9;
-    --sidebar-active: #eff6ff;
-    --border: #e2e8f0;
-    --border-strong: #cbd5e1;
-    --text: #0f172a;
-    --muted: #64748b;
+    --sidebar-fg: #334155;
+    --sidebar-muted: #7c8b9b;
+    --sidebar-hover: #f4f1ec;
+    --sidebar-active: #eef2fb;
+    --border: #e8e3dc;        /* warm grey border */
+    --border-strong: #d4ccc0;
+    --text: #334155;
+    --muted: #7c8b9b;
     --radius: 8px;
     --radius-sm: 6px;
     --header-h: 48px;
@@ -327,25 +328,25 @@ function Logo({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Tail */}
-      <path d="M6 19 Q2 19 2.5 22 Q4 22 6 21 Z" fill="#4ade80" />
+      <path d="M6 19 Q2 19 2.5 22 Q4 22 6 21 Z" fill="#a6e3bf" />
       {/* Body */}
-      <rect x="5" y="15" width="18" height="11" rx="5.5" fill="#4ade80" />
+      <rect x="5" y="15" width="18" height="11" rx="5.5" fill="#a6e3bf" />
       {/* Back spikes (geological strata cue) */}
-      <path d="M8 15 L10 11 L12 15 Z M12 15 L14.5 10 L17 15 Z M17 15 L19 11.5 L21 15 Z" fill="#22c55e" />
+      <path d="M8 15 L10 11 L12 15 Z M12 15 L14.5 10 L17 15 Z M17 15 L19 11.5 L21 15 Z" fill="#7cc99e" />
       {/* Neck */}
-      <path d="M19 15 Q21 13 22 11 L26 12 Q25 15 23 16 Z" fill="#4ade80" />
+      <path d="M19 15 Q21 13 22 11 L26 12 Q25 15 23 16 Z" fill="#a6e3bf" />
       {/* Head */}
-      <circle cx="26" cy="10" r="4.2" fill="#4ade80" />
+      <circle cx="26" cy="10" r="4.2" fill="#a6e3bf" />
       {/* Cheek highlight */}
-      <ellipse cx="24.5" cy="11.6" rx="1.1" ry="0.6" fill="#86efac" opacity="0.8" />
+      <ellipse cx="24.5" cy="11.6" rx="1.1" ry="0.6" fill="#fcc4c4" opacity="0.85" />
       {/* Eye */}
-      <circle cx="27.2" cy="9" r="1" fill="#0f172a" />
+      <circle cx="27.2" cy="9" r="1" fill="#3c4a63" />
       <circle cx="27.5" cy="8.6" r="0.3" fill="#fff" />
       {/* Tiny smile */}
-      <path d="M25.2 11.4 Q26.2 12.2 27.4 11.6" stroke="#0f172a" strokeWidth="0.55" fill="none" strokeLinecap="round" />
+      <path d="M25.2 11.4 Q26.2 12.2 27.4 11.6" stroke="#3c4a63" strokeWidth="0.55" fill="none" strokeLinecap="round" />
       {/* Feet */}
-      <rect x="8" y="24" width="3.2" height="2.5" rx="0.8" fill="#16a34a" />
-      <rect x="16.5" y="24" width="3.2" height="2.5" rx="0.8" fill="#16a34a" />
+      <rect x="8" y="24" width="3.2" height="2.5" rx="0.8" fill="#7cc99e" />
+      <rect x="16.5" y="24" width="3.2" height="2.5" rx="0.8" fill="#7cc99e" />
     </svg>
   );
 }
@@ -904,7 +905,7 @@ export default function App() {
             display: 'flex',
             alignItems: 'center',
             gap: 12,
-            borderBottom: '1px solid #000',
+            borderBottom: '1px solid rgba(0,0,0,0.15)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -913,18 +914,18 @@ export default function App() {
           </div>
 
           {/* Breadcrumb */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#cbd5e1', marginLeft: 4, overflow: 'hidden' }}>
-            <span style={{ color: '#475569' }}>/</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#e2e6ee', marginLeft: 4, overflow: 'hidden' }}>
+            <span style={{ color: '#a3b1c8' }}>/</span>
             {currentProject ? (
               <>
-                <span style={{ fontWeight: 600, color: '#e2e8f0' }}>{currentProject.name}</span>
-                <span style={{ color: '#475569' }}>/</span>
-                <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                <span style={{ fontWeight: 600, color: '#ffffff' }}>{currentProject.name}</span>
+                <span style={{ color: '#a3b1c8' }}>/</span>
+                <span style={{ color: '#cfd6e3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                   {fileName ?? '(no file)'}
                 </span>
               </>
             ) : (
-              <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+              <span style={{ color: '#cfd6e3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                 {fileName ?? 'No file loaded'}
               </span>
             )}
@@ -946,7 +947,7 @@ export default function App() {
               </svg>
               Projects
             </button>
-            <span style={{ fontSize: 11, color: '#64748b', borderLeft: '1px solid #334155', paddingLeft: 12 }}>
+            <span style={{ fontSize: 11, color: '#cfd6e3', opacity: 0.7, borderLeft: '1px solid rgba(255,255,255,0.18)', paddingLeft: 12 }}>
               AGS Validator &amp; Converter
             </span>
           </div>
@@ -1012,18 +1013,18 @@ export default function App() {
         <footer
           style={{
             gridArea: 'status',
-            background: '#1e293b',
-            color: '#cbd5e1',
+            background: 'var(--navy)',
+            color: '#e2e6ee',
             padding: '0 14px',
             display: 'flex',
             alignItems: 'center',
             gap: 16,
             fontSize: 11,
             fontFamily: 'system-ui, -apple-system, sans-serif',
-            borderTop: '1px solid #0f172a',
+            borderTop: '1px solid rgba(0,0,0,0.15)',
           }}
         >
-          <StatusItem icon="●" color={hasFile ? '#22c55e' : '#64748b'}>
+          <StatusItem icon="●" color={hasFile ? '#a6e3bf' : '#a3b1c8'}>
             {hasFile ? 'Ready' : 'No file'}
           </StatusItem>
           {hasFile && fileSummary && (
@@ -1044,7 +1045,7 @@ export default function App() {
               <StatusItem>{formatBytes(totalBytes)}</StatusItem>
             </>
           )}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, color: '#64748b' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, color: '#a3b1c8' }}>
             <span>{tab}</span>
           </div>
         </footer>
@@ -1080,5 +1081,5 @@ function StatusItem({ children, icon, color }: { children: ReactNode; icon?: str
 }
 
 function StatusDivider() {
-  return <span style={{ color: '#334155' }}>│</span>;
+  return <span style={{ color: 'rgba(255,255,255,0.25)' }}>│</span>;
 }
