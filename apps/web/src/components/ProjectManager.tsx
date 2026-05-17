@@ -13,7 +13,7 @@ import { exportProjectGeoPackage, importProjectGeoPackage } from '../export/geop
 interface ProjectManagerProps {
   onClose: () => void;
   onLoadFile: (name: string, bytes: Uint8Array, project: Project) => void;
-  currentProjectId?: string;
+  currentProjectId?: string | undefined;
 }
 
 function formatDate(ts: number): string {

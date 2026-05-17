@@ -1,5 +1,8 @@
-import { useState, useCallback, useEffect, useRef, type DragEvent } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, type DragEvent } from 'react';
+import { Option } from 'effect';
 import type { TabId, PackDiagnostic } from './types.js';
+import { parseStr, decodeBytes, serialize } from './core.js';
+import type { AgsFile, AgsGroup } from './core.js';
 import { InspectTab } from './tabs/InspectTab.js';
 import { ConvertTab } from './tabs/ConvertTab.js';
 import { DataTab } from './tabs/DataTab.js';
@@ -241,13 +244,44 @@ function hashTab(): TabId {
   return TABS.some((t) => t.id === hash) ? hash : 'inspect';
 }
 
+interface LoadedFile { name: string; bytes: Uint8Array }
+
+function mergeAgsBytes(files: LoadedFile[]): Uint8Array {
+  if (files.length === 1) return files[0]!.bytes;
+  const parsed = files
+    .map((f) => parseStr(decodeBytes(f.bytes)).file)
+    .filter((f): f is AgsFile => f !== null);
+  if (parsed.length === 0) return files[0]!.bytes;
+  const groups: Record<string, AgsGroup> = {};
+  for (const ags of parsed) {
+    for (const [name, group] of Object.entries(ags.groups)) {
+      if (!group) continue;
+      if (!groups[name]) {
+        groups[name] = { ...group, rows: [...group.rows] };
+      } else {
+        groups[name] = { ...groups[name], rows: [...groups[name].rows, ...group.rows] };
+      }
+    }
+  }
+  const merged: AgsFile = { groups, source_path: Option.none(), ags_version: parsed[0]!.ags_version };
+  return new TextEncoder().encode(serialize(merged));
+}
+
 export default function App() {
   const [tab, setTab] = useState<TabId>(hashTab);
-  const [fileName, setFileName] = useState<string | undefined>();
-  const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
+  const [loadedFiles, setLoadedFiles] = useState<LoadedFile[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [showProjectManager, setShowProjectManager] = useState(false);
   const pendingHoleRef = useRef<string | null>(null);
+
+  const fileBytes = useMemo(
+    () => (loadedFiles.length === 0 ? null : mergeAgsBytes(loadedFiles)),
+    [loadedFiles],
+  );
+  const fileName =
+    loadedFiles.length === 0 ? undefined
+    : loadedFiles.length === 1 ? loadedFiles[0]!.name
+    : `${loadedFiles[0]!.name} +${loadedFiles.length - 1} more`;
 
   useEffect(() => {
     const onHash = () => setTab(hashTab());
@@ -260,25 +294,31 @@ export default function App() {
     setTab(id);
   };
 
+  async function saveToProject(name: string, bytes: Uint8Array) {
+    if (!currentProject) return;
+    const now = Date.now();
+    await saveProjectFile({ id: crypto.randomUUID(), projectId: currentProject.id, name, bytes, addedAt: now });
+    await saveProject({ ...currentProject, updatedAt: now });
+  }
+
+  // Replaces all loaded files (primary drop zone behaviour)
   const onFile = useCallback(async (name: string, bytes: Uint8Array) => {
-    setFileName(name);
-    setFileBytes(bytes);
-    if (currentProject) {
-      const now = Date.now();
-      await saveProjectFile({
-        id: crypto.randomUUID(),
-        projectId: currentProject.id,
-        name,
-        bytes,
-        addedAt: now,
-      });
-      await saveProject({ ...currentProject, updatedAt: now });
-    }
-  }, [currentProject]);
+    setLoadedFiles([{ name, bytes }]);
+    await saveToProject(name, bytes);
+  }, [currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Appends without replacing
+  const onAddFile = useCallback(async (name: string, bytes: Uint8Array) => {
+    setLoadedFiles((prev) => [...prev, { name, bytes }]);
+    await saveToProject(name, bytes);
+  }, [currentProject]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onRemoveFile = useCallback((index: number) => {
+    setLoadedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const onLoadFromProject = useCallback((name: string, bytes: Uint8Array, project: Project) => {
-    setFileName(name);
-    setFileBytes(bytes);
+    setLoadedFiles([{ name, bytes }]);
     setCurrentProject(project);
   }, []);
 
@@ -323,8 +363,43 @@ export default function App() {
       )}
 
       <main style={{ maxWidth: 1600, margin: '0 auto', padding: '24px 24px 60px' }}>
-        {/* Drop zone */}
-        <DropZone onFile={(n, b) => { void onFile(n, b); }} fileName={fileName} fileSize={fileBytes?.length} />
+        {/* Primary drop zone — replaces all loaded files */}
+        <DropZone
+          onFile={(n, b) => { void onFile(n, b); }}
+          fileName={loadedFiles.length === 1 ? loadedFiles[0]!.name : fileName}
+          fileSize={loadedFiles.length === 1 ? loadedFiles[0]!.bytes.length : undefined}
+        />
+
+        {/* Loaded-file list + add-file row */}
+        {loadedFiles.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {loadedFiles.length > 1 && loadedFiles.map((f, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '6px 12px', background: 'var(--card)',
+                  border: '1px solid var(--border)', borderRadius: 6, fontSize: 13,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                </svg>
+                <span style={{ flex: 1, fontWeight: 500 }}>{f.name}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 12 }}>{formatBytes(f.bytes.length)}</span>
+                <button
+                  onClick={() => onRemoveFile(i)}
+                  title="Remove this file"
+                  style={{ padding: '2px 8px', fontSize: 12, background: '#fee2e2', color: 'var(--red)', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}
+                >✕</button>
+              </div>
+            ))}
+            <DropZone
+              onFile={(n, b) => { void onAddFile(n, b); }}
+              label={`Add another AGS file${loadedFiles.length > 1 ? ` (${loadedFiles.length} loaded)` : ''}`}
+            />
+          </div>
+        )}
 
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: 2, borderBottom: '2px solid var(--border)', marginBottom: 24, marginTop: 20 }}>
