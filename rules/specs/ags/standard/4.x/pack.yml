@@ -2,8 +2,18 @@ version: 1
 name: ags-standard
 pack_version: "4.x"
 
-# AGS 4.x standard validation rules expressed in the GeoFlow DSL (JEXL).
+# AGS 4.x standard validation rules.
+#
+# Each rule has:
+#   id, severity, optional `in:` (group filter), and a declarative `check:`.
+# When the declarative kinds aren't enough, drop down to `expr:`/`when:` for
+# arbitrary JEXL.
+#
 # Reference: ags:standard@4.x
+
+codelists:
+  tran_ags_versions:
+    inline: ["4.0.3", "4.0.4", "4.1", "4.1.1", "4.2"]
 
 rules:
   # ── Structural ──────────────────────────────────────────────────────────────
@@ -11,23 +21,22 @@ rules:
   - id: AGS-STRUCT-001
     description: "AGS files must contain exactly one PROJ group with one row."
     severity: error
-    scope: file
-    expr: "has_group('PROJ') && group_size('PROJ') == 1"
-    message: "PROJ group missing or does not have exactly one DATA row"
+    check:
+      group_size: { group: PROJ, equals: 1 }
+    message: "PROJ group missing or does not have exactly one DATA row (found {actual})"
 
   - id: AGS-STRUCT-002
     description: "AGS 4 files must contain a TRAN group with a TRAN_AGS heading."
     severity: error
-    scope: file
-    expr: "has_group('TRAN') && group_has_heading('TRAN', 'TRAN_AGS')"
-    message: "missing TRAN group or TRAN_AGS heading"
+    check:
+      heading_present: { group: TRAN, heading: TRAN_AGS }
 
   - id: AGS-STRUCT-003
     description: "Every LOCA row must have a non-empty LOCA_ID."
     severity: error
-    when: "group == 'LOCA'"
-    expr: "row.LOCA_ID != null && row.LOCA_ID != ''"
-    message: "LOCA row has empty or missing LOCA_ID"
+    in: LOCA
+    check:
+      required: [LOCA_ID]
 
   # ── Heading / unit / type consistency ───────────────────────────────────────
 
@@ -64,28 +73,70 @@ rules:
   - id: AGS-VAL-001
     description: "GEOL_BASE must be greater than GEOL_TOP for every layer."
     severity: error
-    when: "group == 'GEOL'"
-    expr: "row.GEOL_BASE == null || row.GEOL_TOP == null || row.GEOL_BASE > row.GEOL_TOP"
+    in: GEOL
+    check:
+      compare: { left: GEOL_BASE, op: ">", right: GEOL_TOP }
     message: "GEOL row has GEOL_BASE ({row.GEOL_BASE}) not greater than GEOL_TOP ({row.GEOL_TOP})"
 
   - id: AGS-VAL-002
     description: "GEOL layers within each borehole must be in ascending depth order."
     severity: error
-    scope: "group:LOCA_ID"
-    when: "group == 'GEOL'"
-    expr: "is_monotonic(pluck(rows, 'GEOL_TOP'))"
-    message: "GEOL layers for LOCA_ID {key.LOCA_ID} are not in ascending depth order"
+    in: GEOL
+    check:
+      monotonic: { field: GEOL_TOP, partition_by: LOCA_ID }
+
+  # ── Cross-references ─────────────────────────────────────────────────────────
+
+  - id: AGS-REF-001
+    description: "Every SAMP row must reference an existing LOCA_ID."
+    severity: error
+    in: SAMP
+    check:
+      foreign_key:
+        fields: [LOCA_ID]
+        references: LOCA
+
+  - id: AGS-REF-002
+    description: "Every GEOL row must reference an existing LOCA_ID."
+    severity: error
+    in: GEOL
+    check:
+      foreign_key:
+        fields: [LOCA_ID]
+        references: LOCA
+
+  # ── Uniqueness ───────────────────────────────────────────────────────────────
+
+  - id: AGS-KEY-001
+    description: "LOCA_ID must be unique across the LOCA group."
+    severity: error
+    in: LOCA
+    check:
+      unique: [LOCA_ID]
+
+  - id: AGS-KEY-002
+    description: "GEOL rows are uniquely identified by (LOCA_ID, GEOL_TOP)."
+    severity: error
+    in: GEOL
+    check:
+      unique: [LOCA_ID, GEOL_TOP]
+
+  - id: AGS-KEY-003
+    description: "SAMP rows are uniquely identified by (LOCA_ID, SAMP_TOP, SAMP_REF)."
+    severity: error
+    in: SAMP
+    check:
+      unique: [LOCA_ID, SAMP_TOP, SAMP_REF]
 
   # ── Version ──────────────────────────────────────────────────────────────────
 
   - id: AGS-STRUCT-004
     description: "TRAN_AGS must be a recognised AGS 4.x version."
     severity: warning
-    when: "group == 'TRAN'"
-    expr: >-
-      row.TRAN_AGS == null || row.TRAN_AGS == '' ||
-      row.TRAN_AGS in ['4.0.3', '4.0.4', '4.1', '4.1.1', '4.2']
-    message: "TRAN_AGS value '{row.TRAN_AGS}' is not a recognised AGS 4 version"
+    in: TRAN
+    check:
+      one_of: { field: TRAN_AGS, codelist: tran_ags_versions }
+    message: "TRAN_AGS value '{value}' is not a recognised AGS 4 version"
 
   # ── Formatting ───────────────────────────────────────────────────────────────
 
