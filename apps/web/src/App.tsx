@@ -15,6 +15,7 @@ import { ThreeDTab } from './tabs/ThreeDTab.js';
 import { VoxelTab } from './tabs/VoxelTab.js';
 import { PlotsTab } from './tabs/PlotsTab.js';
 import { ReportTab } from './tabs/ReportTab.js';
+import { DescribeTab } from './tabs/DescribeTab.js';
 import { ProjectManager } from './components/ProjectManager.js';
 import { ConflictResolver } from './components/ConflictResolver.js';
 import type { Project, Commit } from './storage/types.js';
@@ -386,6 +387,7 @@ const ICONS: Record<TabId, ReactNode> = {
   convert: <Icon d="M7 7h11l-3-3 M17 17H6l3 3" />,
   query: <Icon d="M3 6h18 M6 12h12 M10 18h4" />,
   rules: <Icon d="M9 12l2 2 4-4 M12 22s8-4 8-12V5l-8-3-8 3v5c0 8 8 12 8 12z" />,
+  describe: <Icon d="M4 6h10 M4 10h12 M4 14h8 M16 14l4 4-4 4" />,
 };
 
 // ── Nav structure ────────────────────────────────────────────────────────────
@@ -417,6 +419,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'diff', label: 'Diff' },
       { id: 'query', label: 'Query' },
       { id: 'rules', label: 'Rules' },
+      { id: 'describe', label: 'Describe' },
     ],
   },
   {
@@ -430,8 +433,8 @@ const NAV_GROUPS: NavGroup[] = [
 
 const ALL_TAB_IDS: TabId[] = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.id));
 
-// Tabs that need a file loaded to be useful (diff is the only exception).
-const TABS_NEED_FILE = new Set<TabId>(ALL_TAB_IDS.filter((t) => t !== 'diff'));
+// Tabs that need a file loaded to be useful (diff & describe also work without one).
+const TABS_NEED_FILE = new Set<TabId>(ALL_TAB_IDS.filter((t) => t !== 'diff' && t !== 'describe'));
 
 function hashTab(): TabId {
   const hash = window.location.hash.replace('#', '') as TabId;
@@ -1017,6 +1020,7 @@ export default function App() {
               {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'query' && <QueryTab fileBytes={fileBytes} />}
               {tab === 'rules' && <RulesTab fileBytes={fileBytes} />}
+              {tab === 'describe' && <DescribeTab fileBytes={fileBytes} />}
             </div>
           )}
         </main>

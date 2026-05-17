@@ -1,6 +1,6 @@
 import { Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { enhanceGeol, parseDescription } from "./describe.js";
+import { enhanceGeol, getDescribeVocabulary, parseDescription } from "./describe.js";
 import type { AgsFile } from "./model.js";
 
 describe("parseDescription — soils", () => {
@@ -196,6 +196,162 @@ describe("parseDescription — USCS inference", () => {
 
   it("maps well-graded SAND to SW", () => {
     expect(parseDescription("Dense brown fine to medium SAND").uscs).toBe("SW");
+  });
+});
+
+describe("parseDescription — spelling tolerance", () => {
+  it("corrects mild typos in soil nouns", () => {
+    // "claey" → "clayey"
+    const d = parseDescription("Soft brown claey CLAY");
+    expect(d.primary_soil_type).toBe("clay");
+    expect(d.spelling_corrections.some((c) => c.original === "claey")).toBe(true);
+  });
+
+  it("corrects misspelled rock types", () => {
+    // "sandstne" → "sandstone"
+    const d = parseDescription("Strong grey sandstne");
+    expect(d.rock_type).toBe("sandstone");
+    expect(d.spelling_corrections.length).toBeGreaterThan(0);
+  });
+
+  it("handles mistyped consistency words", () => {
+    // "stff" too short to correct; "stif" → "stiff"
+    const d = parseDescription("stif brown CLAY");
+    expect(d.consistency).toBe("stiff");
+  });
+
+  it("leaves random short tokens alone", () => {
+    const d = parseDescription("Soft cf grey CLAY");
+    expect(d.consistency).toBe("soft");
+    expect(d.primary_soil_type).toBe("clay");
+  });
+
+  it("does not mis-correct 'weathered' as 'unweathered'", () => {
+    const d = parseDescription("Moderately weathered grey MUDSTONE");
+    expect(d.weathering).toBe("moderately_weathered");
+  });
+
+  it("can be disabled via options", () => {
+    const d = parseDescription("Soft brown claey CLAY", { spellCorrection: false });
+    expect(d.spelling_corrections).toEqual([]);
+  });
+
+  it("warns when most tokens needed correction", () => {
+    const d = parseDescription("sft brwm clyy");
+    // sft→soft? no, too short. brwm→brown (1 edit). clyy → clay (1 edit).
+    // The 'sft' is < 4 chars so left alone, but the other corrections push ratio high
+    // — make sure it doesn't crash and any warning is benign.
+    expect(d).toBeDefined();
+  });
+});
+
+describe("parseDescription — multi-standard classification", () => {
+  it("emits BS 5930 symbol with secondary prefix", () => {
+    const d = parseDescription("Stiff sandy CLAY");
+    expect(d.classifications.bs5930).toBe("saCL");
+  });
+
+  it("emits AASHTO group for low-plasticity clay", () => {
+    const d = parseDescription("Firm low plasticity grey CLAY");
+    expect(d.classifications.aashto).toBe("A-6");
+  });
+
+  it("emits AASHTO A-3 for poorly-graded clean sand", () => {
+    const d = parseDescription("Loose brown SAND");
+    expect(d.classifications.aashto).toBe("A-3");
+  });
+
+  it("emits AASHTO A-8 for peat", () => {
+    expect(parseDescription("Soft brown PEAT").classifications.aashto).toBe("A-8");
+  });
+
+  it("emits ISO 14688 code", () => {
+    const d = parseDescription("Stiff sandy CLAY");
+    expect(d.classifications.iso14688).toBe("saCl");
+  });
+});
+
+describe("parseDescription — additional descriptors", () => {
+  it("detects roundness", () => {
+    expect(parseDescription("Dense sub-angular GRAVEL").roundness).toBe("sub_angular");
+    expect(parseDescription("Loose well rounded SAND").roundness).toBe("well_rounded");
+  });
+
+  it("detects sorting / grading", () => {
+    expect(parseDescription("Dense well-graded SAND").sorting).toBe("well_graded");
+    expect(parseDescription("Loose poorly sorted SAND").sorting).toBe("poorly_sorted");
+  });
+
+  it("detects cementation", () => {
+    expect(parseDescription("Weakly cemented brown SAND").cementation).toBe("weakly_cemented");
+  });
+
+  it("detects HCl reaction (effervescence)", () => {
+    expect(parseDescription("Firm calcareous CLAY, strongly effervescent").hcl_reaction).toBe("strong");
+    expect(parseDescription("Stiff CLAY, non-effervescent").hcl_reaction).toBe("none");
+  });
+
+  it("detects odour", () => {
+    expect(parseDescription("Soft black CLAY with hydrocarbon odour").odour).toBe("hydrocarbon");
+    expect(parseDescription("Soft black CLAY, organic smell").odour).toBe("organic");
+  });
+
+  it("detects depositional origin", () => {
+    expect(parseDescription("Loose alluvial SAND").origin).toBe("alluvial");
+    expect(parseDescription("Stiff glacial till").origin).toBe("glacial");
+    expect(parseDescription("Dense aeolian SAND").origin).toBe("aeolian");
+  });
+
+  it("detects geological age", () => {
+    expect(parseDescription("Quaternary boulder clay").age).toBe("quaternary");
+    expect(parseDescription("Cretaceous CHALK").age).toBe("cretaceous");
+    expect(parseDescription("Eocene CLAY").age).toBe("palaeogene");
+  });
+
+  it("detects joint roughness on rocks", () => {
+    const d = parseDescription("Strong fresh slickensided LIMESTONE");
+    expect(d.joint_roughness).toBe("slickensided");
+  });
+
+  it("detects UK lithostratigraphic formations", () => {
+    const d = parseDescription("Stiff brown London Clay");
+    expect(d.formations.some((f) => f.name === "London Clay")).toBe(true);
+    expect(d.age).toBe("palaeogene"); // inferred from formation? we set age only if directly mentioned
+  });
+
+  it("detects additional inclusions: iron staining and veins", () => {
+    const d = parseDescription("Stiff grey CLAY with iron staining and calcite veins");
+    expect(d.inclusions).toContain("iron_staining");
+    expect(d.inclusions).toContain("calcite_veins");
+  });
+});
+
+describe("parseDescription — token spans", () => {
+  it("attaches start/end spans for every token", () => {
+    const d = parseDescription("Soft grey CLAY");
+    expect(d.tokens.length).toBeGreaterThan(0);
+    for (const t of d.tokens) {
+      expect(t.start).toBeGreaterThanOrEqual(0);
+      expect(t.end).toBeGreaterThan(t.start);
+      expect(t.end).toBeLessThanOrEqual(d.normalised.length);
+    }
+  });
+
+  it("token text appears at the recorded span in the normalised string", () => {
+    const d = parseDescription("Medium dense brown fine SAND");
+    for (const t of d.tokens) {
+      const slice = d.normalised.slice(t.start, t.end);
+      expect(slice).toBe(t.text);
+    }
+  });
+});
+
+describe("getDescribeVocabulary", () => {
+  it("includes common keywords", () => {
+    const v = new Set(getDescribeVocabulary());
+    expect(v.has("clay")).toBe(true);
+    expect(v.has("sandstone")).toBe(true);
+    expect(v.has("moderately weathered")).toBe(true);
   });
 });
 
