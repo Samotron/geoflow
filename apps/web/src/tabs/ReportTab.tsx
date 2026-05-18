@@ -374,11 +374,14 @@ export function ReportTab({ fileBytes, fileName }: Props) {
   const specCompaction  = useMemo(() => compaction.length ? compactionSpec(compaction)              : null, [compaction]);
   const specCong        = useMemo(() => cong.length       ? congSpec(cong)                          : null, [cong]);
 
-  const dataN = {
+  const dataN: Record<(typeof ALL_PLOTS)[number]['id'], number> = {
     spt_depth: sptDepth.length, spt_elev: sptElev.length, plasticity: atterberg.length,
     psd: psd.length, limits_depth: llplDepth.length, moisture: moisture.length, cu: cu.length,
     density: density.bulk.length + density.dry.length,
     shear: shear.length, compaction: compaction.length, cong: cong.length,
+    // Advanced plots live in PlotsTab only; report layout keeps the classic 11.
+    stress_prof: 0, activity: 0, permeability: 0,
+    phi_depth: 0, vs_depth: 0, n1_depth: 0, stress_path: 0,
   };
 
   const typeCounts = useMemo(() => {

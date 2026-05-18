@@ -50,6 +50,9 @@ export {
   renderCrossSectionSvg,
   extractSectionPolygons,
   suggestSvgHeight,
+  correlateSpt,
+  correlateIspt,
+  locationsToGeoJson,
 } from '@geoflow/core';
 
 export type {
@@ -124,4 +127,12 @@ export type {
   CrossSectionOptions,
   CrossSectionData,
   SectionBorehole,
+  SptInput,
+  SptCorrelations,
+  IsptCorrelationRow,
+  IsptCorrelationOptions,
+  SoilFamily,
+  GeoJsonFeatureCollection,
+  GeoJsonFeature,
+  GeoJsonExportOptions,
 } from '@geoflow/core';

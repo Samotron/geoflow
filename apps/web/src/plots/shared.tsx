@@ -6,7 +6,8 @@
 
 import { useEffect, useRef } from 'react';
 import * as Plot from '@observablehq/plot';
-import type { AgsFile, AgsRow } from '../core.js';
+import { correlateIspt } from '../core.js';
+import type { AgsFile, AgsRow, IsptCorrelationOptions } from '../core.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -124,11 +125,16 @@ export function extractAllLocaIds(file: AgsFile): string[] {
   return (file.groups['LOCA']?.rows ?? []).map(r => str(r, 'LOCA_ID')).filter(Boolean);
 }
 
+/** SPT test depth: prefer ISPT_TOP (start of test), fall back to ISPT_DPTH. */
+function sptDepth(row: AgsRow): number | null {
+  return num(row, 'ISPT_TOP') ?? num(row, 'ISPT_DPTH');
+}
+
 export function extractSptDepth(file: AgsFile, layers: GeolLayer[], cf: ColorField, bh: Set<string>): DepthDatum[] {
   return (file.groups['ISPT']?.rows ?? []).flatMap(r => {
     const locaId = str(r, 'LOCA_ID');
     if (!locaId || (bh.size > 0 && !bh.has(locaId))) return [];
-    const depth = num(r, 'ISPT_DPTH'), n = num(r, 'ISPT_NVAL');
+    const depth = sptDepth(r), n = num(r, 'ISPT_NVAL');
     if (depth == null || n == null) return [];
     return [{ locaId, depth, value: n, colorKey: ckAtDepth(locaId, depth, layers, cf) }];
   });
@@ -138,7 +144,7 @@ export function extractSptElev(file: AgsFile, locaMap: Map<string, number | null
   return (file.groups['ISPT']?.rows ?? []).flatMap(r => {
     const locaId = str(r, 'LOCA_ID');
     if (!locaId || (bh.size > 0 && !bh.has(locaId))) return [];
-    const depth = num(r, 'ISPT_DPTH'), n = num(r, 'ISPT_NVAL');
+    const depth = sptDepth(r), n = num(r, 'ISPT_NVAL');
     if (depth == null || n == null) return [];
     const gl = locaMap.get(locaId) ?? null;
     if (gl == null) return [];
@@ -268,6 +274,262 @@ export function extractCong(file: AgsFile, layers: GeolLayer[], cf: ColorField, 
     const depth = num(r, 'SAMP_TOP');
     return [{ locaId, x: stress, y: voidR, colorKey: ckAtDepth(locaId, depth, layers, cf) }];
   });
+}
+
+// ── Advanced plot extractors ──────────────────────────────────────────────────
+
+export interface StressProfilePoint {
+  locaId: string;
+  depth: number;
+  sigmaV: number;       // total vertical stress (kPa)
+  u0: number;           // hydrostatic pore pressure (kPa)
+  sigmaVeff: number;    // effective vertical stress (kPa)
+  colorKey: string;
+}
+
+export interface ActivityPoint {
+  locaId: string;
+  /** Clay fraction (% < 2 μm). */
+  clayPct: number;
+  /** Plasticity Index (%). */
+  pi: number;
+  /** Activity ratio = PI / clayPct. */
+  activity: number;
+  colorKey: string;
+}
+
+export interface PermeabilityPoint {
+  locaId: string;
+  depth: number;
+  /** Permeability k (m/s). */
+  k: number;
+  colorKey: string;
+}
+
+export interface DerivedSptPoint {
+  locaId: string;
+  depth: number;
+  value: number;
+  family: 'cohesive' | 'granular' | 'unknown';
+  colorKey: string;
+}
+
+export interface StressPathPoint {
+  locaId: string;
+  /** p′ = (σ1′ + σ3′) / 2 — mean effective stress at failure (kPa). */
+  p: number;
+  /** q = (σ1′ - σ3′) / 2 — half deviator at failure (kPa). */
+  q: number;
+  curveId: string;
+  colorKey: string;
+}
+
+/**
+ * Build a vertical stress profile per borehole down to the deepest GEOL_BASE.
+ *
+ * Uses simple piecewise unit weights inferred from soil description (cohesive
+ * ≈ 18 kN/m³, granular ≈ 19, fill/topsoil ≈ 17) and a water table from WSTK
+ * (first reading per borehole).
+ */
+export function extractStressProfile(
+  file: AgsFile,
+  layers: GeolLayer[],
+  cf: ColorField,
+  bh: Set<string>,
+  samplesPerLayer = 6,
+): StressProfilePoint[] {
+  const wtByLoca = new Map<string, number>();
+  for (const r of file.groups['WSTK']?.rows ?? []) {
+    const id = str(r, 'LOCA_ID');
+    const d = num(r, 'WSTK_DPTH');
+    if (id && d != null && !wtByLoca.has(id)) wtByLoca.set(id, d);
+  }
+  const byLoca = new Map<string, GeolLayer[]>();
+  for (const l of layers) {
+    const arr = byLoca.get(l.locaId) ?? [];
+    arr.push(l);
+    byLoca.set(l.locaId, arr);
+  }
+  const out: StressProfilePoint[] = [];
+  for (const [locaId, locaLayers] of byLoca) {
+    if (bh.size > 0 && !bh.has(locaId)) continue;
+    const sortedLayers = [...locaLayers].sort((a, b) => a.top - b.top);
+    const wt = wtByLoca.get(locaId) ?? Number.POSITIVE_INFINITY;
+    let sigmaV = 0;
+    let prevDepth = 0;
+    for (const l of sortedLayers) {
+      const gamma = inferUnitWeight(l.desc, l.geolLeg);
+      const seg = Math.max(0, l.base - Math.max(l.top, prevDepth));
+      // Emit `samplesPerLayer` points inside this layer for a smooth line.
+      for (let s = 0; s < samplesPerLayer; s++) {
+        const t = (s + 1) / samplesPerLayer;
+        const depth = l.top + (l.base - l.top) * t;
+        const incDepth = depth - prevDepth;
+        if (incDepth < 0) continue;
+        const sigma = sigmaV + gamma * incDepth;
+        const u0 = depth > wt ? (depth - wt) * 9.81 : 0;
+        const sigmaVeff = Math.max(0.1, sigma - u0);
+        out.push({
+          locaId,
+          depth,
+          sigmaV: sigma,
+          u0,
+          sigmaVeff,
+          colorKey: ckAtDepth(locaId, depth, locaLayers, cf),
+        });
+      }
+      sigmaV += gamma * seg;
+      prevDepth = l.base;
+    }
+  }
+  return out;
+}
+
+function inferUnitWeight(desc: string, _leg: string): number {
+  const u = (desc || '').toUpperCase();
+  if (/MADE\s*GROUND|FILL|TOPSOIL|HARDCORE|ASH/.test(u)) return 17;
+  if (/PEAT|ORGANIC/.test(u)) return 11;
+  if (/CHALK|LIMESTONE|MUDSTONE|SANDSTONE|GRANITE|SHALE|ROCK/.test(u)) return 22;
+  if (/CLAY|SILT/.test(u)) return 18;
+  if (/SAND|GRAVEL/.test(u)) return 19;
+  return 18;
+}
+
+/**
+ * Activity (Skempton). Needs LLPL_PI and a clay fraction. Clay fraction is
+ * derived from PSD curves: percentage passing the 0.002 mm size, matched to
+ * the same LOCA_ID + SAMP_REF as the LLPL row.
+ */
+export function extractActivity(
+  file: AgsFile,
+  layers: GeolLayer[],
+  cf: ColorField,
+  bh: Set<string>,
+): ActivityPoint[] {
+  // Build a (LOCA, SAMP_REF) → clay% lookup from GRAG + SIEV.
+  const clayByKey = new Map<string, number>();
+  for (const grp of ['GRAG', 'SIEV'] as const) {
+    const szField = grp === 'GRAG' ? 'GRAG_SIZO' : 'SIEV_SIZE';
+    const pcField = grp === 'GRAG' ? 'GRAG_PCPG' : 'SIEV_PCPG';
+    for (const r of file.groups[grp]?.rows ?? []) {
+      const id = str(r, 'LOCA_ID');
+      const ref = str(r, 'SAMP_REF');
+      if (!id || !ref) continue;
+      const size = num(r, szField);
+      const pass = num(r, pcField);
+      if (size == null || pass == null) continue;
+      // Match the 2-μm sieve fraction (0.002 mm). Tolerate small differences.
+      if (size > 0.001 && size < 0.003) {
+        clayByKey.set(`${id}/${ref}`, pass);
+      }
+    }
+  }
+  const out: ActivityPoint[] = [];
+  for (const r of file.groups['LLPL']?.rows ?? []) {
+    const id = str(r, 'LOCA_ID');
+    if (!id || (bh.size > 0 && !bh.has(id))) continue;
+    const ref = str(r, 'SAMP_REF');
+    const ll = num(r, 'LLPL_LL');
+    const pl = num(r, 'LLPL_PL');
+    let pi = num(r, 'LLPL_PI');
+    if (pi == null && ll != null && pl != null) pi = ll - pl;
+    if (pi == null || pi <= 0) continue;
+    const clayPct = clayByKey.get(`${id}/${ref}`);
+    if (clayPct === undefined || clayPct <= 0) continue;
+    const depth = num(r, 'SAMP_TOP');
+    out.push({
+      locaId: id,
+      clayPct,
+      pi,
+      activity: pi / clayPct,
+      colorKey: ckAtDepth(id, depth, layers, cf),
+    });
+  }
+  return out;
+}
+
+/** Permeability vs depth from PERM (preferred), IRDX or IPRM. */
+export function extractPermeability(
+  file: AgsFile,
+  layers: GeolLayer[],
+  cf: ColorField,
+  bh: Set<string>,
+): PermeabilityPoint[] {
+  const out: PermeabilityPoint[] = [];
+  for (const [grp, dF, kF] of [
+    ['PERM', 'SAMP_TOP', 'PERM_PERM'],
+    ['IRDX', 'IRDX_DPTH', 'IRDX_PERM'],
+    ['IPRM', 'IPRM_DPTH', 'IPRM_PERM'],
+  ] as const) {
+    for (const r of file.groups[grp]?.rows ?? []) {
+      const id = str(r, 'LOCA_ID');
+      if (!id || (bh.size > 0 && !bh.has(id))) continue;
+      const depth = num(r, dF) ?? num(r, 'SPEC_DPTH');
+      const k = num(r, kF);
+      if (depth == null || k == null || k <= 0) continue;
+      out.push({ locaId: id, depth, k, colorKey: ckAtDepth(id, depth, layers, cf) });
+    }
+  }
+  return out;
+}
+
+/** SPT-correlation profile (ϕ′ / Vs / N₁,₆₀) using @geoflow/core. */
+export function extractDerivedSpt(
+  file: AgsFile,
+  layers: GeolLayer[],
+  cf: ColorField,
+  bh: Set<string>,
+  field: 'phiPrime' | 'VsImai' | 'N1_60' | 'Dr',
+  options: IsptCorrelationOptions = {},
+): DerivedSptPoint[] {
+  const rows = correlateIspt(file, options);
+  const out: DerivedSptPoint[] = [];
+  for (const r of rows) {
+    if (bh.size > 0 && !bh.has(r.loca_id)) continue;
+    const v = r.correlations[field];
+    if (v === undefined || !Number.isFinite(v)) continue;
+    out.push({
+      locaId: r.loca_id,
+      depth: r.depth,
+      value: v,
+      family: r.family,
+      colorKey: ckAtDepth(r.loca_id, r.depth, layers, cf),
+    });
+  }
+  return out;
+}
+
+/** Triaxial p-q stress paths from TRIG. One curveId per (LOCA, SAMP_REF). */
+export function extractStressPath(
+  file: AgsFile,
+  layers: GeolLayer[],
+  cf: ColorField,
+  bh: Set<string>,
+): StressPathPoint[] {
+  const out: StressPathPoint[] = [];
+  for (const r of file.groups['TRIG']?.rows ?? []) {
+    const id = str(r, 'LOCA_ID');
+    if (!id || (bh.size > 0 && !bh.has(id))) continue;
+    const cell = num(r, 'TRIG_CELL');
+    const devF = num(r, 'TRIG_DEVF');
+    const pwpF = num(r, 'TRIG_PWPF') ?? 0;
+    if (cell == null || devF == null) continue;
+    // σ1′ = cell + dev - u   ;   σ3′ = cell - u
+    const sigma3eff = cell - pwpF;
+    const sigma1eff = cell + devF - pwpF;
+    const p = (sigma1eff + sigma3eff) / 2;
+    const q = (sigma1eff - sigma3eff) / 2;
+    const ref = str(r, 'SAMP_REF') || String(num(r, 'SAMP_TOP') ?? '?');
+    const depth = num(r, 'SAMP_TOP');
+    out.push({
+      locaId: id,
+      p,
+      q,
+      curveId: `${id}/${ref}`,
+      colorKey: ckAtDepth(id, depth, layers, cf),
+    });
+  }
+  return out;
 }
 
 // ── Plot specs ────────────────────────────────────────────────────────────────
@@ -483,20 +745,224 @@ export function atterbergDepthSpec(llpl: LlplDepthDatum[], mc: DepthDatum[]): Pl
   };
 }
 
+// ── Advanced plot specs ───────────────────────────────────────────────────────
+
+export function stressProfileSpec(data: StressProfilePoint[]): PlotSpec {
+  const cs = colorScaleFor(data);
+  const maxStress = Math.max(50, ...data.map(d => Math.max(d.sigmaV, d.sigmaVeff, d.u0)));
+  return {
+    ...DEPTH_GRID_STYLE,
+    x: { label: "Stress (kPa)", domain: [0, maxStress * 1.05], grid: true },
+    color: { ...cs, legend: true },
+    marks: [
+      Plot.ruleY([0], { stroke: '#0f172a', strokeWidth: 1 }),
+      // u₀ — hydrostatic pore pressure (dashed blue)
+      Plot.line(data, {
+        x: 'u0', y: 'depth', z: 'locaId',
+        stroke: '#2563eb', strokeWidth: 1.2, strokeDasharray: '4,3',
+        sort: 'depth',
+      }),
+      // σv — total vertical stress (solid grey)
+      Plot.line(data, {
+        x: 'sigmaV', y: 'depth', z: 'locaId',
+        stroke: '#475569', strokeWidth: 1.2,
+        sort: 'depth',
+      }),
+      // σ'v — effective vertical stress (solid coloured)
+      Plot.line(data, {
+        x: 'sigmaVeff', y: 'depth', z: 'locaId',
+        stroke: d => (d as StressProfilePoint).colorKey, strokeWidth: 2,
+        sort: 'depth',
+      }),
+      Plot.dot(data, {
+        x: 'sigmaVeff', y: 'depth', fill: d => d.colorKey, r: 2,
+        stroke: 'white', strokeWidth: 0.5,
+        tip: true,
+        title: (d: StressProfilePoint) =>
+          `${d.locaId}\nDepth = ${d.depth.toFixed(2)} m\nσv = ${d.sigmaV.toFixed(1)} kPa\nu₀ = ${d.u0.toFixed(1)} kPa\nσ'v = ${d.sigmaVeff.toFixed(1)} kPa`,
+      }),
+      Plot.text(
+        [
+          { x: maxStress * 0.96, y: 0.5, t: '— σv  · u₀  ▬ σ′v' },
+        ],
+        { x: 'x', y: 'y', text: 't', fontSize: 10, fill: '#64748b', textAnchor: 'end' }
+      ),
+    ],
+  };
+}
+
+export function activitySpec(data: ActivityPoint[]): PlotSpec {
+  const cs = colorScaleFor(data);
+  const maxClay = Math.max(60, ...data.map(d => d.clayPct)) + 5;
+  // Skempton activity reference lines: A = 0.5, 0.75, 1.25 (montmorillonite ≈ 7).
+  const ref = [0.5, 0.75, 1.25].map(a => ({
+    a, label: a === 0.5 ? 'A=0.5 (inactive)'
+      : a === 0.75 ? 'A=0.75 (normal)'
+      : 'A=1.25 (active)',
+    pts: Array.from({ length: 30 }, (_, i) => {
+      const x = (i + 1) * (maxClay / 30);
+      return { x, y: a * x, label: `A=${a}` };
+    }),
+  }));
+  return {
+    height: 360,
+    marginLeft: 55,
+    x: { label: 'Clay fraction (% < 2 μm)', domain: [0, maxClay], grid: true },
+    y: { label: 'Plasticity Index, PI (%)', grid: true },
+    color: { ...cs, legend: true },
+    marks: [
+      ...ref.map(r => Plot.line(r.pts, { x: 'x', y: 'y', stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '5,4' })),
+      ...ref.map((r, i) => Plot.text([{ x: maxClay * 0.95, y: r.a * maxClay * 0.95, t: r.label }],
+        { x: 'x', y: 'y', text: 't', fontSize: 9, fill: '#94a3b8', textAnchor: 'end', dy: i % 2 === 0 ? -3 : 9 })),
+      Plot.dot(data, {
+        x: 'clayPct', y: 'pi', fill: d => d.colorKey,
+        r: 5, stroke: 'white', strokeWidth: 0.8,
+        tip: true,
+        title: d => `${d.locaId}\nClay = ${d.clayPct.toFixed(1)}%\nPI = ${d.pi.toFixed(1)}%\nA = ${d.activity.toFixed(2)}`,
+      }),
+    ],
+  };
+}
+
+export function permeabilitySpec(data: PermeabilityPoint[]): PlotSpec {
+  const cs = colorScaleFor(data);
+  const ks = data.map(d => d.k);
+  const minK = Math.min(...ks);
+  const maxK = Math.max(...ks);
+  const decadeMin = Math.pow(10, Math.floor(Math.log10(minK || 1e-12)));
+  const decadeMax = Math.pow(10, Math.ceil(Math.log10(maxK || 1e-3)));
+  // Permeability classification bands (Terzaghi/Peck).
+  const bands = [
+    { x: 1e-9, t: 'practically impermeable' },
+    { x: 1e-7, t: 'very low' },
+    { x: 1e-5, t: 'low' },
+    { x: 1e-3, t: 'medium' },
+  ];
+  return {
+    ...DEPTH_GRID_STYLE,
+    x: {
+      type: 'log' as const,
+      label: 'Permeability k (m/s)',
+      domain: [decadeMin, decadeMax],
+      grid: true,
+    },
+    color: { ...cs, legend: true },
+    marks: [
+      Plot.ruleY([0], { stroke: '#0f172a', strokeWidth: 1 }),
+      ...bands.map(b => Plot.ruleX([b.x], { stroke: '#e2e8f0', strokeDasharray: '4,4' })),
+      Plot.text(bands, { x: 'x', y: 0.5, text: 't', fill: '#94a3b8', fontSize: 9, dx: 3, textAnchor: 'start' }),
+      Plot.dot(data, {
+        x: 'k', y: 'depth', fill: d => d.colorKey, r: 5,
+        stroke: 'white', strokeWidth: 0.8,
+        tip: true,
+        title: d => `${d.locaId}\nk = ${d.k.toExponential(2)} m/s\nDepth = ${d.depth.toFixed(2)} m`,
+      }),
+    ],
+  };
+}
+
+const FAMILY_FILL: Record<DerivedSptPoint['family'], string> = {
+  cohesive: '#1d4ed8',
+  granular: '#b45309',
+  unknown: '#64748b',
+};
+
+export function derivedSptSpec(
+  data: DerivedSptPoint[],
+  field: 'phiPrime' | 'VsImai' | 'N1_60' | 'Dr',
+): PlotSpec {
+  const cs = colorScaleFor(data);
+  const labels: Record<typeof field, string> = {
+    phiPrime: "ϕ′ (°)",
+    VsImai: "Vs (m/s) — Imai",
+    N1_60: "N₁,₆₀ (blows/300mm)",
+    Dr: "Relative density Dr (%)",
+  };
+  return {
+    ...DEPTH_GRID_STYLE,
+    x: { label: labels[field], grid: true },
+    color: { ...cs, legend: true },
+    marks: [
+      Plot.ruleY([0], { stroke: '#0f172a', strokeWidth: 1 }),
+      Plot.ruleY(data, {
+        x1: 0, x2: 'value', y: 'depth',
+        stroke: d => d.colorKey, strokeWidth: 2, strokeOpacity: 0.5,
+      }),
+      Plot.dot(data, {
+        x: 'value', y: 'depth',
+        fill: (d: DerivedSptPoint) => d.colorKey, r: 5,
+        stroke: (d: DerivedSptPoint) => FAMILY_FILL[d.family], strokeWidth: 1.5,
+        tip: true,
+        title: (d: DerivedSptPoint) =>
+          `${d.locaId} [${d.family}]\nDepth = ${d.depth.toFixed(2)} m\n${labels[field]} = ${d.value.toFixed(1)}`,
+      }),
+    ],
+  };
+}
+
+export function stressPathSpec(data: StressPathPoint[]): PlotSpec {
+  const cs = colorScaleFor(data);
+  const ps = data.map(d => d.p);
+  const qs = data.map(d => d.q);
+  const maxAxis = Math.max(50, ...ps, ...qs) * 1.05;
+  // Kf-line for a representative φ′ = 30° (q = p · sinφ′).
+  const phi30 = Math.sin((30 * Math.PI) / 180);
+  const phi20 = Math.sin((20 * Math.PI) / 180);
+  return {
+    height: 360,
+    marginLeft: 55,
+    x: { label: "p′ = (σ1′ + σ3′) / 2  (kPa)", domain: [0, maxAxis], grid: true },
+    y: { label: "q = (σ1′ - σ3′) / 2  (kPa)", domain: [0, maxAxis * 0.7], grid: true },
+    color: { ...cs, legend: true },
+    marks: [
+      Plot.ruleX([0]), Plot.ruleY([0]),
+      Plot.line([{ x: 0, y: 0 }, { x: maxAxis, y: phi30 * maxAxis }], {
+        x: 'x', y: 'y', stroke: '#dc2626', strokeWidth: 1.5, strokeDasharray: '6,3',
+      }),
+      Plot.text([{ x: maxAxis, y: phi30 * maxAxis, t: 'Kf  φ′=30°' }], {
+        x: 'x', y: 'y', text: 't', fontSize: 9, fill: '#dc2626', textAnchor: 'end', dy: -4,
+      }),
+      Plot.line([{ x: 0, y: 0 }, { x: maxAxis, y: phi20 * maxAxis }], {
+        x: 'x', y: 'y', stroke: '#94a3b8', strokeWidth: 1, strokeDasharray: '4,4',
+      }),
+      Plot.text([{ x: maxAxis, y: phi20 * maxAxis, t: 'Kf  φ′=20°' }], {
+        x: 'x', y: 'y', text: 't', fontSize: 9, fill: '#94a3b8', textAnchor: 'end', dy: -4,
+      }),
+      Plot.line(
+        [...data].sort((a, b) => a.p - b.p),
+        { x: 'p', y: 'q', z: 'curveId', stroke: d => (d as StressPathPoint).colorKey, strokeWidth: 1.5 },
+      ),
+      Plot.dot(data, {
+        x: 'p', y: 'q', fill: d => d.colorKey, r: 5,
+        stroke: 'white', strokeWidth: 0.8,
+        tip: true,
+        title: d => `${d.curveId}\np′ = ${d.p.toFixed(1)} kPa\nq = ${d.q.toFixed(1)} kPa`,
+      }),
+    ],
+  };
+}
+
 // ── Plot registry ─────────────────────────────────────────────────────────────
 
 export const ALL_PLOTS = [
-  { id: 'spt_depth',   label: 'SPT vs Depth' },
-  { id: 'spt_elev',    label: 'SPT vs Elevation' },
-  { id: 'plasticity',  label: 'Plasticity Chart (A-line)' },
-  { id: 'psd',         label: 'Grading / PSD' },
-  { id: 'limits_depth', label: 'PL / LL / MC vs Depth' },
-  { id: 'moisture',    label: 'Moisture Content vs Depth' },
-  { id: 'cu',          label: 'Undrained Strength vs Depth' },
-  { id: 'density',     label: 'Density vs Depth' },
-  { id: 'shear',       label: 'Shear Box Envelope' },
-  { id: 'compaction',  label: 'Compaction Curves' },
-  { id: 'cong',        label: 'e–log σ Consolidation' },
+  { id: 'spt_depth',     label: 'SPT vs Depth' },
+  { id: 'spt_elev',      label: 'SPT vs Elevation' },
+  { id: 'plasticity',    label: 'Plasticity Chart (A-line)' },
+  { id: 'psd',           label: 'Grading / PSD' },
+  { id: 'limits_depth',  label: 'PL / LL / MC vs Depth' },
+  { id: 'moisture',      label: 'Moisture Content vs Depth' },
+  { id: 'cu',            label: 'Undrained Strength vs Depth' },
+  { id: 'density',       label: 'Density vs Depth' },
+  { id: 'shear',         label: 'Shear Box Envelope' },
+  { id: 'compaction',    label: 'Compaction Curves' },
+  { id: 'cong',          label: 'e–log σ Consolidation' },
+  { id: 'stress_prof',   label: 'Effective Stress Profile' },
+  { id: 'activity',      label: 'Activity Chart (Skempton)' },
+  { id: 'permeability',  label: 'Permeability vs Depth' },
+  { id: 'phi_depth',     label: "Derived ϕ′ vs Depth (SPT)" },
+  { id: 'vs_depth',      label: 'Derived Vs vs Depth (SPT)' },
+  { id: 'n1_depth',      label: 'N₁,₆₀ vs Depth' },
+  { id: 'stress_path',   label: 'Triaxial Stress Paths (p-q)' },
 ] as const;
 
 export type PlotId = (typeof ALL_PLOTS)[number]['id'];

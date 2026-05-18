@@ -123,6 +123,28 @@ describe("buildSectionData", () => {
     expect(bh04b).toBeDefined();
     expect(Math.abs(bh04b!.offset)).toBeCloseTo(30, 1);
   });
+
+  it("best-fit mode projects all holes onto a single straight line", () => {
+    const model = makeModel();
+    // Add an off-line hole; in fence mode the polyline visits it (offset≈0).
+    // In best-fit mode the principal axis ignores its lateral offset.
+    model.boreholes.push(makeBh("BH04", 50, 30, 97, [
+      { key: "TOPS", desc: "TOPSOIL", top: 0, base: 1, color: "#5C7A3E" },
+    ]));
+    const fence = buildSectionData(model, ["BH01", "BH02", "BH03", "BH04"], "fence");
+    const bestFit = buildSectionData(model, ["BH01", "BH02", "BH03", "BH04"], "best-fit");
+
+    expect(fence).not.toBeNull();
+    expect(bestFit).not.toBeNull();
+
+    const fenceBh04 = fence!.boreholes.find(b => b.id === "BH04")!;
+    const bestFitBh04 = bestFit!.boreholes.find(b => b.id === "BH04")!;
+
+    // Fence mode: BH04 is on the polyline, offset ≈ 0.
+    expect(Math.abs(fenceBh04.offset)).toBeLessThan(1);
+    // Best-fit: BH04 is well off the line, offset noticeably > 0.
+    expect(Math.abs(bestFitBh04.offset)).toBeGreaterThan(5);
+  });
 });
 
 // ── renderCrossSectionSvg ─────────────────────────────────────────────────────

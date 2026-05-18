@@ -529,6 +529,41 @@ rules:
     });
   });
 
+  it("loads and evaluates the bundled BGS standard pack", () => {
+    const packPath = resolve(__dirname, "../../../rules/specs/bgs/standard/1.x/pack.yml");
+    const yaml = readFileSync(packPath, "utf-8");
+    const pack = loadPack(yaml);
+    expect(pack.rules.length).toBeGreaterThan(5);
+    for (const r of pack.rules) {
+      expect(r.id).toMatch(/^BGS-/);
+      expect(r.severity).toMatch(/^(error|warning|info)$/);
+      expect(r.check ?? r.expr).toBeTruthy();
+    }
+
+    // File missing PROJ, ABBR, TYPE, UNIT, GEOL, HDPH and with a LOCA row
+    // that has no usable coordinate set.
+    const file = makeFile({
+      LOCA: {
+        name: "LOCA",
+        headings: [
+          { name: "LOCA_ID", unit: "", data_type: "ID" },
+          { name: "LOCA_TYPE", unit: "", data_type: "PA" },
+        ],
+        rows: [{ LOCA_ID: "BH01", LOCA_TYPE: "CP" }],
+        source_line: Option.none(),
+      },
+    });
+
+    const diags = evaluatePackYaml(yaml, file);
+    const ids = new Set(diags.map((d) => d.rule_id));
+    expect(ids.has("BGS-1-PROJ")).toBe(true);
+    expect(ids.has("BGS-1-ABBR")).toBe(true);
+    expect(ids.has("BGS-1-TYPE")).toBe(true);
+    expect(ids.has("BGS-1-UNIT")).toBe(true);
+    expect(ids.has("BGS-2")).toBe(true);
+    expect(ids.has("BGS-3")).toBe(true); // LOCA has no coords
+  });
+
   it("loads and evaluates the bundled AGS standard pack", () => {
     // End-to-end sanity check: the on-disk YAML pack parses cleanly,
     // every rule has either a `check:` or `expr:`, and it produces sensible

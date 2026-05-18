@@ -8,9 +8,13 @@ import {
   extractSptDepth, extractSptElev, extractAtterberg, extractPsd,
   extractDepth, extractUu, extractDensity, extractShear,
   extractCompaction, extractLlplDepth, extractCong,
+  extractStressProfile, extractActivity, extractPermeability,
+  extractDerivedSpt, extractStressPath,
   sptDepthSpec, sptElevSpec, plasticitySpec, psdSpec,
   depthScatterSpec, densitySpec, shearBoxSpec, compactionSpec,
   congSpec, atterbergDepthSpec,
+  stressProfileSpec, activitySpec, permeabilitySpec,
+  derivedSptSpec, stressPathSpec,
 } from '../plots/shared.js';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -47,6 +51,15 @@ export function PlotsTab({ fileBytes }: Props) {
   const compaction = useMemo(() => agsFile ? extractCompaction(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
   const cong       = useMemo(() => agsFile ? extractCong(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
 
+  // Advanced extractors
+  const stressProf = useMemo(() => agsFile ? extractStressProfile(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
+  const activity   = useMemo(() => agsFile ? extractActivity(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
+  const perm       = useMemo(() => agsFile ? extractPermeability(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
+  const phiDepth   = useMemo(() => agsFile ? extractDerivedSpt(agsFile, layers, colorField, bh, 'phiPrime') : [], [agsFile, layers, colorField, bh]);
+  const vsDepth    = useMemo(() => agsFile ? extractDerivedSpt(agsFile, layers, colorField, bh, 'VsImai')  : [], [agsFile, layers, colorField, bh]);
+  const n1Depth    = useMemo(() => agsFile ? extractDerivedSpt(agsFile, layers, colorField, bh, 'N1_60')   : [], [agsFile, layers, colorField, bh]);
+  const stressPath = useMemo(() => agsFile ? extractStressPath(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
+
   const specSptDepth    = useMemo(() => sptDepth.length   ? sptDepthSpec(sptDepth)                 : null, [sptDepth]);
   const specSptElev     = useMemo(() => sptElev.length    ? sptElevSpec(sptElev)                   : null, [sptElev]);
   const specAtterberg   = useMemo(() => atterberg.length  ? plasticitySpec(atterberg)              : null, [atterberg]);
@@ -59,10 +72,21 @@ export function PlotsTab({ fileBytes }: Props) {
   const specCompaction  = useMemo(() => compaction.length ? compactionSpec(compaction)             : null, [compaction]);
   const specCong        = useMemo(() => cong.length       ? congSpec(cong)                         : null, [cong]);
 
+  const specStressProf  = useMemo(() => stressProf.length ? stressProfileSpec(stressProf)          : null, [stressProf]);
+  const specActivity    = useMemo(() => activity.length   ? activitySpec(activity)                 : null, [activity]);
+  const specPerm        = useMemo(() => perm.length       ? permeabilitySpec(perm)                 : null, [perm]);
+  const specPhiDepth    = useMemo(() => phiDepth.length   ? derivedSptSpec(phiDepth, 'phiPrime')   : null, [phiDepth]);
+  const specVsDepth     = useMemo(() => vsDepth.length    ? derivedSptSpec(vsDepth, 'VsImai')      : null, [vsDepth]);
+  const specN1Depth     = useMemo(() => n1Depth.length    ? derivedSptSpec(n1Depth, 'N1_60')       : null, [n1Depth]);
+  const specStressPath  = useMemo(() => stressPath.length ? stressPathSpec(stressPath)             : null, [stressPath]);
+
   const specMap: Record<PlotId, ReturnType<typeof sptDepthSpec> | null> = {
     spt_depth: specSptDepth, spt_elev: specSptElev, plasticity: specAtterberg,
     psd: specPsd, limits_depth: specLimitsDepth, moisture: specMoisture,
     cu: specCu, density: specDensity, shear: specShear, compaction: specCompaction, cong: specCong,
+    stress_prof: specStressProf, activity: specActivity, permeability: specPerm,
+    phi_depth: specPhiDepth, vs_depth: specVsDepth, n1_depth: specN1Depth,
+    stress_path: specStressPath,
   };
 
   const dataN: Record<PlotId, number> = {
@@ -70,6 +94,9 @@ export function PlotsTab({ fileBytes }: Props) {
     psd: psd.length, limits_depth: llplDepth.length, moisture: moisture.length, cu: cu.length,
     density: density.bulk.length + density.dry.length,
     shear: shear.length, compaction: compaction.length, cong: cong.length,
+    stress_prof: stressProf.length, activity: activity.length, permeability: perm.length,
+    phi_depth: phiDepth.length, vs_depth: vsDepth.length, n1_depth: n1Depth.length,
+    stress_path: stressPath.length,
   };
 
   if (!fileBytes) {
@@ -254,12 +281,59 @@ export function PlotsTab({ fileBytes }: Props) {
             </PlotCard>
           )}
 
+          {activePlots.has('stress_prof') && (
+            <PlotCard title="Effective Stress Profile  (σv solid, u₀ dashed, σ'v coloured)" n={dataN.stress_prof}>
+              {specStressProf && <OPlot key="stress_prof" spec={specStressProf} />}
+            </PlotCard>
+          )}
+
+          {activePlots.has('activity') && (
+            <PlotCard title="Activity Chart — Skempton (PI vs clay fraction)" n={dataN.activity}>
+              {dataN.activity === 0
+                ? null
+                : specActivity
+                  ? <OPlot key="activity" spec={specActivity} />
+                  : <div style={{ padding: '20px 16px', color: 'var(--muted)', fontSize: 13 }}>Needs LLPL + PSD with a 2 μm fraction.</div>
+              }
+            </PlotCard>
+          )}
+
+          {activePlots.has('permeability') && (
+            <PlotCard title="Permeability vs Depth (log scale)" n={dataN.permeability}>
+              {specPerm && <OPlot key="permeability" spec={specPerm} />}
+            </PlotCard>
+          )}
+
+          {activePlots.has('phi_depth') && (
+            <PlotCard title="Derived ϕ′ vs Depth  (Hatanaka–Uchida 1996)" n={dataN.phi_depth}>
+              {specPhiDepth && <OPlot key="phi_depth" spec={specPhiDepth} />}
+            </PlotCard>
+          )}
+
+          {activePlots.has('vs_depth') && (
+            <PlotCard title="Derived Vs vs Depth  (Imai 1981)" n={dataN.vs_depth}>
+              {specVsDepth && <OPlot key="vs_depth" spec={specVsDepth} />}
+            </PlotCard>
+          )}
+
+          {activePlots.has('n1_depth') && (
+            <PlotCard title="N₁,₆₀ vs Depth  (Liao–Whitman 1986)" n={dataN.n1_depth}>
+              {specN1Depth && <OPlot key="n1_depth" spec={specN1Depth} />}
+            </PlotCard>
+          )}
+
+          {activePlots.has('stress_path') && (
+            <PlotCard title="Triaxial Stress Paths — p′ vs q (with Kf-lines)" n={dataN.stress_path}>
+              {specStressPath && <OPlot key="stress_path" spec={specStressPath} />}
+            </PlotCard>
+          )}
+
         </div>
 
         {ALL_PLOTS.every(p => dataN[p.id] === 0) && (
           <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--muted)' }}>
             <p style={{ fontWeight: 600, marginBottom: 8 }}>No plottable data found</p>
-            <p style={{ fontSize: 13 }}>This file does not contain any of the supported groups:<br />ISPT, LLPL, GRAG, SIEV, LNMC, TCON, VANE, RDEN, SHBX, CMPN, CONG</p>
+            <p style={{ fontSize: 13 }}>This file does not contain any of the supported groups:<br />ISPT, LLPL, GRAG, SIEV, LNMC, TCON, VANE, TNPC, RDEN, SHBX, CMPN, CONG, PERM, IRDX, IPRM, TRIG, GEOL, WSTK</p>
           </div>
         )}
       </main>
