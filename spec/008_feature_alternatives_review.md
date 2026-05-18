@@ -137,17 +137,17 @@ either replace or augment specific steps.
 
 Ordered by leverage-per-unit-effort, not by category.
 
-**Tier 1 — finish the AGS story (close known gaps first)**
-1. AGS 4.1.1 / 4.2 dict + version strings (already scoped in spec/005).
-2. BGS rule pack (`rules/specs/bgs/`) — biggest UK user base.
-3. Custom `--dict` flag.
-4. GeoJSON + CSV export buttons.
+**Tier 1 — finish the AGS story (close known gaps first)** — ✓ landed in this branch
+1. AGS 4.1.1 / 4.2 dict + version strings (already scoped in spec/005). *4.1.1/4.2 version strings already accepted; CPDx, PMMx, DMDx groups added to the dict.*
+2. BGS rule pack (`rules/specs/bgs/`) — biggest UK user base. *Implemented at `rules/specs/bgs/standard/1.x/pack.yml`.*
+3. Custom `--dict` flag. *`geoflow validate ... --dict <yml>` with `parseDictYaml` loader.*
+4. GeoJSON + CSV export buttons. *CSV/TSV already shipped; `geoflow export <file> --format geojson [--crs ...]` and `locationsToGeoJson()` added.*
 
-**Tier 2 — earn the "geotech" in GeoFlow**
-5. Atterberg/Casagrande chart and PSD curve plots — pure wins on existing data.
-6. USCS / BS5930 classification tied back to the description parser.
-7. SPT / CPT parameter correlations panel.
-8. Fence diagrams (chain of cross-sections along a polyline).
+**Tier 2 — earn the "geotech" in GeoFlow** — ✓ landed in this branch
+5. Atterberg/Casagrande chart and PSD curve plots — pure wins on existing data. *Pre-existing in `apps/web/src/plots/shared.tsx` (plasticitySpec, psdSpec).*
+6. USCS / BS5930 classification tied back to the description parser. *Pre-existing in `describe.ts` (inferUscs / inferBs5930 / inferIso14688 / inferAashto).*
+7. SPT / CPT parameter correlations panel. *CPT already produced Su/ϕ′/Dr; new `packages/core/src/spt.ts` covers SPT (N₁,₆₀, ϕ′, Dr, cu, Es, Vs) with a new Correlations tab in the web app.*
+8. Fence diagrams (chain of cross-sections along a polyline). *`buildSectionData` already supported polylines; UI now exposes a Fence / Best-fit toggle in SectionTab.*
 
 **Tier 3 — unlock new audiences**
 9. **AGSi support** — interpretive ground model in *and* out. Biggest strategic

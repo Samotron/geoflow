@@ -62,6 +62,15 @@ export interface CrossSectionOptions {
   showScaleBar?: boolean;
   /** Optional subtitle (e.g. project / date). */
   subtitle?: string;
+  /**
+   * How the section line through the selected boreholes is constructed:
+   *  - `"fence"` (default): a polyline visiting each hole in the supplied order
+   *    — produces a zig-zag fence diagram with no off-section offsets.
+   *  - `"best-fit"`: a straight line fit to the hole positions; off-section
+   *    holes show projection offsets.
+   *  - explicit polyline waypoints.
+   */
+  sectionLine?: "fence" | "best-fit" | Array<{ x: number; y: number }>;
 }
 
 export interface SectionBorehole {
@@ -91,6 +100,51 @@ interface Vec2 { x: number; y: number }
 function sub(a: Vec2, b: Vec2): Vec2 { return { x: a.x - b.x, y: a.y - b.y }; }
 function len(v: Vec2): number { return Math.hypot(v.x, v.y); }
 function dot(a: Vec2, b: Vec2): number { return a.x * b.x + a.y * b.y; }
+
+/**
+ * Best-fit line through a set of 2D points. Returns a two-point polyline
+ * representing the principal-axis line, extended to enclose the projections
+ * of all input points. Falls back to the convex hull endpoints if the
+ * principal-axis covariance is degenerate.
+ */
+function bestFitLine(points: Vec2[]): Vec2[] {
+  if (points.length < 2) return points;
+  const n = points.length;
+  let mx = 0, my = 0;
+  for (const p of points) { mx += p.x; my += p.y; }
+  mx /= n; my /= n;
+  let sxx = 0, sxy = 0, syy = 0;
+  for (const p of points) {
+    const dx = p.x - mx, dy = p.y - my;
+    sxx += dx * dx; sxy += dx * dy; syy += dy * dy;
+  }
+  // Principal eigenvector of the 2×2 covariance matrix.
+  const trace = sxx + syy;
+  const det = sxx * syy - sxy * sxy;
+  const disc = Math.max(0, trace * trace / 4 - det);
+  const lambda = trace / 2 + Math.sqrt(disc);
+  let dirX: number, dirY: number;
+  if (Math.abs(sxy) > 1e-12) {
+    dirX = lambda - syy;
+    dirY = sxy;
+  } else if (sxx >= syy) {
+    dirX = 1; dirY = 0;
+  } else {
+    dirX = 0; dirY = 1;
+  }
+  const dlen = Math.hypot(dirX, dirY) || 1;
+  dirX /= dlen; dirY /= dlen;
+  let tMin = Infinity, tMax = -Infinity;
+  for (const p of points) {
+    const t = (p.x - mx) * dirX + (p.y - my) * dirY;
+    if (t < tMin) tMin = t;
+    if (t > tMax) tMax = t;
+  }
+  return [
+    { x: mx + tMin * dirX, y: my + tMin * dirY },
+    { x: mx + tMax * dirX, y: my + tMax * dirY },
+  ];
+}
 
 function projectOntoPolyline(
   pt: Vec2,
@@ -125,7 +179,7 @@ function projectOntoPolyline(
 export function buildSectionData(
   model: Geo3DModel,
   boreholeIds: string[],
-  polyline?: Array<{ x: number; y: number }>,
+  polylineOrMode?: Array<{ x: number; y: number }> | "fence" | "best-fit",
 ): CrossSectionData | null {
   if (boreholeIds.length < 2) return null;
 
@@ -139,9 +193,15 @@ export function buildSectionData(
   }
   if (selected.length < 2) return null;
 
-  const line: Vec2[] = polyline
-    ? polyline.map(p => ({ x: p.x, y: p.y }))
-    : selected.map(bh => ({ x: bh.x, y: bh.y }));
+  let line: Vec2[];
+  if (Array.isArray(polylineOrMode)) {
+    line = polylineOrMode.map(p => ({ x: p.x, y: p.y }));
+  } else if (polylineOrMode === "best-fit") {
+    line = bestFitLine(selected.map(bh => ({ x: bh.x, y: bh.y })));
+  } else {
+    // "fence" (default) — polyline visits every hole in the supplied order.
+    line = selected.map(bh => ({ x: bh.x, y: bh.y }));
+  }
 
   const projected: SectionBorehole[] = selected.map(bh => {
     const { chainage, offset } = projectOntoPolyline({ x: bh.x, y: bh.y }, line);
@@ -412,7 +472,7 @@ export function renderCrossSectionSvg(
   boreholeIds: string[],
   opts: CrossSectionOptions = {},
 ): string {
-  const data = buildSectionData(model, boreholeIds);
+  const data = buildSectionData(model, boreholeIds, opts.sectionLine);
   if (!data) {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="60"><text x="10" y="34" font-family="system-ui" font-size="12" fill="#dc2626">Select at least 2 boreholes.</text></svg>`;
   }
@@ -800,7 +860,7 @@ export function extractSectionPolygons(
   topEdge: Array<{ chainage: number; elev: number }>;
   baseEdge: Array<{ chainage: number; elev: number }>;
 }> {
-  const data = buildSectionData(model, boreholeIds);
+  const data = buildSectionData(model, boreholeIds, "fence");
   if (!data) return [];
   const units = collectUnitObservations(data.boreholes);
   const out: ReturnType<typeof extractSectionPolygons> = [];

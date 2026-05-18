@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import YAML from "yaml";
 import { describe, expect, it } from "vitest";
 import { BUILTIN_AGS_DICT } from "./dict.data.js";
-import { activateCustomDict, currentDict, deactivateCustomDict, type GroupDef } from "./dict.js";
+import { activateCustomDict, currentDict, deactivateCustomDict, parseDictYaml, type GroupDef } from "./dict.js";
 
 describe("dictionary bundle", () => {
   it("includes every group defined in rules/specs/ags/dict/ags4.yml", () => {
@@ -48,5 +48,52 @@ describe("dictionary bundle", () => {
     deactivateCustomDict();
     expect(currentDict().TEST).toBeUndefined();
     expect(currentDict().PROJ).toEqual(BUILTIN_AGS_DICT.PROJ);
+  });
+
+  it("includes AGS 4.2 group additions (CPDx, PMMx, DMDx)", () => {
+    for (const g of ["CPDA", "CPDC", "CPDP", "PMMG", "PMMU", "PMMD", "DMDG", "DMDU"]) {
+      const def = BUILTIN_AGS_DICT[g as keyof typeof BUILTIN_AGS_DICT] as GroupDef | undefined;
+      expect(def, `expected dict entry for ${g}`).toBeDefined();
+      expect(def!.required_headings).toContain("LOCA_ID");
+      expect(def!.parent_group).toBe("LOCA");
+    }
+  });
+});
+
+describe("parseDictYaml", () => {
+  it("accepts the `groups:` wrapper layout", () => {
+    const yaml = `
+groups:
+  XYZX:
+    required_headings: [LOCA_ID, XYZX_DPTH]
+    depth_headings: [XYZX_DPTH]
+    key_headings: [LOCA_ID, XYZX_DPTH]
+    parent_group: LOCA
+    heading_order: [LOCA_ID, XYZX_DPTH, XYZX_VAL]
+`;
+    const dict = parseDictYaml(yaml);
+    expect(dict.XYZX).toBeDefined();
+    expect(dict.XYZX!.required_headings).toEqual(["LOCA_ID", "XYZX_DPTH"]);
+    expect(dict.XYZX!.parent_group).toBe("LOCA");
+    expect(dict.XYZX!.heading_order).toEqual(["LOCA_ID", "XYZX_DPTH", "XYZX_VAL"]);
+  });
+
+  it("accepts the top-level layout used by the built-in dict", () => {
+    const yaml = `
+ABCD:
+  heading_order: [LOCA_ID, ABCD_DPTH]
+`;
+    const dict = parseDictYaml(yaml);
+    expect(dict.ABCD).toBeDefined();
+    expect(dict.ABCD!.heading_order).toEqual(["LOCA_ID", "ABCD_DPTH"]);
+    expect(dict.ABCD!.required_headings).toEqual([]);
+  });
+
+  it("rejects entries missing heading_order", () => {
+    const yaml = `
+BAD:
+  required_headings: [LOCA_ID]
+`;
+    expect(() => parseDictYaml(yaml)).toThrow(/heading_order/);
   });
 });

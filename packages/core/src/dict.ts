@@ -1,3 +1,4 @@
+import { parse as parseYaml } from "yaml";
 import { AgsFile } from "./model.js";
 import { Diagnostic, DiagnosticBuilder, Severity } from "./diagnostics.js";
 import type { Rule } from "./validate.js";
@@ -29,6 +30,62 @@ export function activateCustomDict(dict: Record<string, GroupDef>) {
 
 export function deactivateCustomDict() {
   activeDict = DEFAULT_DICT;
+}
+
+/**
+ * Parse a YAML dict file into a record of group definitions.
+ *
+ * Two layouts are accepted:
+ *  - `{ groups: { GROUP: GroupDef, ... } }` (matches the `DictFile` shape)
+ *  - `{ GROUP: GroupDef, ... }` (top-level, same shape as the built-in dict)
+ *
+ * Each group entry must at minimum supply `heading_order`. Optional
+ * `required_headings`, `depth_headings`, `key_headings`, `parent_group` are
+ * defaulted to sensible values if absent.
+ */
+export function parseDictYaml(yamlText: string): Record<string, GroupDef> {
+  const raw = parseYaml(yamlText);
+  if (typeof raw !== "object" || raw === null) {
+    throw new Error("custom dict must be a YAML object");
+  }
+  const obj = raw as Record<string, unknown>;
+  const groupsObj = (
+    typeof obj.groups === "object" && obj.groups !== null && !Array.isArray(obj.groups)
+      ? obj.groups
+      : obj
+  ) as Record<string, unknown>;
+
+  const out: Record<string, GroupDef> = {};
+  for (const [name, value] of Object.entries(groupsObj)) {
+    if (name === "groups" && value === groupsObj) continue;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+    const def = value as Record<string, unknown>;
+    const headingOrder = arrayOfStrings(def.heading_order);
+    if (headingOrder === null) {
+      throw new Error(`group ${name}: heading_order must be an array of strings`);
+    }
+    const groupDef: GroupDef = {
+      heading_order: headingOrder,
+      required_headings: arrayOfStrings(def.required_headings) ?? [],
+      depth_headings: arrayOfStrings(def.depth_headings) ?? [],
+      key_headings: arrayOfStrings(def.key_headings) ?? [],
+    };
+    if (typeof def.parent_group === "string") {
+      groupDef.parent_group = def.parent_group;
+    }
+    out[name] = groupDef;
+  }
+  return out;
+}
+
+function arrayOfStrings(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const out: string[] = [];
+  for (const item of v) {
+    if (typeof item !== "string") return null;
+    out.push(item);
+  }
+  return out;
 }
 
 export class DictRequiredHeadingsRule implements Rule {

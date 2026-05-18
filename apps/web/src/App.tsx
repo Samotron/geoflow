@@ -18,6 +18,7 @@ import { ReportTab } from './tabs/ReportTab.js';
 import { DescribeTab } from './tabs/DescribeTab.js';
 import { SectionTab } from './tabs/SectionTab.js';
 import { CptTab } from './tabs/CptTab.js';
+import { CorrelationsTab } from './tabs/CorrelationsTab.js';
 import { ProjectManager } from './components/ProjectManager.js';
 import { ConflictResolver } from './components/ConflictResolver.js';
 import { DisclaimerBanner, DisclaimerModal } from './components/Disclaimer.js';
@@ -417,6 +418,7 @@ const ICONS: Record<TabId, ReactNode> = {
   describe: <Icon d="M4 6h10 M4 10h12 M4 14h8 M16 14l4 4-4 4" />,
   section: <Icon d="M3 4v16 M21 4v16 M3 8h18 M3 13h18 M3 18h18 M8 4l-2 4 3 5-2 5 2 2 M16 4l2 4-3 5 2 5-2 2" />,
   cpt: <Icon d="M12 2v2 M11 4h2v3h-2z M12 7v15 M9 10l3 2 3-2 M9 14l3 2 3-2 M9 18l3 2 3-2" />,
+  correlations: <Icon d="M4 20h16 M4 4v16 M8 14l3-4 4 2 5-7" />,
 };
 
 // ── Nav structure ────────────────────────────────────────────────────────────
@@ -451,6 +453,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'rules', label: 'Rules' },
       { id: 'describe', label: 'Describe' },
       { id: 'cpt', label: 'CPT' },
+      { id: 'correlations', label: 'Correlations' },
     ],
   },
   {
@@ -1056,6 +1059,7 @@ export default function App() {
               {tab === 'describe' && <DescribeTab fileBytes={fileBytes} />}
               {tab === 'section' && <SectionTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'cpt' && <CptTab fileBytes={fileBytes} fileName={fileName} />}
+              {tab === 'correlations' && <CorrelationsTab fileBytes={fileBytes} />}
             </div>
           )}
         </main>

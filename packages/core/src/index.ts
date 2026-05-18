@@ -25,3 +25,5 @@ export * from "./topo.js";
 export * from "./describe.js";
 export * from "./cpt.js";
 export * from "./cross-section.js";
+export * from "./geojson.js";
+export * from "./spt.js";

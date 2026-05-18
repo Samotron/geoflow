@@ -5,15 +5,19 @@ import {
   Format,
   Registry,
   Severity,
+  activateCustomDict,
   assessQuality,
   buildGiReport,
   decodeBytes,
+  deactivateCustomDict,
   diffFiles,
   diffToSummary,
   enhanceGeol,
   fixBytes,
   isIdentical,
+  locationsToGeoJson,
   parseDescription,
+  parseDictYaml,
   parseStr,
   readDiggs,
   renderDiffText,
@@ -194,6 +198,7 @@ function runValidate(argv: readonly string[]): RunResult {
   let format = Format.Text;
   let failOn = Severity.Error;
   const rulesPaths: string[] = [];
+  let dictPath: string | null = null;
 
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -232,10 +237,26 @@ function runValidate(argv: readonly string[]): RunResult {
       continue;
     }
 
+    if (arg === "--dict") {
+      const value = argv[++i];
+      if (!value) {
+        return usageError("--dict requires a path to a YAML dictionary");
+      }
+      dictPath = value;
+      continue;
+    }
+
     return usageError(`unknown validate option: ${arg}`);
   }
 
+  let customDictActivated = false;
   try {
+    if (dictPath !== null) {
+      const yamlText = readFileSync(resolve(dictPath), "utf8");
+      activateCustomDict(parseDictYaml(yamlText));
+      customDictActivated = true;
+    }
+
     const resolved = resolve(file);
     const bytes = readFileSync(resolved);
     const result = validateFileBytes(bytes, resolved, { format, failOn });
@@ -290,6 +311,8 @@ function runValidate(argv: readonly string[]): RunResult {
       stdout: "",
       stderr: `${message}\n`,
     };
+  } finally {
+    if (customDictActivated) deactivateCustomDict();
   }
 }
 
@@ -402,7 +425,7 @@ function runDiff(argv: readonly string[]): RunResult {
   }
 }
 
-const INSTALLED_PACKS = ["ags:standard@4.x", "ice:mini@0.1"] as const;
+const INSTALLED_PACKS = ["ags:standard@4.x", "ice:mini@0.1", "bgs:standard@1.x"] as const;
 
 function runRules(argv: readonly string[]): RunResult {
   const subcommand = argv[0];
@@ -589,8 +612,9 @@ function runExport(argv: readonly string[]): RunResult {
 
   const file = argv[0]!;
   let groupName: string | null = null;
-  let format: "csv" | "tsv" = "csv";
+  let format: "csv" | "tsv" | "geojson" = "csv";
   let outPath: string | null = null;
+  let crs: string | null = null;
 
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -603,7 +627,9 @@ function runExport(argv: readonly string[]): RunResult {
     if (arg === "--format") {
       const value = argv[++i];
       if (!value) return usageError("--format requires a value");
-      if (value !== "csv" && value !== "tsv") return usageError(`unsupported export format: ${value}`);
+      if (value !== "csv" && value !== "tsv" && value !== "geojson") {
+        return usageError(`unsupported export format: ${value}`);
+      }
       format = value;
       continue;
     }
@@ -613,11 +639,17 @@ function runExport(argv: readonly string[]): RunResult {
       outPath = value;
       continue;
     }
+    if (arg === "--crs") {
+      const value = argv[++i];
+      if (!value) return usageError("--crs requires a value (e.g. EPSG:27700)");
+      crs = value;
+      continue;
+    }
     return usageError(`unknown export option: ${arg}`);
   }
 
-  if (groupName === null) {
-    return usageError("export requires --group <name>");
+  if (format !== "geojson" && groupName === null) {
+    return usageError("export requires --group <name> (unless --format geojson)");
   }
 
   try {
@@ -625,7 +657,26 @@ function runExport(argv: readonly string[]): RunResult {
     const bytes = readFileSync(resolved);
     const text = decodeBytes(bytes);
     const { file: agsFile } = parseStr(text);
-    const group = agsFile.groups[groupName];
+
+    if (format === "geojson") {
+      const collection = locationsToGeoJson(
+        agsFile,
+        crs !== null ? { crs } : {},
+      );
+      const output = JSON.stringify(collection, null, 2) + "\n";
+      if (outPath !== null) {
+        const resolvedOut = resolve(outPath);
+        writeFileSync(resolvedOut, output);
+        return {
+          exitCode: 0,
+          stdout: `exported ${collection.features.length} location(s) to ${resolvedOut}\n`,
+          stderr: "",
+        };
+      }
+      return { exitCode: 0, stdout: output, stderr: "" };
+    }
+
+    const group = agsFile.groups[groupName!];
 
     if (!group) {
       return {
@@ -958,12 +1009,13 @@ function usageText(): string {
     "Usage:",
     "  geoflow info <file>",
     "  geoflow fix <file> [--write] [--diff-file <path>]",
-    "  geoflow validate <file> [--format text|json|junit] [--fail-on error|warning|info] [--rules <pack.yml>]",
+    "  geoflow validate <file> [--format text|json|junit] [--fail-on error|warning|info] [--rules <pack.yml>] [--dict <dict.yml>]",
     "  geoflow convert <in> <out> [--to ags|diggs]",
     "  geoflow diff <file-a> <file-b> [--format text|json]",
     "  geoflow quality <file> [--format text|json] [--fail-on error|warning|info]",
     "  geoflow report <file> [--format text|json] [--out <path>]",
     "  geoflow export <file> --group <name> [--format csv|tsv] [--out <path>]",
+    "  geoflow export <file> --format geojson [--crs EPSG:27700] [--out <path>]",
     "  geoflow explore <file> [--out <path>]",
     "  geoflow enhance <file> [--format text|json] [--out <path>]",
     "  geoflow enhance --text \"<description>\" [--format text|json]",

@@ -102,6 +102,7 @@ export function SectionTab({ fileBytes, fileName }: Props) {
   const [showScaleBar, setShowScaleBar] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [smooth, setSmooth] = useState(true);
+  const [sectionMode, setSectionMode] = useState<'fence' | 'best-fit'>('fence');
 
   // Container size — drives auto-fit SVG dimensions
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -121,8 +122,8 @@ export function SectionTab({ fileBytes, fileName }: Props) {
 
   const sectionData = useMemo(() => {
     if (!model || selected.length < 2) return null;
-    return buildSectionData(model, selected);
-  }, [model, selected]);
+    return buildSectionData(model, selected, sectionMode);
+  }, [model, selected, sectionMode]);
 
   const svg = useMemo(() => {
     if (!model || selected.length < 2) return null;
@@ -140,6 +141,7 @@ export function SectionTab({ fileBytes, fileName }: Props) {
       showScaleBar,
       showLabels,
       interpolation: smooth ? 'smooth' : 'linear-chainage',
+      sectionLine: sectionMode,
       startLabel: startLabel || 'A',
       endLabel: endLabel || "A′",
       ...(title.trim() ? { title: title.trim() } : {}),
@@ -149,7 +151,7 @@ export function SectionTab({ fileBytes, fileName }: Props) {
   }, [
     model, selected, containerWidth, vexag, title, subtitle,
     showLegend, showHatch, showGrid, showDirectionLabels,
-    showUnitLabels, showScaleBar, showLabels, smooth, startLabel, endLabel,
+    showUnitLabels, showScaleBar, showLabels, smooth, sectionMode, startLabel, endLabel,
   ]);
 
   const toggle = useCallback((id: string) => {
@@ -345,6 +347,43 @@ export function SectionTab({ fileBytes, fileName }: Props) {
                 ×{v}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div style={PANEL_STYLE}>
+          <label style={LABEL_STYLE}>Section line</label>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button
+              onClick={() => setSectionMode('fence')}
+              style={{
+                ...BUTTON_STYLE,
+                flex: 1,
+                background: sectionMode === 'fence' ? 'var(--accent)' : 'var(--card)',
+                color: sectionMode === 'fence' ? '#fff' : 'var(--text)',
+                borderColor: sectionMode === 'fence' ? 'var(--accent)' : 'var(--border)',
+              }}
+              title="Fence: polyline visits each borehole in the chosen order"
+            >
+              Fence
+            </button>
+            <button
+              onClick={() => setSectionMode('best-fit')}
+              style={{
+                ...BUTTON_STYLE,
+                flex: 1,
+                background: sectionMode === 'best-fit' ? 'var(--accent)' : 'var(--card)',
+                color: sectionMode === 'best-fit' ? '#fff' : 'var(--text)',
+                borderColor: sectionMode === 'best-fit' ? 'var(--accent)' : 'var(--border)',
+              }}
+              title="Best-fit: straight line fit through hole positions; off-section holes show offsets"
+            >
+              Best-fit line
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, lineHeight: 1.4 }}>
+            {sectionMode === 'fence'
+              ? 'Polyline through each hole in order. No projection offset.'
+              : 'Single straight line through the hole cluster. Off-section holes show offsets.'}
           </div>
         </div>
 

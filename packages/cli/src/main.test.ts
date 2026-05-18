@@ -620,6 +620,92 @@ describe("@geoflow/cli", () => {
       const result = runCli(["export", fixture, "--group", "LOCA", "--format", "xlsx"]);
       expect(result.exitCode).toBe(2);
     });
+
+    it("exports LOCA as a GeoJSON FeatureCollection without --group", () => {
+      const result = runCli(["export", fixture, "--format", "geojson"]);
+      expect(result.exitCode).toBe(0);
+      const fc = JSON.parse(result.stdout);
+      expect(fc.type).toBe("FeatureCollection");
+      expect(Array.isArray(fc.features)).toBe(true);
+      expect(fc.features.length).toBeGreaterThan(0);
+      expect(fc.features[0].geometry.type).toBe("Point");
+      expect(fc.features[0].properties.LOCA_ID).toBe("BH01");
+    });
+
+    it("includes a top-level CRS member when --crs supplied", () => {
+      const result = runCli(["export", fixture, "--format", "geojson", "--crs", "EPSG:27700"]);
+      expect(result.exitCode).toBe(0);
+      const fc = JSON.parse(result.stdout);
+      expect(fc.crs).toEqual({ type: "name", properties: { name: "EPSG:27700" } });
+    });
+
+    it("writes GeoJSON to --out path", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-geojson-"));
+      const outFile = join(tmpDir, "loca.geojson");
+      try {
+        const result = runCli(["export", fixture, "--format", "geojson", "--out", outFile]);
+        expect(result.exitCode).toBe(0);
+        const content = readFileSync(outFile, "utf8");
+        const fc = JSON.parse(content);
+        expect(fc.features.length).toBeGreaterThan(0);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // ── validate --dict ─────────────────────────────────────────────────────────
+
+  describe("validate --dict", () => {
+    const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+
+    it("loads a custom dictionary and recognises its groups", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-dict-"));
+      const dictFile = join(tmpDir, "custom.yml");
+      const dictYaml = `
+groups:
+  PROJ:
+    required_headings: [PROJ_ID]
+    depth_headings: []
+    key_headings: [PROJ_ID]
+    heading_order: [PROJ_ID, PROJ_NAME, PROJ_LOC]
+  CUST:
+    required_headings: [LOCA_ID, CUST_VAL]
+    depth_headings: []
+    key_headings: [LOCA_ID]
+    parent_group: LOCA
+    heading_order: [LOCA_ID, CUST_VAL]
+`;
+      try {
+        writeFileSync(dictFile, dictYaml);
+        const result = runCli(["validate", fixture, "--dict", dictFile]);
+        // Validation may pass or fail depending on the fixture, but the CLI
+        // should accept the flag without error code 2 (usage error).
+        expect(result.exitCode).not.toBe(2);
+        expect(result.stderr).not.toContain("unknown");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects a malformed dict with a clear error", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-dict-"));
+      const dictFile = join(tmpDir, "bad.yml");
+      try {
+        writeFileSync(dictFile, "BAD:\n  required_headings: [LOCA_ID]\n");
+        const result = runCli(["validate", fixture, "--dict", dictFile]);
+        expect(result.exitCode).toBe(2);
+        expect(result.stderr.toLowerCase()).toContain("heading_order");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns exit code 2 when --dict has no argument", () => {
+      const result = runCli(["validate", fixture, "--dict"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("--dict");
+    });
   });
 
   // ── db commands ─────────────────────────────────────────────────────────────

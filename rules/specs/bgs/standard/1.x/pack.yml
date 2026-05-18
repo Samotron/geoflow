@@ -1,0 +1,160 @@
+version: 1
+name: bgs-standard
+pack_version: "1.x"
+
+# British Geological Survey (BGS) submission rules for the UK National
+# Geotechnical Database. Applied in addition to the AGS 4 standard pack.
+# Based on the rules implemented by pyagsapi (BGS-1 .. BGS-10).
+#
+# Reference: bgs:standard@1.x
+
+rules:
+  # BGS-1 — Required groups present
+  - id: BGS-1-PROJ
+    description: "Submissions must contain the PROJ group."
+    severity: error
+    scope: file
+    expr: "has_group('PROJ')"
+    message: "PROJ group is required for BGS submissions"
+
+  - id: BGS-1-ABBR
+    description: "Submissions must contain the ABBR group."
+    severity: error
+    scope: file
+    expr: "has_group('ABBR')"
+    message: "ABBR group is required for BGS submissions"
+
+  - id: BGS-1-TYPE
+    description: "Submissions must contain the TYPE group."
+    severity: error
+    scope: file
+    expr: "has_group('TYPE')"
+    message: "TYPE group is required for BGS submissions"
+
+  - id: BGS-1-UNIT
+    description: "Submissions must contain the UNIT group."
+    severity: error
+    scope: file
+    expr: "has_group('UNIT')"
+    message: "UNIT group is required for BGS submissions"
+
+  - id: BGS-1-LOCA
+    description: "Submissions must contain the LOCA group."
+    severity: error
+    scope: file
+    expr: "has_group('LOCA')"
+    message: "LOCA group is required for BGS submissions"
+
+  # BGS-2 — GEOL group required
+  - id: BGS-2
+    description: "BGS submissions must contain the GEOL group."
+    severity: error
+    scope: file
+    expr: "has_group('GEOL')"
+    message: "GEOL group is required for BGS submissions"
+
+  # BGS-3 — LOCA has at least one coordinate set
+  - id: BGS-3
+    description: "Each LOCA row must populate one of LOCA_GREF, LOCA_LREF or LOCA_LLZ (or NATE/NATN as a fallback)."
+    severity: error
+    in: LOCA
+    expr: >
+      (row.LOCA_GREF != null && row.LOCA_GREF != '') ||
+      (row.LOCA_LREF != null && row.LOCA_LREF != '') ||
+      (row.LOCA_LLZ  != null && row.LOCA_LLZ  != '') ||
+      (row.LOCA_NATE != null && row.LOCA_NATN != null)
+    message: "LOCA {row.LOCA_ID} has no LOCA_GREF, LOCA_LREF, LOCA_LLZ or NATE/NATN"
+
+  # BGS-4 — HDPH_TOP/BASE populated
+  - id: BGS-4-TOP
+    description: "Hole depth top (HDPH_TOP) must not be null."
+    severity: error
+    in: HDPH
+    check:
+      required: [HDPH_TOP]
+
+  - id: BGS-4-BASE
+    description: "Hole depth base (HDPH_BASE) must be present and non-zero."
+    severity: error
+    in: HDPH
+    expr: "row.HDPH_BASE != null && row.HDPH_BASE != '' && row.HDPH_BASE > 0"
+    message: "HDPH row at LOCA {row.LOCA_ID} has missing or zero HDPH_BASE"
+
+  # BGS-5 — HDPH ↔ GEOL LOCA_ID consistency
+  - id: BGS-5-GEOL-IN-HDPH
+    description: "Every GEOL LOCA_ID must have a matching HDPH row."
+    severity: warning
+    in: GEOL
+    when: "has_group('HDPH')"
+    expr: "exists_in('HDPH', 'LOCA_ID', row.LOCA_ID)"
+    message: "GEOL row for {row.LOCA_ID} has no matching HDPH row"
+
+  - id: BGS-5-HDPH-IN-GEOL
+    description: "Every HDPH LOCA_ID should have at least one GEOL row."
+    severity: warning
+    in: HDPH
+    when: "has_group('GEOL')"
+    expr: "exists_in('GEOL', 'LOCA_ID', row.LOCA_ID)"
+    message: "HDPH row for {row.LOCA_ID} has no matching GEOL row"
+
+  # BGS-6 — UK coordinate boundary check (OSGB)
+  # Note: OS National Grid covers approximately 0 ≤ NATE ≤ 700000,
+  # 0 ≤ NATN ≤ 1300000. Tightened slightly to flag obvious coordinate
+  # transposition or wrong-CRS errors.
+  - id: BGS-6
+    description: "LOCA_NATE/NATN should fall within the OSGB National Grid envelope."
+    severity: warning
+    in: LOCA
+    when: "row.LOCA_NATE != null && row.LOCA_NATN != null"
+    expr: >
+      row.LOCA_NATE >= 0     && row.LOCA_NATE <= 700000 &&
+      row.LOCA_NATN >= 0     && row.LOCA_NATN <= 1300000
+    message: "LOCA {row.LOCA_ID} coordinates ({row.LOCA_NATE}, {row.LOCA_NATN}) fall outside the OSGB grid envelope"
+
+  # BGS-7 — LOCX/LOCY must not duplicate NATE/NATN or LON/LAT
+  - id: BGS-7-NATE
+    description: "LOCA_LOCX must not equal LOCA_NATE (looks like a copy/paste error)."
+    severity: warning
+    in: LOCA
+    when: "row.LOCA_LOCX != null && row.LOCA_NATE != null && row.LOCA_LOCX != '' && row.LOCA_NATE != ''"
+    expr: "row.LOCA_LOCX != row.LOCA_NATE"
+    message: "LOCA {row.LOCA_ID}: LOCX equals NATE — these should be different CRS coordinates"
+
+  - id: BGS-7-NATN
+    description: "LOCA_LOCY must not equal LOCA_NATN (looks like a copy/paste error)."
+    severity: warning
+    in: LOCA
+    when: "row.LOCA_LOCY != null && row.LOCA_NATN != null && row.LOCA_LOCY != '' && row.LOCA_NATN != ''"
+    expr: "row.LOCA_LOCY != row.LOCA_NATN"
+    message: "LOCA {row.LOCA_ID}: LOCY equals NATN — these should be different CRS coordinates"
+
+  # BGS-8 — Generic LOCA_ID xref (already covered by AGS-XREF-LOCA in core,
+  # but called out explicitly here so submissions get a BGS-prefixed diag).
+  - id: BGS-8
+    description: "Any group with LOCA_ID must reference an existing LOCA row."
+    severity: error
+    in: SAMP
+    check:
+      foreign_key:
+        fields: [LOCA_ID]
+        references: LOCA
+
+  # BGS-9 — SAMP referential integrity for child groups
+  - id: BGS-9-SAMP-IN-LOCA
+    description: "Every SAMP row must reference an existing LOCA row."
+    severity: error
+    in: SAMP
+    check:
+      foreign_key:
+        fields: [LOCA_ID]
+        references: LOCA
+
+  # BGS-10 — Coordinate column TYPE must be numeric
+  - id: BGS-10
+    description: "Coordinate headings (LOCA_NATE, LOCA_NATN, LOCA_LON, LOCA_LAT) must declare a numeric AGS TYPE."
+    severity: warning
+    scope: file
+    check:
+      numeric_type:
+        fields: [LOCA_NATE, LOCA_NATN, LOCA_LON, LOCA_LAT, LOCA_LOCX, LOCA_LOCY]
+    message: "LOCA.{field} is declared with a non-numeric AGS TYPE"
