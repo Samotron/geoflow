@@ -47,3 +47,20 @@ export interface StoredPipeline {
   createdAt: number;
   updatedAt: number;
 }
+
+/**
+ * Wrapper for storing 1D ground models in IndexedDB. The model JSON is
+ * opaque here — shape is defined in `@geoflow/ground-model`.
+ *
+ * Ground models are scoped to a project; when no project is active they
+ * are stored under the synthetic project id `'_session'` so they survive
+ * a page reload but stay separate from named projects.
+ */
+export interface StoredGroundModel {
+  id: string;
+  projectId: string;
+  name: string;
+  json: string;
+  createdAt: number;
+  updatedAt: number;
+}

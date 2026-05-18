@@ -1,7 +1,7 @@
-import type { Project, Commit, StoredPipeline } from './types.js';
+import type { Project, Commit, StoredPipeline, StoredGroundModel } from './types.js';
 
 const DB_NAME = 'geoflow';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 // Transparently upgrade commits written by the old schema (agsBytes field)
 // to the new storage union without requiring a DB version bump.
@@ -47,6 +47,13 @@ function openDb(): Promise<IDBDatabase> {
         const ps = db.createObjectStore('pipelines', { keyPath: 'id' });
         ps.createIndex('projectId', 'projectId');
         ps.createIndex('updatedAt', 'updatedAt');
+      }
+
+      // v4: ground models
+      if (oldVersion < 4) {
+        const gs = db.createObjectStore('ground_models', { keyPath: 'id' });
+        gs.createIndex('projectId', 'projectId');
+        gs.createIndex('updatedAt', 'updatedAt');
       }
     };
     req.onsuccess = (e) => {
@@ -172,4 +179,34 @@ export async function deletePipeline(id: string): Promise<void> {
   const db = await openDb();
   const t = db.transaction('pipelines', 'readwrite');
   await idbDelete(t.objectStore('pipelines'), id);
+}
+
+// ── Ground models ─────────────────────────────────────────────────────────────
+
+export async function getProjectGroundModels(projectId: string): Promise<StoredGroundModel[]> {
+  const db = await openDb();
+  const t = db.transaction('ground_models', 'readonly');
+  const all = await idbGetAll<StoredGroundModel>(
+    t.objectStore('ground_models').index('projectId'),
+    IDBKeyRange.only(projectId),
+  );
+  return all.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export async function getGroundModel(id: string): Promise<StoredGroundModel | undefined> {
+  const db = await openDb();
+  const t = db.transaction('ground_models', 'readonly');
+  return idbGet<StoredGroundModel>(t.objectStore('ground_models'), id);
+}
+
+export async function saveGroundModel(model: StoredGroundModel): Promise<void> {
+  const db = await openDb();
+  const t = db.transaction('ground_models', 'readwrite');
+  await idbPut(t.objectStore('ground_models'), model);
+}
+
+export async function deleteGroundModel(id: string): Promise<void> {
+  const db = await openDb();
+  const t = db.transaction('ground_models', 'readwrite');
+  await idbDelete(t.objectStore('ground_models'), id);
 }
