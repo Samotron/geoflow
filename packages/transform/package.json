@@ -19,5 +19,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {}
+  "dependencies": {
+    "sql-parser-cst": "^0.42.0"
+  }
 }

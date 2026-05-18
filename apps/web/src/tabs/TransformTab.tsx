@@ -44,7 +44,7 @@ import {
   deletePipelineById,
   savePipelineForProject,
 } from '../transform/persistence.js';
-import { runPipeline, type NodeRunResult } from '../transform/executor.js';
+import { fetchLineageRow, runPipeline, type LineageEntry, type NodeRunResult } from '../transform/executor.js';
 import { NODE_TYPES, OUTPUT_FORMATS, SEED_FORMATS, type FlowNodeData } from '../transform/nodes.js';
 import { SqlNodeEditor } from '../transform/SqlNodeEditor.js';
 
@@ -67,6 +67,12 @@ export function TransformTab({ fileBytes, currentProject }: Props) {
   );
 }
 
+interface SelectedCell {
+  nodeId: string;
+  rowIdx: number;
+  colIdx: number;
+}
+
 function TransformTabInner({ fileBytes, currentProject }: Props) {
   const [pipeline, setPipeline] = useState<Pipeline>(() => emptyPipeline(crypto.randomUUID(), 'Untitled pipeline'));
   const [pipelineList, setPipelineList] = useState<Pipeline[]>([]);
@@ -75,6 +81,7 @@ function TransformTabInner({ fileBytes, currentProject }: Props) {
   const [runResults, setRunResults] = useState<NodeRunResult[]>([]);
   const [running, setRunning] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
@@ -377,6 +384,12 @@ function TransformTabInner({ fileBytes, currentProject }: Props) {
           availableRefs={upstreamRefs}
           onChange={(patch) => selectedNode && updateNode(selectedNode.id, patch)}
           runResult={selectedNode ? runResults.find((r) => r.nodeId === selectedNode.id) ?? null : null}
+          selectedCell={selectedCell && selectedNode && selectedCell.nodeId === selectedNode.id ? selectedCell : null}
+          onCellClick={(rowIdx, colIdx) => {
+            if (!selectedNode) return;
+            setSelectedCell({ nodeId: selectedNode.id, rowIdx, colIdx });
+          }}
+          pipelineNodes={pipeline.nodes}
         />
       </div>
     </div>
@@ -666,9 +679,12 @@ interface InspectorProps {
   availableRefs: string[];
   onChange: (patch: Partial<PipelineNode>) => void;
   runResult: NodeRunResult | null;
+  selectedCell: SelectedCell | null;
+  onCellClick: (rowIdx: number, colIdx: number) => void;
+  pipelineNodes: readonly PipelineNode[];
 }
 
-function Inspector({ node, tables, availableRefs, onChange, runResult }: InspectorProps) {
+function Inspector({ node, tables, availableRefs, onChange, runResult, selectedCell, onCellClick, pipelineNodes }: InspectorProps) {
   if (!node) {
     return (
       <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'white', padding: 14, fontSize: 12, color: 'var(--muted)' }}>
@@ -789,7 +805,19 @@ function Inspector({ node, tables, availableRefs, onChange, runResult }: Inspect
       </div>
 
       {runResult && (
-        <ResultPanel result={runResult} />
+        <ResultPanel
+          result={runResult}
+          onCellClick={onCellClick}
+          selectedCell={selectedCell}
+        />
+      )}
+
+      {runResult && selectedCell && runResult.lineage && (
+        <LineagePanel
+          result={runResult}
+          selectedCell={selectedCell}
+          pipelineNodes={pipelineNodes}
+        />
       )}
     </div>
   );
@@ -954,13 +982,22 @@ function csvCell(v: unknown): string {
   return s;
 }
 
-function ResultPanel({ result }: { result: NodeRunResult }) {
+function ResultPanel({
+  result,
+  onCellClick,
+  selectedCell,
+}: {
+  result: NodeRunResult;
+  onCellClick: (rowIdx: number, colIdx: number) => void;
+  selectedCell: { rowIdx: number; colIdx: number } | null;
+}) {
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'white', padding: 10, minHeight: 0, overflow: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)' }}>
           Result
         </span>
+        <LineageBadge result={result} />
         <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--muted)' }}>
           {result.durationMs.toFixed(1)}ms
         </span>
@@ -968,15 +1005,51 @@ function ResultPanel({ result }: { result: NodeRunResult }) {
       {result.status === 'error' ? (
         <div style={{ fontSize: 11, color: 'var(--red)', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{result.error}</div>
       ) : result.preview ? (
-        <ResultTable preview={result.preview} />
+        <ResultTable
+          preview={result.preview}
+          lineage={result.lineage}
+          onCellClick={onCellClick}
+          selectedCell={selectedCell}
+        />
       ) : (
         <div style={{ fontSize: 11, color: 'var(--muted)' }}>No preview.</div>
+      )}
+      {result.lineageWarnings.length > 0 && (
+        <div style={{ marginTop: 6, fontSize: 10, color: 'var(--amber)' }}>
+          {result.lineageWarnings.map((w, i) => <div key={i}>· {w}</div>)}
+        </div>
       )}
     </div>
   );
 }
 
-function ResultTable({ preview }: { preview: NonNullable<NodeRunResult['preview']> }) {
+function LineageBadge({ result }: { result: NodeRunResult }) {
+  if (result.lineage === null) {
+    return (
+      <span title="Lineage unavailable for this node" style={{ fontSize: 10, color: 'var(--muted)', padding: '1px 6px', border: '1px solid var(--border)', borderRadius: 3 }}>
+        no lineage
+      </span>
+    );
+  }
+  return (
+    <span title="Click any cell to see contributing source rows" style={{ fontSize: 10, color: 'var(--green)', padding: '1px 6px', background: 'var(--green-soft)', border: '1px solid var(--green-border)', borderRadius: 3 }}>
+      ↩ lineage
+    </span>
+  );
+}
+
+function ResultTable({
+  preview,
+  lineage,
+  onCellClick,
+  selectedCell,
+}: {
+  preview: NonNullable<NodeRunResult['preview']>;
+  lineage: NodeRunResult['lineage'];
+  onCellClick: (rowIdx: number, colIdx: number) => void;
+  selectedCell: { rowIdx: number; colIdx: number } | null;
+}) {
+  const canClick = lineage !== null;
   return (
     <div style={{ overflow: 'auto', maxHeight: 220 }}>
       <table style={{ borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace' }}>
@@ -990,14 +1063,196 @@ function ResultTable({ preview }: { preview: NonNullable<NodeRunResult['preview'
         <tbody>
           {preview.rows.map((r, i) => (
             <tr key={i}>
-              {r.map((v, j) => (
-                <td key={j} style={{ padding: '2px 8px', borderBottom: '1px solid var(--border)' }}>{v === null ? <span style={{ color: 'var(--muted)' }}>NULL</span> : String(v)}</td>
-              ))}
+              {r.map((v, j) => {
+                const isSelected = selectedCell?.rowIdx === i && selectedCell.colIdx === j;
+                return (
+                  <td
+                    key={j}
+                    onClick={canClick ? () => onCellClick(i, j) : undefined}
+                    style={{
+                      padding: '2px 8px',
+                      borderBottom: '1px solid var(--border)',
+                      cursor: canClick ? 'pointer' : 'default',
+                      background: isSelected ? 'var(--accent-soft)' : undefined,
+                      outline: isSelected ? '1.5px solid var(--accent)' : undefined,
+                    }}
+                  >
+                    {v === null ? <span style={{ color: 'var(--muted)' }}>NULL</span> : String(v)}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
       </table>
       <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{preview.rowCount.toLocaleString()} row{preview.rowCount !== 1 ? 's' : ''}</div>
     </div>
+  );
+}
+
+// ── Cell lineage panel ──────────────────────────────────────────────────
+
+interface ResolvedContributor {
+  node: string;
+  row: number;
+  data: { columns: string[]; values: (string | number | boolean | null)[] } | null;
+}
+
+function LineagePanel({
+  result,
+  selectedCell,
+  pipelineNodes,
+}: {
+  result: NodeRunResult;
+  selectedCell: SelectedCell;
+  pipelineNodes: readonly PipelineNode[];
+}) {
+  const entries: LineageEntry[] = result.lineage?.[selectedCell.rowIdx] ?? [];
+  const columnName = result.preview?.columns[selectedCell.colIdx] ?? '';
+  const cellValue = result.preview?.rows[selectedCell.rowIdx]?.[selectedCell.colIdx];
+  const [resolved, setResolved] = useState<ResolvedContributor[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Friendly display name for a relation: file groups → "siteA · LOCA";
+  // SQL/source/seed → original node name.
+  const relationLabel = useCallback((relation: string): string => {
+    for (const n of pipelineNodes) {
+      if (n.kind === 'file') {
+        for (const g of n.groups) {
+          if (fileRelationName(n, g.name) === relation) return `${n.name} · ${g.name}`;
+        }
+      } else if (n.kind === 'source' && n.table.toLowerCase() === relation) {
+        return `${n.name} → ${n.table}`;
+      } else if (n.name.toLowerCase() === relation) {
+        return n.name;
+      }
+    }
+    return relation;
+  }, [pipelineNodes]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      const out: ResolvedContributor[] = [];
+      // Cap fetch count so a huge aggregation doesn't lock the UI.
+      const limit = Math.min(entries.length, 50);
+      for (let i = 0; i < limit; i++) {
+        const e = entries[i]!;
+        try {
+          const data = await fetchLineageRow(e.node, e.row);
+          out.push({ node: e.node, row: e.row, data });
+        } catch {
+          out.push({ node: e.node, row: e.row, data: null });
+        }
+        if (cancelled) return;
+      }
+      if (!cancelled) {
+        setResolved(out);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [entries]);
+
+  // Group contributors by relation.
+  const byRelation = useMemo(() => {
+    const m = new Map<string, ResolvedContributor[]>();
+    for (const r of resolved) {
+      const list = m.get(r.node) ?? [];
+      list.push(r);
+      m.set(r.node, list);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [resolved]);
+
+  return (
+    <div style={{ border: '1px solid var(--accent-border)', borderRadius: 8, background: 'var(--accent-soft)', padding: 10, minHeight: 0, overflow: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--navy)' }}>
+          Cell lineage
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+          row {selectedCell.rowIdx + 1} · {columnName} = {cellValue === null || cellValue === undefined ? 'NULL' : String(cellValue).slice(0, 40)}
+        </span>
+      </div>
+      {entries.length === 0 ? (
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>This row has no tracked contributors.</div>
+      ) : loading ? (
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Loading {entries.length} contributor{entries.length === 1 ? '' : 's'}…</div>
+      ) : (
+        <>
+          {entries.length > resolved.length && (
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6 }}>
+              Showing first {resolved.length} of {entries.length} contributing rows.
+            </div>
+          )}
+          {byRelation.map(([rel, contribs]) => (
+            <div key={rel} style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>
+                {relationLabel(rel)}
+                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>
+                  · {contribs.length} row{contribs.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 4, overflow: 'auto', maxHeight: 220 }}>
+                <ContributorTable contribs={contribs} />
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ContributorTable({ contribs }: { contribs: ResolvedContributor[] }) {
+  // Use the columns from the first contributor that resolved; if none did,
+  // show a minimal "row id only" table.
+  const firstWithData = contribs.find((c) => c.data !== null);
+  if (!firstWithData) {
+    return (
+      <table style={{ borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace', width: '100%' }}>
+        <tbody>
+          {contribs.map((c, i) => (
+            <tr key={i}>
+              <td style={{ padding: '2px 8px', color: 'var(--muted)' }}>row #{c.row}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+  const columns = firstWithData.data!.columns;
+  return (
+    <table style={{ borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace', width: '100%' }}>
+      <thead>
+        <tr>
+          <th style={{ textAlign: 'left', padding: '3px 8px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', color: 'var(--muted)', position: 'sticky', top: 0 }}>#</th>
+          {columns.map((c) => (
+            <th key={c} style={{ textAlign: 'left', padding: '3px 8px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', color: 'var(--navy)', position: 'sticky', top: 0 }}>{c}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {contribs.map((c, i) => {
+          const vals = c.data?.values;
+          return (
+            <tr key={i}>
+              <td style={{ padding: '2px 8px', color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>{c.row}</td>
+              {columns.map((col, j) => {
+                const idx = c.data?.columns.indexOf(col) ?? -1;
+                const v = idx >= 0 && vals ? vals[idx] : null;
+                return (
+                  <td key={j} style={{ padding: '2px 8px', borderBottom: '1px solid var(--border)' }}>
+                    {v === null || v === undefined ? <span style={{ color: 'var(--muted)' }}>NULL</span> : String(v).slice(0, 80)}
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }

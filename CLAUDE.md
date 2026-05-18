@@ -120,3 +120,22 @@ exported/imported as JSON. Built-in examples live in
 
 DuckDB-wasm autoloads `spatial` and `httpfs` extensions on engine startup; load
 failures are non-fatal and surfaced in the Transform tab sidebar.
+
+### Cell-level lineage
+
+Every SQL node materialises a parallel `_lin_<name>` view that carries a
+`__src` provenance column. Lineage is plumbed via SQL AST rewriting
+(`packages/transform/src/lineage.ts`, using `sql-parser-cst`):
+
+- Each base relation (source/seed/file group) gets a `_lin_<rel>` view that
+  adds `__rowid` and `__src = ['<rel>|<rowid>']`.
+- For SQL nodes, the user query is parsed; every FROM/JOIN table reference is
+  rewritten to its `_lin_` view, and a `__src` column is injected into each
+  SELECT — `list_concat(...)` across joined tables, `flatten(list(...))`
+  across aggregations.
+- Unsupported constructs (window functions, parse failures) make the rewriter
+  return `null`; that node simply shows "no lineage" in the UI rather than
+  emit incorrect provenance.
+- The preview query for each node pulls `__src` from its `_lin_` view; clicking
+  any cell opens the lineage panel, which fetches the contributing source
+  rows from the relevant `_lin_<rel>` views by `__rowid`.

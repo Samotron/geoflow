@@ -208,7 +208,11 @@ importers:
         specifier: ^2.3.4
         version: 2.3.4
 
-  packages/transform: {}
+  packages/transform:
+    dependencies:
+      sql-parser-cst:
+        specifier: ^0.42.0
+        version: 0.42.0
 
 packages:
 
@@ -2327,6 +2331,9 @@ packages:
   source-map@0.5.7:
     resolution: {integrity: sha512-LbrmJOMUSdEVxIKvdcJzQC+nQhe8FUZQTXQy6+I75skNgn3OoQ0DZA8YnFa7gp8tqtL3KPf1kmo0R5DoApeSGQ==}
     engines: {node: '>=0.10.0'}
+
+  sql-parser-cst@0.42.0:
+    resolution: {integrity: sha512-KxjInlTAN9nJy9BSbjTOpxK5KvEcxQ2w2fdYc65XQ9/kutfWrLH3sCOgyxSFjLlZgfkCL5vxyZ1fsAjuSrE1tQ==}
 
   sql.js@1.14.1:
     resolution: {integrity: sha512-gcj8zBWU5cFsi9WUP+4bFNXAyF1iRpA3LLyS/DP5xlrNzGmPIizUeBggKa8DbDwdqaKwUcTEnChtd2grWo/x/A==}
@@ -4765,6 +4772,8 @@ snapshots:
   source-map-js@1.2.1: {}
 
   source-map@0.5.7: {}
+
+  sql-parser-cst@0.42.0: {}
 
   sql.js@1.14.1: {}
 

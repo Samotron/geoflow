@@ -3,3 +3,4 @@ export * from './refs.js';
 export * from './dag.js';
 export * from './compile.js';
 export * from './serialize.js';
+export * from './lineage.js';
