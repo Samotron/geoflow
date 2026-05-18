@@ -53,6 +53,7 @@ export {
   correlateSpt,
   correlateIspt,
   locationsToGeoJson,
+  representativeGroundModel,
 } from '@geoflow/core';
 
 export type {
@@ -135,4 +136,7 @@ export type {
   GeoJsonFeatureCollection,
   GeoJsonFeature,
   GeoJsonExportOptions,
+  RepresentativeLayer,
+  RepresentativeGroundModel,
+  RepresentativeGroundModelOptions,
 } from '@geoflow/core';

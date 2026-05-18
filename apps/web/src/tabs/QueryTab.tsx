@@ -6,6 +6,17 @@ import { registerAgsFile, runQuery } from '../query/duckdb.js';
 import { PRESET_QUERIES, type PresetQuery } from '../query/presets.js';
 import type { TableMeta, QueryResult } from '../query/duckdb.js';
 
+// ── SQL keywords used for editor autocomplete ─────────────────────────────────
+const SQL_KEYWORDS = [
+  'SELECT', 'FROM', 'WHERE', 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN',
+  'OUTER JOIN', 'CROSS JOIN', 'ON', 'AS', 'AND', 'OR', 'NOT', 'IS', 'NULL',
+  'IN', 'BETWEEN', 'LIKE', 'ILIKE', 'GROUP BY', 'ORDER BY', 'HAVING',
+  'LIMIT', 'OFFSET', 'DISTINCT', 'UNION', 'UNION ALL', 'INTERSECT', 'EXCEPT',
+  'WITH', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'CAST', 'COALESCE',
+  'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'ROUND', 'ABS', 'PARTITION BY',
+  'OVER', 'ASC', 'DESC',
+];
+
 interface Props {
   fileBytes: Uint8Array | null;
 }
@@ -227,6 +238,8 @@ export function QueryTab({ fileBytes }: Props) {
   const [result, setResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const editorRef = useRef<MonacoNS.editor.IStandaloneCodeEditor | null>(null);
+  const completionProviderRef = useRef<MonacoNS.IDisposable | null>(null);
+  const monacoRef = useRef<typeof MonacoNS | null>(null);
 
   // ── Load file into DuckDB ──────────────────────────────────────────────────
   useEffect(() => {
@@ -285,13 +298,116 @@ export function QueryTab({ fileBytes }: Props) {
   // ── Monaco mount — wire Ctrl+Enter ────────────────────────────────────────
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
     editor.addAction({
       id: 'run-query',
       label: 'Run Query',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
       run: () => executeQuery(editor.getValue()),
     });
+    // Trigger suggestion popup on Ctrl+Space (Monaco default), and on `.`
+    editor.updateOptions({
+      quickSuggestions: { other: true, comments: false, strings: false },
+      suggestOnTriggerCharacters: true,
+      acceptSuggestionOnEnter: 'on',
+      tabCompletion: 'on',
+      wordBasedSuggestions: 'off',
+    });
   };
+
+  // ── Register schema-aware completion provider whenever tables change ─────
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco) return;
+    completionProviderRef.current?.dispose();
+
+    const tableNames = tables.map((t) => t.name);
+    const columnsByTable = new Map(tables.map((t) => [t.name, t.columns]));
+    const allColumns = [...new Set(tables.flatMap((t) => t.columns))];
+
+    completionProviderRef.current = monaco.languages.registerCompletionItemProvider('sql', {
+      triggerCharacters: ['.', ' '],
+      provideCompletionItems: (model, position) => {
+        const word = model.getWordUntilPosition(position);
+        const range: MonacoNS.IRange = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        };
+        const lineText = model.getLineContent(position.lineNumber).slice(0, position.column - 1);
+
+        // Dot-qualified: <alias>.<col> — suggest columns for the aliased table
+        const dotMatch = lineText.match(/(\w+)\.\w*$/);
+        if (dotMatch) {
+          const prefix = dotMatch[1]!.toLowerCase();
+          // Try direct table match first
+          let cols = columnsByTable.get(prefix);
+          if (!cols) {
+            // Look for "FROM tbl prefix" or "JOIN tbl prefix"
+            const aliasRe = new RegExp(`\\b(?:FROM|JOIN)\\s+(\\w+)\\s+(?:AS\\s+)?${prefix}\\b`, 'i');
+            const sqlNow = model.getValue();
+            const m = sqlNow.match(aliasRe);
+            if (m) cols = columnsByTable.get(m[1]!.toLowerCase());
+          }
+          if (cols) {
+            return {
+              suggestions: cols.map((col) => ({
+                label: col,
+                kind: monaco.languages.CompletionItemKind.Field,
+                insertText: col,
+                range,
+                detail: 'column',
+              })),
+            };
+          }
+          return { suggestions: [] };
+        }
+
+        // After FROM / JOIN — suggest tables
+        const fromCtx = /\b(FROM|JOIN)\s+\w*$/i.test(lineText);
+        if (fromCtx) {
+          return {
+            suggestions: tableNames.map((name) => ({
+              label: name,
+              kind: monaco.languages.CompletionItemKind.Class,
+              insertText: name,
+              range,
+              detail: `table (${columnsByTable.get(name)?.length ?? 0} cols)`,
+            })),
+          };
+        }
+
+        // Default: keywords + tables + columns
+        return {
+          suggestions: [
+            ...SQL_KEYWORDS.map((kw) => ({
+              label: kw,
+              kind: monaco.languages.CompletionItemKind.Keyword,
+              insertText: kw,
+              range,
+            })),
+            ...tableNames.map((name) => ({
+              label: name,
+              kind: monaco.languages.CompletionItemKind.Class,
+              insertText: name,
+              range,
+              detail: 'table',
+            })),
+            ...allColumns.map((col) => ({
+              label: col,
+              kind: monaco.languages.CompletionItemKind.Field,
+              insertText: col,
+              range,
+              detail: 'column',
+            })),
+          ],
+        };
+      },
+    });
+
+    return () => { completionProviderRef.current?.dispose(); };
+  }, [tables]);
 
   // ── Preset selected ────────────────────────────────────────────────────────
   const handlePreset = (q: PresetQuery) => {

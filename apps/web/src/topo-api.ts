@@ -1,14 +1,18 @@
 /**
- * topo-api.ts — fetch SRTM 30m elevation data from opentopodata.org.
+ * topo-api.ts — fetch SRTM 30m elevation data.
  *
  * Samples a 20×20 grid over the model extent (+ 30% margin) and returns
  * a TopoGrid whose coordinates match the model's absolute easting/northing
  * frame.  Supports UK BNG coordinates (auto-detected by range) and
  * WGS84-based sites.
  *
- * Rate limit: opentopodata.org allows 1 request/second and 100 locations
- * per request.  A 20×20 = 400-point grid requires 4 sequential requests
- * (~4.4 s total).
+ * Provider chain (each tried in order; on transient failure the next is used):
+ *   1. opentopodata.org/srtm30m      — 1 req/s, 100 loc/req, primary
+ *   2. open-elevation.com/api/v1     — POST API, more permissive CORS,
+ *                                      no per-second rate limit
+ *
+ * The fallback exists because opentopodata occasionally returns 502/503 or
+ * is blocked by browser CORS in certain GitHub Pages deployments.
  */
 
 import proj4 from 'proj4';
@@ -23,6 +27,7 @@ const BATCH    = 100;  // max locations per opentopodata request
 const RATE_MS  = 1100; // ≥1 s between requests
 const DATASET  = 'srtm30m';
 const API_BASE = 'https://api.opentopodata.org/v1';
+const FALLBACK_API = 'https://api.open-elevation.com/api/v1/lookup';
 
 export interface FetchTopoProgress { batch: number; total: number }
 
@@ -56,16 +61,45 @@ export function buildTopoUrl(points: Array<[number, number]>, dataset = DATASET)
   return `${API_BASE}/${dataset}?locations=${locs}`;
 }
 
-async function fetchBatch(
+async function fetchBatchOpenTopoData(
   points: Array<[number, number]>,
   signal?: AbortSignal,
 ): Promise<number[]> {
   const url = buildTopoUrl(points);
   const res = await fetch(url, signal ? { signal } : undefined);
-  if (!res.ok) throw new Error(`opentopodata returned HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`opentopodata HTTP ${res.status}`);
   const json = await res.json() as { status: string; results: { elevation: number | null }[] };
-  if (json.status !== 'OK') throw new Error(`opentopodata error: ${json.status}`);
+  if (json.status !== 'OK') throw new Error(`opentopodata: ${json.status}`);
   return json.results.map(r => r.elevation ?? NaN);
+}
+
+async function fetchBatchOpenElevation(
+  points: Array<[number, number]>,
+  signal?: AbortSignal,
+): Promise<number[]> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locations: points.map(([la, lo]) => ({ latitude: la, longitude: lo })) }),
+  };
+  if (signal) init.signal = signal;
+  const res = await fetch(FALLBACK_API, init);
+  if (!res.ok) throw new Error(`open-elevation HTTP ${res.status}`);
+  const json = await res.json() as { results: { elevation: number | null }[] };
+  return json.results.map(r => r.elevation ?? NaN);
+}
+
+async function fetchBatch(
+  points: Array<[number, number]>,
+  signal?: AbortSignal,
+): Promise<number[]> {
+  try {
+    return await fetchBatchOpenTopoData(points, signal);
+  } catch (err) {
+    if ((err as Error).name === 'AbortError') throw err;
+    // Network / CORS / 5xx — try the fallback provider once
+    return await fetchBatchOpenElevation(points, signal);
+  }
 }
 
 /**
@@ -110,10 +144,18 @@ export async function fetchTopoGrid(
   const elevations = new Float32Array(GRID_N * GRID_N).fill(NaN);
   const batches = Math.ceil(gridPts.length / BATCH);
 
+  let usedFallback = false;
   for (let b = 0; b < batches; b++) {
     if (signal?.aborted) throw new DOMException('Fetch cancelled', 'AbortError');
     const chunk = gridPts.slice(b * BATCH, (b + 1) * BATCH);
-    const elev = await fetchBatch(chunk.map(p => [p.lat, p.lon]), signal);
+    let elev: number[];
+    try {
+      elev = await fetchBatchOpenTopoData(chunk.map(p => [p.lat, p.lon]), signal);
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') throw err;
+      elev = await fetchBatchOpenElevation(chunk.map(p => [p.lat, p.lon]), signal);
+      usedFallback = true;
+    }
     for (let i = 0; i < chunk.length; i++) {
       elevations[b * BATCH + i] = elev[i] ?? NaN;
     }
@@ -130,6 +172,8 @@ export async function fetchTopoGrid(
     ny: GRID_N,
     zValues: elevations,
     noData: NaN,
-    source: `SRTM 30m (opentopodata.org)`,
+    source: usedFallback
+      ? 'SRTM 30m (open-elevation.com)'
+      : 'SRTM 30m (opentopodata.org)',
   };
 }

@@ -540,6 +540,16 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
 
   // ── Tool state ──────────────────────────────────────────────────────────────
   const [activeTool, setActiveTool] = useState<Tool>('select');
+  // Help overlay shown on first visit (and toggleable from the toolbar) — the
+  // 3-D viewer is dense, so a guided panel for newcomers prevents confusion.
+  const [showHelp, setShowHelp] = useState<boolean>(() => {
+    if (typeof localStorage === 'undefined') return true;
+    return localStorage.getItem('geoflow:3d-help-seen') !== '1';
+  });
+  const dismissHelp = useCallback(() => {
+    setShowHelp(false);
+    try { localStorage.setItem('geoflow:3d-help-seen', '1'); } catch { /* ignore */ }
+  }, []);
   const [pickStep, setPickStep]     = useState<PickStep>('idle');
   const [draftA, setDraftA]         = useState<SecPt | null>(null);
 
@@ -971,7 +981,57 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
             onClick={() => { setSections([]); setActiveSec(null); }}>
             ✕
           </ToolBtn>
+          <ToolBtn active={showHelp}
+            title="Help / controls overview"
+            onClick={() => setShowHelp((v) => !v)}>
+            ?
+          </ToolBtn>
         </div>
+
+        {/* Help overlay */}
+        {showHelp && (
+          <div style={{
+            position: 'absolute', top: 12, right: 12, zIndex: 15,
+            width: 320, background: 'rgba(15,22,36,0.96)', color: '#e2e8f0',
+            border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8,
+            padding: '14px 16px', boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
+            fontSize: 12, lineHeight: 1.5,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <strong style={{ flex: 1, fontSize: 13, color: '#fff' }}>3-D viewer controls</strong>
+              <button
+                onClick={dismissHelp}
+                style={{ background: 'transparent', color: '#94a3b8', border: 'none', fontSize: 16, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                title="Dismiss"
+              >×</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 10px', alignItems: 'baseline' }}>
+              <span style={{ fontWeight: 700 }}>Drag</span>
+              <span style={{ color: '#cbd5e1' }}>Rotate the camera</span>
+              <span style={{ fontWeight: 700 }}>Right-drag</span>
+              <span style={{ color: '#cbd5e1' }}>Pan</span>
+              <span style={{ fontWeight: 700 }}>Scroll</span>
+              <span style={{ color: '#cbd5e1' }}>Zoom</span>
+              <span style={{ fontWeight: 700 }}>⊙ Select</span>
+              <span style={{ color: '#cbd5e1' }}>Click a borehole stick to view its strip log</span>
+              <span style={{ fontWeight: 700 }}>⊘ Section</span>
+              <span style={{ color: '#cbd5e1' }}>Click two points on the right-hand plan view to cut a cross-section</span>
+              <span style={{ fontWeight: 700 }}>⚡ Fault</span>
+              <span style={{ color: '#cbd5e1' }}>Trace a fault polyline on the plan view, then Finish</span>
+              <span style={{ fontWeight: 700 }}>✕</span>
+              <span style={{ color: '#cbd5e1' }}>Clear all sections</span>
+            </div>
+            <div style={{ marginTop: 10, padding: '6px 8px', background: 'rgba(96,165,250,0.12)', borderRadius: 4, color: '#bfdbfe', fontSize: 11 }}>
+              Use the right-panel cards to toggle unit visibility, opacity and V-exag. The plan-view mini-map at the bottom of the right panel doubles as a section picker.
+            </div>
+            <button
+              onClick={dismissHelp}
+              style={{ marginTop: 10, width: '100%', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Got it
+            </button>
+          </div>
+        )}
 
         {/* Tool hint overlay */}
         {activeTool === 'section' && pickStep !== 'idle' && (

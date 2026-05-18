@@ -27,6 +27,7 @@ import { saveProject, saveCommit, getCommit } from './storage/db.js';
 import { mergeAgsFiles, applyConflictResolutions } from './merge.js';
 import type { MergeResult, MergeConflict } from './merge.js';
 import { compress, computeDelta, reconstructAgsBytes } from './delta.js';
+import { useLocationGroups } from './location-groups.js';
 
 // ── Global styles ─────────────────────────────────────────────────────────────
 
@@ -754,6 +755,20 @@ export default function App() {
 
   const hasFile = fileBytes !== null;
 
+  // ── Location groups (shared across Map / Plots / Report) ───────────────────
+  const allLocaIds = useMemo<string[]>(() => {
+    if (!fileBytes) return [];
+    try {
+      const file = parseStr(decodeBytes(fileBytes)).file;
+      return (file.groups['LOCA']?.rows ?? [])
+        .map((r) => String(r['LOCA_ID'] ?? '').trim())
+        .filter(Boolean);
+    } catch {
+      return [];
+    }
+  }, [fileBytes]);
+  const locationGroups = useLocationGroups(allLocaIds);
+
   useEffect(() => {
     const onHash = () => setTab(hashTab());
     window.addEventListener('hashchange', onHash);
@@ -1046,18 +1061,19 @@ export default function App() {
                   fileBytes={fileBytes}
                   fileName={fileName}
                   onLocaClick={(id) => { pendingHoleRef.current = id; switchTab('data'); }}
+                  locationGroups={locationGroups}
                 />
               )}
               {tab === '3d' && <ThreeDTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'voxel' && <VoxelTab fileBytes={fileBytes} fileName={fileName} />}
-              {tab === 'plots' && <PlotsTab fileBytes={fileBytes} />}
+              {tab === 'plots' && <PlotsTab fileBytes={fileBytes} locationGroups={locationGroups} />}
               {tab === 'report' && <ReportTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'diff' && <DiffTab />}
               {tab === 'convert' && <ConvertTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'query' && <QueryTab fileBytes={fileBytes} />}
               {tab === 'rules' && <RulesTab fileBytes={fileBytes} />}
               {tab === 'describe' && <DescribeTab fileBytes={fileBytes} />}
-              {tab === 'section' && <SectionTab fileBytes={fileBytes} fileName={fileName} />}
+              {tab === 'section' && <SectionTab fileBytes={fileBytes} fileName={fileName} locationGroups={locationGroups} />}
               {tab === 'cpt' && <CptTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'correlations' && <CorrelationsTab fileBytes={fileBytes} />}
             </div>

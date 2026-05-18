@@ -7,8 +7,9 @@ import {
 import * as L from 'leaflet';
 import proj4 from 'proj4';
 import 'leaflet/dist/leaflet.css';
-import { decodeBytes, parseStr, buildGeo3DModel, renderBoreholeStripSvg } from '../core.js';
-import type { AgsFile, AgsValue } from '../core.js';
+import { decodeBytes, parseStr, buildGeo3DModel, renderBoreholeStripSvg, representativeGroundModel, geolColor } from '../core.js';
+import type { AgsFile, AgsValue, RepresentativeGroundModel } from '../core.js';
+import type { useLocationGroups } from '../location-groups.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -904,15 +905,225 @@ function MapLegend({ points }: { points: BoreholePt[] }) {
   );
 }
 
+// ─── Representative strip log for a location group ───────────────────────────
+
+function RepresentativeStripLog({ model }: { model: RepresentativeGroundModel }) {
+  if (model.layers.length === 0) return null;
+  const totalDepth = model.maxDepth || 1;
+  const W = 280;
+  const H = Math.max(140, Math.min(360, totalDepth * 12));
+  const colWidth = 80;
+  return (
+    <div>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 4 }}>
+        {/* Depth axis */}
+        <line x1={colWidth + 4} y1={0} x2={colWidth + 4} y2={H} stroke="#94a3b8" strokeWidth={0.5} />
+        {Array.from({ length: Math.ceil(totalDepth) + 1 }).map((_, i) => {
+          const y = (i / totalDepth) * H;
+          return (
+            <g key={i}>
+              <line x1={colWidth + 2} y1={y} x2={colWidth + 6} y2={y} stroke="#94a3b8" />
+              <text x={colWidth + 10} y={y + 3} fontSize={9} fill="#64748b" fontFamily="ui-monospace, monospace">{i}m</text>
+            </g>
+          );
+        })}
+        {model.layers.map((l, i) => {
+          const y = (l.top / totalDepth) * H;
+          const h = ((l.base - l.top) / totalDepth) * H;
+          const color = geolColor(l.unitKey);
+          return (
+            <g key={i}>
+              <rect x={0} y={y} width={colWidth} height={h} fill={color} stroke="#1e293b" strokeWidth={0.4} />
+              {h > 18 && (
+                <text x={colWidth / 2} y={y + h / 2 + 3} fontSize={10} fill="#fff" textAnchor="middle" fontFamily="ui-monospace, monospace" style={{ paintOrder: 'stroke', stroke: 'rgba(0,0,0,0.5)', strokeWidth: 2 }}>
+                  {l.unitKey.slice(0, 8)}
+                </text>
+              )}
+              {/* Support indicator: tiny bar on the right */}
+              <rect x={W - 60} y={y + h / 2 - 2} width={Math.round(50 * l.support)} height={4} fill={l.support >= 0.7 ? '#16a34a' : l.support >= 0.4 ? '#f59e0b' : '#dc2626'} />
+              {h > 16 && (
+                <text x={W - 8} y={y + h / 2 + 3} fontSize={9} fill="#64748b" textAnchor="end" fontFamily="ui-monospace, monospace">
+                  {(l.support * 100).toFixed(0)}%
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, lineHeight: 1.4 }}>
+        Mode unit per 0.25 m slice across the group; bars show borehole agreement (support).
+      </div>
+    </div>
+  );
+}
+
+// ─── Location-groups side panel ───────────────────────────────────────────────
+
+interface LocationGroupsPanelProps {
+  groups: ReturnType<typeof useLocationGroups>['groups'];
+  activeGroupId: string | null;
+  editingGroupId: string | null;
+  allLocaIds: string[];
+  focusedGroupId: string | null;
+  representativeModel: RepresentativeGroundModel | null;
+  onCreate: (name: string) => void;
+  onRename: (id: string, name: string) => void;
+  onRecolor: (id: string, color: string) => void;
+  onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
+  onActivate: (id: string) => void;
+  onClose: () => void;
+}
+
+function LocationGroupsPanel({
+  groups, activeGroupId, editingGroupId, allLocaIds,
+  focusedGroupId, representativeModel,
+  onCreate, onRename, onRecolor, onDelete, onEdit, onActivate, onClose,
+}: LocationGroupsPanelProps) {
+  const [newName, setNewName] = useState('');
+  const handleCreate = () => {
+    const name = newName.trim() || `Group ${groups.length + 1}`;
+    onCreate(name);
+    setNewName('');
+  };
+
+  return (
+    <div style={{
+      width: 320, height: 520, flexShrink: 0,
+      border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+      background: 'var(--card)', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+    }}>
+      <div style={{
+        padding: '8px 12px', borderBottom: '1px solid var(--border)',
+        background: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', flex: 1 }}>
+          Location Groups
+        </span>
+        <button
+          onClick={onClose}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16, padding: '0 2px', lineHeight: 1 }}
+          title="Close"
+        >×</button>
+      </div>
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
+        <input
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+          placeholder="New group name…"
+          style={{ flex: 1, padding: '5px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 4, background: '#fff' }}
+        />
+        <button
+          onClick={handleCreate}
+          style={{ padding: '5px 10px', fontSize: 12, background: 'var(--navy)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+        >
+          + Add
+        </button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+        {representativeModel && representativeModel.layers.length > 0 && (
+          <div style={{ padding: '6px 12px 10px', borderBottom: '1px solid var(--surface-muted)', background: '#fffdf6' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)', marginBottom: 4 }}>
+              Representative stratigraphy
+              <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 6 }}>
+                ({representativeModel.contributingLocaIds.length} BH, {representativeModel.maxDepth.toFixed(1)} m)
+              </span>
+            </div>
+            <RepresentativeStripLog model={representativeModel} />
+          </div>
+        )}
+        {focusedGroupId && (!representativeModel || representativeModel.layers.length === 0) && (
+          <div style={{ padding: '8px 12px 10px', borderBottom: '1px solid var(--surface-muted)', fontSize: 11, color: 'var(--muted)' }}>
+            Need at least 2 boreholes with GEOL data in this group to compute a representative stratigraphy.
+          </div>
+        )}
+        {groups.length === 0 && (
+          <div style={{ padding: '20px 14px', color: 'var(--muted)', fontSize: 12, lineHeight: 1.5 }}>
+            No groups yet. Create one above, then click <strong>✎ Edit</strong> on the group and tap boreholes on the map to assign them. Groups filter Plots, the Map and the Report.
+          </div>
+        )}
+        {groups.map((g) => {
+          const isActive = activeGroupId === g.id;
+          const isEditing = editingGroupId === g.id;
+          const known = g.locaIds.filter((id) => allLocaIds.includes(id)).length;
+          const missing = g.locaIds.length - known;
+          return (
+            <div key={g.id} style={{
+              padding: '8px 12px', borderBottom: '1px solid var(--surface-muted)',
+              background: isEditing ? '#fef9c3' : isActive ? '#eff6ff' : undefined,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <input
+                  type="color"
+                  value={g.color}
+                  onChange={(e) => onRecolor(g.id, e.target.value)}
+                  style={{ width: 22, height: 22, padding: 0, border: '1px solid var(--border)', borderRadius: 4, background: 'none', cursor: 'pointer' }}
+                  title="Change colour"
+                />
+                <input
+                  type="text"
+                  defaultValue={g.name}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (v && v !== g.name) onRename(g.id, v);
+                  }}
+                  style={{ flex: 1, padding: '4px 6px', fontSize: 12, fontWeight: 600, border: '1px solid transparent', borderRadius: 3, background: 'transparent', color: 'var(--text)' }}
+                />
+                <button
+                  onClick={() => onDelete(g.id)}
+                  style={{ padding: '2px 6px', fontSize: 11, background: 'transparent', color: 'var(--muted)', border: 'none', cursor: 'pointer' }}
+                  title="Delete group"
+                >🗑</button>
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6 }}>
+                {known} borehole{known === 1 ? '' : 's'}{missing > 0 && ` · ${missing} not in current file`}
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  onClick={() => onEdit(g.id)}
+                  style={{
+                    flex: 1, padding: '4px 8px', fontSize: 11, borderRadius: 4,
+                    background: isEditing ? '#f59e0b' : '#f1f5f9',
+                    color: isEditing ? '#fff' : 'var(--text)',
+                    border: '1px solid var(--border)', cursor: 'pointer',
+                  }}
+                  title="Click boreholes on the map to add/remove"
+                >
+                  {isEditing ? '✓ Done' : '✎ Edit members'}
+                </button>
+                <button
+                  onClick={() => onActivate(g.id)}
+                  style={{
+                    flex: 1, padding: '4px 8px', fontSize: 11, borderRadius: 4,
+                    background: isActive ? 'var(--navy)' : '#f1f5f9',
+                    color: isActive ? '#fff' : 'var(--text)',
+                    border: '1px solid var(--border)', cursor: 'pointer',
+                  }}
+                  title="Apply this group as the active filter for plots and reports"
+                >
+                  {isActive ? '● Filtering' : '○ Apply filter'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── MapTab ───────────────────────────────────────────────────────────────────
 
 interface Props {
   fileBytes: Uint8Array | null;
   fileName: string | undefined;
   onLocaClick?: (locaId: string) => void;
+  locationGroups?: ReturnType<typeof useLocationGroups>;
 }
 
-export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
+export function MapTab({ fileBytes, fileName, onLocaClick, locationGroups }: Props) {
   const [baseMapId, setBaseMapId] = useState('osm');
   const [wmsLayers, setWmsLayers] = useState<WmsLayerConfig[]>(PREDEFINED_WMS);
   const [importedLayers, setImportedLayers] = useState<ImportedLayer[]>([]);
@@ -924,6 +1135,10 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
   const [drawMode, setDrawMode] = useState(false);
   const [sectionLine, setSectionLine] = useState<LatLng[]>([]);
   const [sectionComplete, setSectionComplete] = useState(false);
+
+  const [showGroupPanel, setShowGroupPanel] = useState(false);
+  /** When non-null, clicking a borehole marker toggles its membership in this group. */
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
 
   const [colorCol, setColorCol] = useState('GEOL_GEOL');
   const [bufferM, setBufferM] = useState(500);
@@ -1026,6 +1241,52 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
   const centerLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
   const inSection = new Set(sectionBoreholes.map((b) => b.pt.id));
 
+  // Pre-compute the group membership map for fast lookups when rendering markers.
+  const groupColorByLoca = useMemo<Map<string, string[]>>(() => {
+    const m = new Map<string, string[]>();
+    if (!locationGroups) return m;
+    for (const g of locationGroups.groups) {
+      for (const id of g.locaIds) {
+        const arr = m.get(id) ?? [];
+        arr.push(g.color);
+        m.set(id, arr);
+      }
+    }
+    return m;
+  }, [locationGroups]);
+
+  const editingGroup = locationGroups?.groups.find((g) => g.id === editingGroupId) ?? null;
+  const editingGroupSet = new Set(editingGroup?.locaIds ?? []);
+
+  // Representative ground model for whichever group the user has currently focused
+  // (edit-mode wins so the user gets live feedback while editing membership).
+  const focusedGroup = editingGroup ?? locationGroups?.activeGroup ?? null;
+  const representativeModel = useMemo<RepresentativeGroundModel | null>(() => {
+    if (!agsFile || !focusedGroup || focusedGroup.locaIds.length < 2) return null;
+    try {
+      return representativeGroundModel(agsFile, focusedGroup.locaIds);
+    } catch {
+      return null;
+    }
+  }, [agsFile, focusedGroup]);
+
+  const toggleMemberInEditingGroup = useCallback((locaId: string) => {
+    if (!locationGroups || !editingGroup) return;
+    const has = editingGroup.locaIds.includes(locaId);
+    const next = has
+      ? editingGroup.locaIds.filter((id) => id !== locaId)
+      : [...editingGroup.locaIds, locaId];
+    locationGroups.update(editingGroup.id, { locaIds: next });
+  }, [locationGroups, editingGroup]);
+
+  const createGroupFromSection = useCallback(() => {
+    if (!locationGroups || sectionBoreholes.length === 0) return;
+    const ids = sectionBoreholes.map((b) => b.pt.id);
+    const g = locationGroups.create(`Section group ${locationGroups.groups.length + 1}`, ids);
+    setEditingGroupId(g.id);
+    setShowGroupPanel(true);
+  }, [locationGroups, sectionBoreholes]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Toolbar */}
@@ -1045,6 +1306,31 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
           >
             ☰ Layers
           </button>
+
+          {locationGroups && (
+            <button
+              onClick={() => setShowGroupPanel((v) => !v)}
+              style={{
+                padding: '6px 14px', fontSize: 12,
+                background: showGroupPanel ? 'var(--navy)' : '#f1f5f9',
+                color: showGroupPanel ? '#fff' : 'var(--text)',
+                border: '1px solid var(--border)', borderRadius: 6,
+              }}
+              title="Define groups of boreholes to filter plots and reports"
+            >
+              👥 Groups{locationGroups.groups.length > 0 ? ` (${locationGroups.groups.length})` : ''}
+            </button>
+          )}
+
+          {sectionComplete && sectionBoreholes.length > 0 && locationGroups && (
+            <button
+              onClick={createGroupFromSection}
+              style={{ padding: '6px 14px', fontSize: 12, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 6 }}
+              title="Make a group containing every borehole in the current section"
+            >
+              + Group from section
+            </button>
+          )}
 
           {!drawMode && !sectionComplete && (
             <button
@@ -1096,6 +1382,13 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
         </div>
       )}
 
+      {/* Group-edit hint */}
+      {editingGroup && (
+        <div style={{ padding: '8px 14px', background: '#fef9c3', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#854d0e' }}>
+          Editing <strong>{editingGroup.name}</strong> — click boreholes on the map to add or remove them ({editingGroup.locaIds.length} selected).
+        </div>
+      )}
+
       {/* Map + optional strip log panel */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
       <div style={{ flex: 1, position: 'relative', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', height: 520, minWidth: 0 }}>
@@ -1134,18 +1427,43 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
             const typeStyle = getLocaTypeStyle(pt.type);
             const radius = getLocaRadius(pt.depth);
             const isSelected = pt.id === selectedBhId;
+            const groupColors = groupColorByLoca.get(pt.id) ?? [];
+            const inEditingGroup = editingGroupSet.has(pt.id);
+            const activeGroupColor = locationGroups?.activeGroup?.color ?? null;
+            const inActiveGroup = locationGroups?.activeLocaSet.has(pt.id) ?? false;
+            // Outline priority: edit-mode > section > selected > active-group > group membership > type
+            const stroke = inEditingGroup
+              ? (editingGroup?.color ?? '#16a34a')
+              : isSelected
+                ? '#7c3aed'
+                : inSection.has(pt.id)
+                  ? '#16a34a'
+                  : inActiveGroup && activeGroupColor
+                    ? activeGroupColor
+                    : groupColors[0] ?? typeStyle.stroke;
+            const fill = isSelected ? '#7c3aed'
+              : inSection.has(pt.id) ? '#16a34a'
+              : typeStyle.fill;
             return (
             <CircleMarker
               key={pt.id}
               center={[pt.lat, pt.lng]}
-              radius={radius}
+              radius={radius + (groupColors.length > 0 ? 1 : 0)}
               pathOptions={{
-                color: isSelected ? '#7c3aed' : inSection.has(pt.id) ? '#16a34a' : typeStyle.stroke,
-                fillColor: isSelected ? '#7c3aed' : inSection.has(pt.id) ? '#16a34a' : typeStyle.fill,
-                fillOpacity: 0.9,
-                weight: isSelected ? 3 : inSection.has(pt.id) ? 3 : 2,
+                color: stroke,
+                fillColor: fill,
+                fillOpacity: editingGroupId && !inEditingGroup ? 0.45 : 0.9,
+                weight: (isSelected || inSection.has(pt.id) || inEditingGroup || groupColors.length > 0) ? 3 : 2,
               }}
-              eventHandlers={{ click: () => setSelectedBhId(prev => prev === pt.id ? null : pt.id) }}
+              eventHandlers={{
+                click: () => {
+                  if (editingGroupId) {
+                    toggleMemberInEditingGroup(pt.id);
+                  } else {
+                    setSelectedBhId(prev => prev === pt.id ? null : pt.id);
+                  }
+                },
+              }}
             >
               <Popup>
                 <div style={{ minWidth: 140 }}>
@@ -1221,6 +1539,31 @@ export function MapTab({ fileBytes, fileName, onLocaClick }: Props) {
           />
         )}
       </div>
+
+      {/* Location-groups side panel */}
+      {showGroupPanel && locationGroups && (
+        <LocationGroupsPanel
+          groups={locationGroups.groups}
+          activeGroupId={locationGroups.activeGroupId}
+          editingGroupId={editingGroupId}
+          allLocaIds={points.map(p => p.id)}
+          focusedGroupId={focusedGroup?.id ?? null}
+          representativeModel={representativeModel}
+          onCreate={(name) => {
+            const g = locationGroups.create(name, []);
+            setEditingGroupId(g.id);
+          }}
+          onRename={(id, name) => locationGroups.update(id, { name })}
+          onRecolor={(id, color) => locationGroups.update(id, { color })}
+          onDelete={(id) => {
+            locationGroups.remove(id);
+            if (editingGroupId === id) setEditingGroupId(null);
+          }}
+          onEdit={(id) => setEditingGroupId(editingGroupId === id ? null : id)}
+          onActivate={(id) => locationGroups.setActiveGroupId(locationGroups.activeGroupId === id ? null : id)}
+          onClose={() => { setShowGroupPanel(false); setEditingGroupId(null); }}
+        />
+      )}
 
       {/* Strip log side panel */}
       {selectedBhId && (
