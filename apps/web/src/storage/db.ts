@@ -1,7 +1,7 @@
-import type { Project, Commit } from './types.js';
+import type { Project, Commit, StoredPipeline } from './types.js';
 
 const DB_NAME = 'geoflow';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 // Transparently upgrade commits written by the old schema (agsBytes field)
 // to the new storage union without requiring a DB version bump.
@@ -40,6 +40,13 @@ function openDb(): Promise<IDBDatabase> {
         const cs = db.createObjectStore('commits', { keyPath: 'id' });
         cs.createIndex('projectId', 'projectId');
         cs.createIndex('timestamp', 'timestamp');
+      }
+
+      // v3: transform pipelines
+      if (oldVersion < 3) {
+        const ps = db.createObjectStore('pipelines', { keyPath: 'id' });
+        ps.createIndex('projectId', 'projectId');
+        ps.createIndex('updatedAt', 'updatedAt');
       }
     };
     req.onsuccess = (e) => {
@@ -135,4 +142,34 @@ export async function saveCommit(commit: Commit): Promise<void> {
   const db = await openDb();
   const t = db.transaction('commits', 'readwrite');
   await idbPut(t.objectStore('commits'), commit);
+}
+
+// ── Pipelines ─────────────────────────────────────────────────────────────────
+
+export async function getProjectPipelines(projectId: string): Promise<StoredPipeline[]> {
+  const db = await openDb();
+  const t = db.transaction('pipelines', 'readonly');
+  const all = await idbGetAll<StoredPipeline>(
+    t.objectStore('pipelines').index('projectId'),
+    IDBKeyRange.only(projectId),
+  );
+  return all.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export async function getPipeline(id: string): Promise<StoredPipeline | undefined> {
+  const db = await openDb();
+  const t = db.transaction('pipelines', 'readonly');
+  return idbGet<StoredPipeline>(t.objectStore('pipelines'), id);
+}
+
+export async function savePipeline(pipeline: StoredPipeline): Promise<void> {
+  const db = await openDb();
+  const t = db.transaction('pipelines', 'readwrite');
+  await idbPut(t.objectStore('pipelines'), pipeline);
+}
+
+export async function deletePipeline(id: string): Promise<void> {
+  const db = await openDb();
+  const t = db.transaction('pipelines', 'readwrite');
+  await idbDelete(t.objectStore('pipelines'), id);
 }

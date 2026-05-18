@@ -45,6 +45,7 @@ packages/
   rules-engine/  # @geoflow/rules-engine — JEXL-based rule pack evaluator
   db/            # @geoflow/db     — SQLite/GeoPackage ingest + query (node-only)
   rules/         # @geoflow/rules  — built-in YAML rule packs (data only)
+  transform/     # @geoflow/transform — pipeline DAG model, ref resolution, SQL compilation
 
 apps/
   web/           # @geoflow/web    — GitHub Pages SPA (Vite + React)
@@ -91,3 +92,65 @@ Exit codes: 0 = success, 1 = validation failure, 2 = usage/runtime error.
 - **pnpm workspaces** — workspace protocol (`workspace:*`) for internal deps.
 - **Effect-TS** — `Option` types used in the core data model.
 - **better-sqlite3** — optional dependency in `@geoflow/db`; excluded from browser bundles via conditional exports.
+
+## Transformation engine (web)
+
+`@geoflow/transform` is a pure-TS package that models dbt-style pipelines: nodes
+(source, file, seed, sql, output), edges, ref resolution via
+`{{ ref('node_name') }}`, topological sort, and compilation into ordered DuckDB
+statements.
+
+Node kinds:
+- **source** — references an already-registered DuckDB table (e.g. the AGS
+  group tables that `registerAgsFile` creates).
+- **file** — holds an entire uploaded AGS file. Each group is registered as a
+  DuckDB table named `{nodeName}_{group}` (lowercased) and exposed via
+  `{{ ref('name_group') }}`. Enables cross-file joins.
+- **seed** — inline CSV/JSON content registered as a DuckDB table.
+- **sql** — `SELECT` materialised as a VIEW or TABLE; supports
+  `{{ ref('...') }}` substitution.
+- **notebook** — ordered list of SQL + Markdown cells. Each SQL cell
+  materialises as its own relation (referenceable by name); the last
+  SQL cell is exposed under the notebook's own name as a passthrough,
+  so downstream nodes treat the notebook as a single ref target.
+- **output** — terminal node; previews / downloads as CSV/JSON/GeoJSON.
+
+The Transform tab in `apps/web` renders the DAG with React Flow (`@xyflow/react`),
+uses Monaco for SQL editing with autocomplete for refs / table columns / spatial
+functions, and runs pipelines against the browser DuckDB-wasm instance shared
+with the Query tab. Pipelines auto-save to IndexedDB per project and can be
+exported/imported as JSON. Built-in examples live in
+`apps/web/src/transform/examples.ts` and load via the toolbar's Examples menu.
+
+DuckDB-wasm autoloads `spatial` and `httpfs` extensions on engine startup; load
+failures are non-fatal and surfaced in the Transform tab sidebar.
+
+### Cell-level lineage
+
+Every SQL node (and every SQL cell in a notebook) materialises a parallel
+`_lin_<name>` view that carries a `__src` provenance column. Lineage is
+plumbed via SQL AST rewriting (`packages/transform/src/lineage.ts`, using
+`sql-parser-cst`):
+
+- Each base relation (source/seed/file group) gets a `_lin_<rel>` view that
+  adds `__rowid` and `__src = ['<rel>|<rowid>']`.
+- For SQL nodes, the user query is parsed; every FROM/JOIN table reference is
+  rewritten to its `_lin_` view, and a `__src` column is injected into each
+  SELECT — `list_concat(...)` across joined tables, `flatten(list(...))`
+  across aggregations.
+- Unsupported constructs (window functions, parse failures) make the rewriter
+  return `null`; that node simply shows "no lineage" in the UI rather than
+  emit incorrect provenance.
+- The preview query for each node pulls `__src` from its `_lin_` view; clicking
+  any cell opens the lineage panel, which fetches the contributing source
+  rows from the relevant `_lin_<rel>` views by `__rowid`.
+
+Column lineage (`packages/transform/src/column-lineage.ts`) is computed in
+parallel: for each output column, the AST walker collects the contributing
+`(relation, column)` pairs, distinguishing direct references, expressions,
+aggregations, literals, and star expansions. The executor resolves these
+transitively through upstream SQL nodes, so the panel surfaces base-relation
+columns regardless of how many intermediate models the data flows through.
+The lineage panel highlights the contributing columns inside each source row
+and shows a derivation tag (`← direct` / `← expression` / `← aggregated` /
+`← star` / `← literal`).

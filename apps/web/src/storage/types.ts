@@ -34,3 +34,16 @@ export interface Commit {
   timestamp: number;
   conflictCount: number;
 }
+
+/**
+ * Wrapper for storing transform pipelines in IndexedDB. The pipeline JSON
+ * is opaque to the storage layer — shape is defined in `@geoflow/transform`.
+ */
+export interface StoredPipeline {
+  id: string;
+  projectId: string;
+  name: string;
+  json: string;
+  createdAt: number;
+  updatedAt: number;
+}

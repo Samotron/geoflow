@@ -35,6 +35,44 @@ const DB_PATH = 'geoflow.duckdb';
 
 let handle: DbHandle | null = null;
 
+// Extensions auto-loaded after DuckDB is open. Loaded lazily on first use
+// from the upstream extension repo — failures are logged but non-fatal so
+// the rest of DuckDB remains usable offline or behind restrictive CSP.
+const AUTOLOAD_EXTENSIONS = ['spatial', 'httpfs'] as const;
+
+const loadedExtensions = new Set<string>();
+const extensionLoadErrors = new Map<string, string>();
+
+export interface ExtensionStatus {
+  name: string;
+  loaded: boolean;
+  error: string | null;
+}
+
+export function getExtensionStatus(): ExtensionStatus[] {
+  return AUTOLOAD_EXTENSIONS.map((name) => ({
+    name,
+    loaded: loadedExtensions.has(name),
+    error: extensionLoadErrors.get(name) ?? null,
+  }));
+}
+
+async function loadExtensions(conn: duckdb.AsyncDuckDBConnection): Promise<void> {
+  for (const ext of AUTOLOAD_EXTENSIONS) {
+    if (loadedExtensions.has(ext)) continue;
+    try {
+      await conn.query(`INSTALL ${ext}`);
+      await conn.query(`LOAD ${ext}`);
+      loadedExtensions.add(ext);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      extensionLoadErrors.set(ext, msg);
+      // eslint-disable-next-line no-console
+      console.warn(`[duckdb] failed to load extension "${ext}": ${msg}`);
+    }
+  }
+}
+
 async function getHandle(): Promise<DbHandle> {
   if (handle) return handle;
 
@@ -55,8 +93,157 @@ async function getHandle(): Promise<DbHandle> {
   await db.open({ path: DB_PATH, accessMode: duckdb.DuckDBAccessMode.READ_WRITE });
 
   const conn = await db.connect();
+  await loadExtensions(conn);
   handle = { db, conn };
   return handle;
+}
+
+/**
+ * Lists all main-schema tables/views currently registered in DuckDB.
+ * Used by the transform engine to validate source nodes and to feed
+ * editor autocomplete.
+ */
+export async function listMainSchemaTables(): Promise<TableMeta[]> {
+  const { conn } = await getHandle();
+  const tables = await conn.query(`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'main'
+    ORDER BY table_name
+  `);
+  const out: TableMeta[] = [];
+  for (const row of tables.toArray()) {
+    const name = String(row.table_name);
+    if (name.startsWith('_')) continue;
+    const cols = await conn.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'main' AND table_name = '${name.replace(/'/g, "''")}'
+      ORDER BY ordinal_position
+    `);
+    const columns = cols.toArray().map((r) => String(r.column_name));
+    const count = await conn.query(`SELECT COUNT(*)::BIGINT AS n FROM "${name.replace(/"/g, '""')}"`);
+    const rowCount = Number((count.toArray()[0] as { n: bigint } | undefined)?.n ?? 0n);
+    out.push({ name, rowCount, columns });
+  }
+  return out;
+}
+
+/**
+ * Registers a seed (user-supplied CSV/JSON content) as a DuckDB table.
+ * The relation name is lowercased to match the rest of the engine's
+ * naming convention.
+ */
+export async function registerSeed(
+  name: string,
+  format: 'csv' | 'json',
+  content: string,
+): Promise<void> {
+  const { db, conn } = await getHandle();
+  const relName = name.toLowerCase();
+  const fileName = `_seed_${relName}.${format}`;
+  // Drop prior registration so seeds can be edited and re-run.
+  try { await db.dropFile(fileName); } catch { /* not registered yet */ }
+  await db.registerFileText(fileName, content);
+  const reader = format === 'csv' ? `read_csv_auto('${fileName}')` : `read_json_auto('${fileName}')`;
+  await conn.query(`CREATE OR REPLACE TABLE "${relName.replace(/"/g, '""')}" AS SELECT * FROM ${reader}`);
+}
+
+/**
+ * Creates the `_lin_<relation>` companion view used by the cell-lineage
+ * tracker. The view re-projects all columns of the base relation and adds:
+ *   - `__rowid` BIGINT: a stable per-relation row number.
+ *   - `__src` VARCHAR[]: the provenance list, seeded with one entry
+ *     `<relation>|<rowid>` pointing at this row.
+ *
+ * We use a string-encoded list rather than STRUCT(node, row)[] so that
+ * DuckDB-wasm's Arrow → JS conversion lands as a plain string array our
+ * runQuery() helper can pass through without lossy stringification.
+ *
+ * Safe to call repeatedly.
+ */
+export async function registerLineageView(relation: string): Promise<void> {
+  const { conn } = await getHandle();
+  const rel = relation.toLowerCase().replace(/"/g, '""');
+  const view = `_lin_${rel}`;
+  await conn.query(
+    `CREATE OR REPLACE VIEW "${view}" AS
+     SELECT
+       *,
+       ROW_NUMBER() OVER ()::BIGINT AS __rowid,
+       ['${rel.replace(/'/g, "''")}|' || (ROW_NUMBER() OVER ())::VARCHAR] AS __src
+     FROM "${rel}"`,
+  );
+}
+
+/**
+ * Fetches a specific row from a lineage-tracked relation by its `__rowid`.
+ * Used by the UI lineage panel to reveal upstream source rows.
+ */
+export async function fetchLineageRow(
+  relation: string,
+  rowid: number,
+): Promise<{ columns: string[]; values: (string | number | boolean | null)[] } | null> {
+  const { conn } = await getHandle();
+  const rel = relation.toLowerCase().replace(/"/g, '""');
+  const view = `_lin_${rel}`;
+  try {
+    const result = await conn.query(
+      `SELECT * EXCLUDE (__rowid, __src) FROM "${view}" WHERE __rowid = ${rowid} LIMIT 1`,
+    );
+    const fields = result.schema.fields;
+    const rows = result.toArray();
+    if (rows.length === 0) return null;
+    const columns = fields.map((f) => f.name);
+    const row = rows[0] as Record<string, unknown>;
+    const values = columns.map((c) => {
+      const v = row[c];
+      if (v === null || v === undefined) return null;
+      if (typeof v === 'bigint') return Number(v);
+      if (typeof v === 'object') return String(v);
+      return v as string | number | boolean;
+    });
+    return { columns, values };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Registers each group of a parsed AGS file as a DuckDB table named
+ * `{prefix}_{group}` (lowercased), without disturbing tables that are
+ * already registered. Used by the transform engine's File node.
+ */
+export async function registerAgsGroupsWithPrefix(
+  agsFile: AgsFile,
+  prefix: string,
+): Promise<TableMeta[]> {
+  const { db, conn } = await getHandle();
+  const metas: TableMeta[] = [];
+  const lowerPrefix = prefix.toLowerCase();
+
+  for (const [groupName, group] of Object.entries(agsFile.groups)) {
+    if (!group || group.rows.length === 0) continue;
+    const relName = `${lowerPrefix}_${groupName.toLowerCase()}`;
+    const fileName = `_file_${relName}.json`;
+    const jsonRows = group.rows.map((row) => {
+      const obj: Record<string, string | number | boolean | null> = {};
+      for (const h of group.headings) {
+        const v = row[h.name];
+        obj[h.name] = v === undefined ? null : (v as string | number | boolean | null);
+      }
+      return obj;
+    });
+    try { await db.dropFile(fileName); } catch { /* not registered yet */ }
+    await db.registerFileText(fileName, JSON.stringify(jsonRows));
+    await conn.query(
+      `CREATE OR REPLACE TABLE "${relName.replace(/"/g, '""')}" AS SELECT * FROM read_json_auto('${fileName}')`,
+    );
+    metas.push({
+      name: relName,
+      rowCount: group.rows.length,
+      columns: group.headings.map((h) => h.name),
+    });
+  }
+  return metas;
 }
 
 // ── AGS → DuckDB tables ───────────────────────────────────────────────────────
