@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   decodeBytes,
   parseStr,
@@ -48,6 +48,26 @@ const PRIMARY_BUTTON_STYLE: React.CSSProperties = {
   border: '1px solid var(--accent)',
 };
 
+const CHECK_STYLE: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  marginTop: 8,
+  fontSize: 12,
+  cursor: 'pointer',
+};
+
+const INPUT_STYLE: React.CSSProperties = {
+  width: '100%',
+  padding: '6px 8px',
+  border: '1px solid var(--border)',
+  borderRadius: 4,
+  fontSize: 13,
+  background: 'var(--card)',
+  color: 'var(--text)',
+  boxSizing: 'border-box',
+};
+
 export function SectionTab({ fileBytes, fileName }: Props) {
   const agsFile = useMemo<AgsFile | null>(() => {
     if (!fileBytes) return null;
@@ -59,20 +79,45 @@ export function SectionTab({ fileBytes, fileName }: Props) {
     return buildGeo3DModel(agsFile);
   }, [agsFile]);
 
-  // Section selection state ───────────────────────────────────────────────────
   const allHoleIds = useMemo(() => model?.boreholes.map(b => b.id) ?? [], [model]);
 
-  // Initialise selection with the first 2-3 holes when the model loads
   const [selected, setSelected] = useState<string[]>([]);
   useEffect(() => {
     if (selected.length === 0 && allHoleIds.length >= 2) {
-      setSelected(allHoleIds.slice(0, Math.min(3, allHoleIds.length)));
+      setSelected(allHoleIds.slice(0, Math.min(4, allHoleIds.length)));
     }
   }, [allHoleIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Style controls
   const [vexag, setVexag] = useState(1);
   const [title, setTitle] = useState<string>('');
+  const [subtitle, setSubtitle] = useState<string>('');
+  const [startLabel, setStartLabel] = useState<string>('A');
+  const [endLabel, setEndLabel] = useState<string>("A′");
   const [showLegend, setShowLegend] = useState(true);
+  const [showHatch, setShowHatch] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
+  const [showDirectionLabels, setShowDirectionLabels] = useState(true);
+  const [showUnitLabels, setShowUnitLabels] = useState(true);
+  const [showScaleBar, setShowScaleBar] = useState(true);
+  const [showLabels, setShowLabels] = useState(true);
+  const [smooth, setSmooth] = useState(true);
+
+  // Container size — drives auto-fit SVG dimensions
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState(1100);
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const el = containerRef.current;
+    const update = () => {
+      const w = Math.max(640, Math.min(1800, el.clientWidth - 24));
+      setContainerWidth(w);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [model]);
 
   const sectionData = useMemo(() => {
     if (!model || selected.length < 2) return null;
@@ -81,15 +126,31 @@ export function SectionTab({ fileBytes, fileName }: Props) {
 
   const svg = useMemo(() => {
     if (!model || selected.length < 2) return null;
+    const w = containerWidth;
+    const h = Math.max(420, Math.min(720, Math.round(w * 0.55)));
     const opts: CrossSectionOptions = {
-      width: 1000,
-      height: 520,
+      width: w,
+      height: h,
       verticalExaggeration: vexag,
       showLegend,
+      showHatch,
+      showGrid,
+      showDirectionLabels,
+      showUnitLabels,
+      showScaleBar,
+      showLabels,
+      interpolation: smooth ? 'smooth' : 'linear-chainage',
+      startLabel: startLabel || 'A',
+      endLabel: endLabel || "A′",
       ...(title.trim() ? { title: title.trim() } : {}),
+      ...(subtitle.trim() ? { subtitle: subtitle.trim() } : {}),
     };
     return renderCrossSectionSvg(model, selected, opts);
-  }, [model, selected, vexag, title, showLegend]);
+  }, [
+    model, selected, containerWidth, vexag, title, subtitle,
+    showLegend, showHatch, showGrid, showDirectionLabels,
+    showUnitLabels, showScaleBar, showLabels, smooth, startLabel, endLabel,
+  ]);
 
   const toggle = useCallback((id: string) => {
     setSelected(prev =>
@@ -126,6 +187,43 @@ export function SectionTab({ fileBytes, fileName }: Props) {
     URL.revokeObjectURL(url);
   }, [svg, fileName]);
 
+  const downloadPng = useCallback(async () => {
+    if (!svg) return;
+    try {
+      const img = new Image();
+      const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('image load failed'));
+        img.src = url;
+      });
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = (img.width || containerWidth) * scale;
+      canvas.height = (img.height || 540) * scale;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const pngBlob: Blob | null = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      if (!pngBlob) return;
+      const dl = URL.createObjectURL(pngBlob);
+      const a = document.createElement('a');
+      const base = (fileName ?? 'section').replace(/\.[^.]+$/, '');
+      a.href = dl;
+      a.download = `${base}_section.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(dl);
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore — SVG download is the canonical option
+    }
+  }, [svg, fileName, containerWidth]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!agsFile) {
@@ -144,13 +242,12 @@ export function SectionTab({ fileBytes, fileName }: Props) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 16 }}>
       {/* ── Left rail: hole picker + controls ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={PANEL_STYLE}>
           <label style={LABEL_STYLE}>Boreholes (in section order)</label>
-          <div style={{ maxHeight: 380, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-            {/* Selected holes first, in order, with reorder controls */}
+          <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
             {selected.map((id, i) => (
               <div key={id} style={rowStyle(true)}>
                 <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--accent)', flex: 1 }}>
@@ -198,14 +295,34 @@ export function SectionTab({ fileBytes, fileName }: Props) {
         </div>
 
         <div style={PANEL_STYLE}>
-          <label style={LABEL_STYLE}>Section title (optional)</label>
+          <label style={LABEL_STYLE}>Section title</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Section A–A'"
-            style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 13 }}
+            style={INPUT_STYLE}
           />
+
+          <label style={{ ...LABEL_STYLE, marginTop: 10 }}>Subtitle</label>
+          <input
+            type="text"
+            value={subtitle}
+            onChange={(e) => setSubtitle(e.target.value)}
+            placeholder="e.g. Project name, date"
+            style={INPUT_STYLE}
+          />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+            <div>
+              <label style={LABEL_STYLE}>Start</label>
+              <input type="text" value={startLabel} onChange={(e) => setStartLabel(e.target.value)} maxLength={3} style={INPUT_STYLE}/>
+            </div>
+            <div>
+              <label style={LABEL_STYLE}>End</label>
+              <input type="text" value={endLabel} onChange={(e) => setEndLabel(e.target.value)} maxLength={3} style={INPUT_STYLE}/>
+            </div>
+          </div>
 
           <label style={{ ...LABEL_STYLE, marginTop: 12 }}>Vertical exaggeration</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -222,18 +339,57 @@ export function SectionTab({ fileBytes, fileName }: Props) {
               ×{vexag.toFixed(1)}
             </span>
           </div>
+          <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+            {[1, 2, 5, 10].map(v => (
+              <button key={v} onClick={() => setVexag(v)} style={{ ...BUTTON_STYLE, flex: 1, padding: '4px 6px', fontSize: 11 }}>
+                ×{v}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 12, cursor: 'pointer' }}>
-            <input type="checkbox" checked={showLegend} onChange={(e) => setShowLegend(e.target.checked)} />
-            Show legend
+        <div style={PANEL_STYLE}>
+          <label style={LABEL_STYLE}>Style</label>
+          <label style={CHECK_STYLE}>
+            <input type="checkbox" checked={smooth} onChange={(e) => setSmooth(e.target.checked)} />
+            Smooth contacts
           </label>
+          <label style={CHECK_STYLE}>
+            <input type="checkbox" checked={showHatch} onChange={(e) => setShowHatch(e.target.checked)} />
+            Hatch patterns
+          </label>
+          <label style={CHECK_STYLE}>
+            <input type="checkbox" checked={showGrid} onChange={(e) => setShowGrid(e.target.checked)} />
+            Grid lines
+          </label>
+          <label style={CHECK_STYLE}>
+            <input type="checkbox" checked={showLegend} onChange={(e) => setShowLegend(e.target.checked)} />
+            Legend
+          </label>
+          <label style={CHECK_STYLE}>
+            <input type="checkbox" checked={showDirectionLabels} onChange={(e) => setShowDirectionLabels(e.target.checked)} />
+            Direction labels
+          </label>
+          <label style={CHECK_STYLE}>
+            <input type="checkbox" checked={showUnitLabels} onChange={(e) => setShowUnitLabels(e.target.checked)} />
+            Unit labels on polygons
+          </label>
+          <label style={CHECK_STYLE}>
+            <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
+            Borehole labels
+          </label>
+          <label style={CHECK_STYLE}>
+            <input type="checkbox" checked={showScaleBar} onChange={(e) => setShowScaleBar(e.target.checked)} />
+            Scale bar
+          </label>
+        </div>
 
-          <button
-            onClick={downloadSvg}
-            disabled={!svg}
-            style={{ ...PRIMARY_BUTTON_STYLE, marginTop: 12, width: '100%' }}
-          >
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={downloadSvg} disabled={!svg} style={{ ...PRIMARY_BUTTON_STYLE, flex: 1 }}>
             Download SVG
+          </button>
+          <button onClick={downloadPng} disabled={!svg} style={{ ...BUTTON_STYLE, flex: 1 }}>
+            Download PNG
           </button>
         </div>
 
@@ -244,13 +400,18 @@ export function SectionTab({ fileBytes, fileName }: Props) {
               <div>Holes: <strong>{sectionData.boreholes.length}</strong></div>
               <div>Length: <strong>{sectionData.totalLength.toFixed(1)} m</strong></div>
               <div>Elev range: <strong>{sectionData.elevMin.toFixed(1)} &rarr; {sectionData.elevMax.toFixed(1)} m OD</strong></div>
+              {sectionData.boreholes.some(b => Math.abs(b.offset) > 0.5) && (
+                <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 4 }}>
+                  Some holes are projected from off-section (dashed outline).
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
 
       {/* ── Section SVG ── */}
-      <div style={{ ...PANEL_STYLE, overflow: 'auto' }}>
+      <div ref={containerRef} style={{ ...PANEL_STYLE, overflow: 'auto', minHeight: 480 }}>
         {selected.length < 2 ? (
           <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--muted)' }}>
             Pick at least two boreholes from the list on the left.
