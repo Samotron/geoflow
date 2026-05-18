@@ -19,6 +19,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 
 import type {
+  FileGroupMeta,
+  FileNode as PipelineFileNode,
   OutputFormat,
   OutputNode,
   Pipeline,
@@ -29,10 +31,11 @@ import type {
   SourceNode,
   SqlNode,
 } from '@geoflow/transform';
-import { emptyPipeline, isValidRelationName } from '@geoflow/transform';
+import { emptyPipeline, fileRelationName, isValidRelationName } from '@geoflow/transform';
 
 import { decodeBytes, parseStr } from '../core.js';
 import { listMainSchemaTables, registerAgsFile, getExtensionStatus, type TableMeta } from '../query/duckdb.js';
+import { EXAMPLES, type PipelineExample } from '../transform/examples.js';
 import type { Project } from '../storage/types.js';
 import {
   exportPipeline,
@@ -203,7 +206,16 @@ function TransformTabInner({ fileBytes, currentProject }: Props) {
 
   const upstreamRefs = useMemo(() => {
     if (!selectedNode) return [] as string[];
-    return pipeline.nodes.filter((n) => n.id !== selectedNode.id).map((n) => n.name);
+    const refs: string[] = [];
+    for (const n of pipeline.nodes) {
+      if (n.id === selectedNode.id) continue;
+      if (n.kind === 'file') {
+        for (const g of n.groups) refs.push(fileRelationName(n, g.name));
+      } else {
+        refs.push(n.name);
+      }
+    }
+    return refs;
   }, [pipeline.nodes, selectedNode]);
 
   // ── Mutations ──────────────────────────────────────────────────────────
@@ -232,6 +244,16 @@ function TransformTabInner({ fileBytes, currentProject }: Props) {
 
   const renamePipeline = useCallback((name: string) => {
     setPipeline((p) => ({ ...p, name, updatedAt: Date.now() }));
+  }, []);
+
+  const onLoadExample = useCallback((ex: PipelineExample) => {
+    const built = ex.build();
+    // Re-stamp the id so loading the same example twice doesn't collide
+    // with a previously-saved copy.
+    setPipeline({ ...built, id: crypto.randomUUID(), updatedAt: Date.now() });
+    setRunResults([]);
+    setSelectedNodeId(null);
+    setError(null);
   }, []);
 
   // ── Execution ──────────────────────────────────────────────────────────
@@ -309,6 +331,7 @@ function TransformTabInner({ fileBytes, currentProject }: Props) {
         onNew={newPipeline}
         onExport={onExport}
         onImport={onImport}
+        onLoadExample={onLoadExample}
         saveState={saveState}
         hasProject={currentProject !== null}
         statusMsg={statusMsg}
@@ -377,6 +400,9 @@ function nodeDetail(n: PipelineNode): string {
     case 'seed': return `${n.format.toUpperCase()} · ${n.content.length} chars`;
     case 'sql': return `${n.materialization} · ${n.sql.split('\n').length} lines`;
     case 'output': return n.format;
+    case 'file': return n.groups.length === 0
+      ? (n.fileName || 'no file loaded')
+      : `${n.fileName || n.format} · ${n.groups.length} groups`;
   }
 }
 
@@ -391,6 +417,28 @@ function createNode(kind: PipelineNode['kind'], name: string, position: { x: num
       return { id, kind, name, sql: DEFAULT_SQL, materialization: 'view', position } as SqlNode;
     case 'output':
       return { id, kind, name, format: 'preview', rowLimit: 100, position } as OutputNode;
+    case 'file':
+      return { id, kind, name, format: 'ags', fileName: '', content: '', groups: [], position } as PipelineFileNode;
+  }
+}
+
+/**
+ * Parse an AGS file's text and return per-group metadata for the inspector.
+ * Returns empty list on parse failure — caller surfaces a friendlier message.
+ */
+function parseAgsGroups(text: string): FileGroupMeta[] {
+  if (!text.trim()) return [];
+  try {
+    const { file } = parseStr(decodeBytes(new TextEncoder().encode(text)));
+    return Object.entries(file.groups)
+      .filter(([, g]) => g && g.rows.length > 0)
+      .map(([name, g]) => ({
+        name,
+        rowCount: g!.rows.length,
+        columns: g!.headings.map((h) => h.name),
+      }));
+  } catch {
+    return [];
   }
 }
 
@@ -416,13 +464,15 @@ interface ToolbarProps {
   onNew: () => void;
   onExport: () => void;
   onImport: (e: ChangeEvent<HTMLInputElement>) => void;
+  onLoadExample: (ex: PipelineExample) => void;
   saveState: 'idle' | 'saving' | 'saved';
   hasProject: boolean;
   statusMsg: string | null;
 }
 
 function Toolbar(props: ToolbarProps) {
-  const { pipeline, onRename, onRun, running, onNew, onExport, onImport, saveState, hasProject, statusMsg } = props;
+  const { pipeline, onRename, onRun, running, onNew, onExport, onImport, onLoadExample, saveState, hasProject, statusMsg } = props;
+  const [exMenuOpen, setExMenuOpen] = useState(false);
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
@@ -448,6 +498,42 @@ function Toolbar(props: ToolbarProps) {
         {running ? 'Running…' : '▶ Run pipeline'}
       </button>
       <button onClick={onNew} style={toolbarBtnStyle}>New</button>
+      <div style={{ position: 'relative' }}>
+        <button onClick={() => setExMenuOpen((o) => !o)} style={toolbarBtnStyle}>Examples ▾</button>
+        {exMenuOpen && (
+          <>
+            <div
+              onClick={() => setExMenuOpen(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 9 }}
+            />
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 10,
+              background: 'white', border: '1px solid var(--border)', borderRadius: 6,
+              boxShadow: '0 4px 14px rgba(0,0,0,0.08)', minWidth: 320, padding: 4,
+            }}>
+              {EXAMPLES.map((ex) => (
+                <button
+                  key={ex.id}
+                  onClick={() => { setExMenuOpen(false); onLoadExample(ex); }}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '8px 10px', background: 'transparent', border: 'none',
+                    borderRadius: 4, cursor: 'pointer', fontSize: 12,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-muted)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <div style={{ fontWeight: 700, color: 'var(--navy)' }}>{ex.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{ex.description}</div>
+                  {ex.requiresFile && (
+                    <div style={{ fontSize: 10, color: 'var(--amber)', marginTop: 2 }}>Requires an AGS file loaded.</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
       <button onClick={onExport} style={toolbarBtnStyle}>Export</button>
       <label style={{ ...toolbarBtnStyle, cursor: 'pointer' }}>
         Import
@@ -494,6 +580,7 @@ function SidePalette({ onAdd, pipelineList, activeId, onSelectPipeline, onDelete
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           <PaletteBtn onClick={() => onAdd('source')} label="Source" color="#54678a" bg="#eef2fb" />
+          <PaletteBtn onClick={() => onAdd('file')} label="File" color="#6b4e85" bg="#f3edf7" />
           <PaletteBtn onClick={() => onAdd('seed')} label="Seed" color="#7a5a30" bg="#fbf3e2" />
           <PaletteBtn onClick={() => onAdd('sql')} label="SQL" color="#3f6d4a" bg="#ecf4ee" />
           <PaletteBtn onClick={() => onAdd('output')} label="Output" color="#86472a" bg="#fbeee0" />
@@ -692,12 +779,95 @@ function Inspector({ node, tables, availableRefs, onChange, runResult }: Inspect
             )}
           </>
         )}
+
+        {node.kind === 'file' && (
+          <FileNodeInspector
+            node={node}
+            onChange={onChange}
+          />
+        )}
       </div>
 
       {runResult && (
         <ResultPanel result={runResult} />
       )}
     </div>
+  );
+}
+
+function FileNodeInspector({
+  node,
+  onChange,
+}: {
+  node: PipelineFileNode;
+  onChange: (patch: Partial<PipelineNode>) => void;
+}) {
+  const onFile = async (file: File) => {
+    const text = await file.text();
+    const groups = parseAgsGroups(text);
+    onChange({
+      content: text,
+      fileName: file.name,
+      groups,
+    } as Partial<PipelineNode>);
+  };
+  return (
+    <>
+      <Field label="AGS file">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{
+            display: 'inline-block', padding: '4px 10px', fontSize: 11, fontWeight: 600,
+            background: 'var(--surface-muted)', color: 'var(--text)',
+            border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer',
+          }}>
+            {node.fileName ? 'Replace…' : 'Load file…'}
+            <input
+              type="file"
+              accept=".ags,text/plain"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) await onFile(f);
+              }}
+              style={{ display: 'none' }}
+            />
+          </label>
+          <span style={{ fontSize: 11, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {node.fileName || 'no file loaded'}
+          </span>
+        </div>
+      </Field>
+
+      {node.groups.length > 0 && (
+        <Field label={`Exposed relations (${node.groups.length})`}>
+          <div style={{
+            maxHeight: 180, overflowY: 'auto',
+            border: '1px solid var(--border)', borderRadius: 4, padding: 6,
+            background: 'var(--surface-muted)', fontSize: 11, fontFamily: 'monospace',
+          }}>
+            {node.groups.map((g) => (
+              <div key={g.name} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ color: 'var(--navy)', fontWeight: 600 }}>
+                  {`${node.name.toLowerCase()}_${g.name.toLowerCase()}`}
+                </span>
+                <span style={{ color: 'var(--muted)', fontSize: 10 }}>
+                  · {g.rowCount.toLocaleString()} rows · {g.columns.length} cols
+                </span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+            Reference in SQL via <code style={codeStyle}>{'{{ ref(\'name_group\') }}'}</code>.
+          </div>
+        </Field>
+      )}
+
+      {node.content && node.groups.length === 0 && (
+        <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>
+          Could not parse this file as AGS.
+        </div>
+      )}
+    </>
   );
 }
 

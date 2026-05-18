@@ -147,6 +147,45 @@ export async function registerSeed(
   await conn.query(`CREATE OR REPLACE TABLE "${relName.replace(/"/g, '""')}" AS SELECT * FROM ${reader}`);
 }
 
+/**
+ * Registers each group of a parsed AGS file as a DuckDB table named
+ * `{prefix}_{group}` (lowercased), without disturbing tables that are
+ * already registered. Used by the transform engine's File node.
+ */
+export async function registerAgsGroupsWithPrefix(
+  agsFile: AgsFile,
+  prefix: string,
+): Promise<TableMeta[]> {
+  const { db, conn } = await getHandle();
+  const metas: TableMeta[] = [];
+  const lowerPrefix = prefix.toLowerCase();
+
+  for (const [groupName, group] of Object.entries(agsFile.groups)) {
+    if (!group || group.rows.length === 0) continue;
+    const relName = `${lowerPrefix}_${groupName.toLowerCase()}`;
+    const fileName = `_file_${relName}.json`;
+    const jsonRows = group.rows.map((row) => {
+      const obj: Record<string, string | number | boolean | null> = {};
+      for (const h of group.headings) {
+        const v = row[h.name];
+        obj[h.name] = v === undefined ? null : (v as string | number | boolean | null);
+      }
+      return obj;
+    });
+    try { await db.dropFile(fileName); } catch { /* not registered yet */ }
+    await db.registerFileText(fileName, JSON.stringify(jsonRows));
+    await conn.query(
+      `CREATE OR REPLACE TABLE "${relName.replace(/"/g, '""')}" AS SELECT * FROM read_json_auto('${fileName}')`,
+    );
+    metas.push({
+      name: relName,
+      rowCount: group.rows.length,
+      columns: group.headings.map((h) => h.name),
+    });
+  }
+  return metas;
+}
+
 // ── AGS → DuckDB tables ───────────────────────────────────────────────────────
 
 export async function registerAgsFile(

@@ -115,3 +115,71 @@ describe('compile', () => {
     expect(errors.some((e) => /Cycle/.test(e.message))).toBe(true);
   });
 });
+
+describe('compile · file node', () => {
+  it('exposes file groups as referenceable relations', () => {
+    const p = pipeline(
+      [
+        {
+          id: 'f', kind: 'file', name: 'siteA', format: 'ags',
+          fileName: 'siteA.ags', content: '"GROUP","LOCA"',
+          groups: [
+            { name: 'LOCA', rowCount: 5, columns: ['LOCA_ID'] },
+            { name: 'GEOL', rowCount: 8, columns: ['LOCA_ID', 'GEOL_GEOL'] },
+          ],
+          position: POS,
+        },
+        {
+          id: 'm', kind: 'sql', name: 'joined',
+          sql: "SELECT * FROM {{ ref('siteA_loca') }} JOIN {{ ref('siteA_geol') }} USING (LOCA_ID)",
+          materialization: 'view', position: POS,
+        },
+      ],
+      [{ id: 'e1', source: 'f', target: 'm' }],
+    );
+    const { steps, errors } = compile(p);
+    expect(errors).toEqual([]);
+    const sql = steps.find((s) => s.nodeId === 'm')!.sql ?? '';
+    expect(sql).toContain('"sitea_loca"');
+    expect(sql).toContain('"sitea_geol"');
+  });
+
+  it('flags a file node with no content', () => {
+    const p = pipeline([
+      {
+        id: 'f', kind: 'file', name: 'empty', format: 'ags',
+        fileName: '', content: '', groups: [], position: POS,
+      },
+    ]);
+    const { errors } = compile(p);
+    expect(errors.some((e) => /no content/.test(e.message))).toBe(true);
+  });
+
+  it('flags a file node whose content yielded zero groups', () => {
+    const p = pipeline([
+      {
+        id: 'f', kind: 'file', name: 'badparse', format: 'ags',
+        fileName: 'bad.ags', content: 'not ags', groups: [], position: POS,
+      },
+    ]);
+    const { errors } = compile(p);
+    expect(errors.some((e) => /zero groups/.test(e.message))).toBe(true);
+  });
+
+  it('reports collisions between file relation and a sibling node', () => {
+    const p = pipeline([
+      {
+        id: 'f', kind: 'file', name: 'siteA', format: 'ags',
+        fileName: 's.ags', content: 'x',
+        groups: [{ name: 'LOCA', rowCount: 1, columns: ['X'] }],
+        position: POS,
+      },
+      {
+        id: 's', kind: 'sql', name: 'siteA_loca',
+        sql: 'SELECT 1', materialization: 'view', position: POS,
+      },
+    ]);
+    const { errors } = compile(p);
+    expect(errors.some((e) => /collides|Duplicate/.test(e.message))).toBe(true);
+  });
+});

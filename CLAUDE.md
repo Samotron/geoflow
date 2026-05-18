@@ -96,14 +96,27 @@ Exit codes: 0 = success, 1 = validation failure, 2 = usage/runtime error.
 ## Transformation engine (web)
 
 `@geoflow/transform` is a pure-TS package that models dbt-style pipelines: nodes
-(source, seed, sql, output), edges, ref resolution via `{{ ref('node_name') }}`,
-topological sort, and compilation into ordered DuckDB statements.
+(source, file, seed, sql, output), edges, ref resolution via
+`{{ ref('node_name') }}`, topological sort, and compilation into ordered DuckDB
+statements.
+
+Node kinds:
+- **source** — references an already-registered DuckDB table (e.g. the AGS
+  group tables that `registerAgsFile` creates).
+- **file** — holds an entire uploaded AGS file. Each group is registered as a
+  DuckDB table named `{nodeName}_{group}` (lowercased) and exposed via
+  `{{ ref('name_group') }}`. Enables cross-file joins.
+- **seed** — inline CSV/JSON content registered as a DuckDB table.
+- **sql** — `SELECT` materialised as a VIEW or TABLE; supports
+  `{{ ref('...') }}` substitution.
+- **output** — terminal node; previews / downloads as CSV/JSON/GeoJSON.
 
 The Transform tab in `apps/web` renders the DAG with React Flow (`@xyflow/react`),
 uses Monaco for SQL editing with autocomplete for refs / table columns / spatial
 functions, and runs pipelines against the browser DuckDB-wasm instance shared
 with the Query tab. Pipelines auto-save to IndexedDB per project and can be
-exported/imported as JSON.
+exported/imported as JSON. Built-in examples live in
+`apps/web/src/transform/examples.ts` and load via the toolbar's Examples menu.
 
 DuckDB-wasm autoloads `spatial` and `httpfs` extensions on engine startup; load
 failures are non-fatal and surfaced in the Transform tab sidebar.

@@ -1,4 +1,4 @@
-export type NodeKind = 'source' | 'seed' | 'sql' | 'output';
+export type NodeKind = 'source' | 'seed' | 'sql' | 'output' | 'file';
 
 export type Materialization = 'view' | 'table';
 
@@ -6,9 +6,17 @@ export type SeedFormat = 'csv' | 'json';
 
 export type OutputFormat = 'preview' | 'csv' | 'json' | 'parquet' | 'geojson';
 
+export type FileFormat = 'ags';
+
 export interface NodePosition {
   x: number;
   y: number;
+}
+
+export interface FileGroupMeta {
+  name: string;
+  rowCount: number;
+  columns: string[];
 }
 
 export interface SourceNode {
@@ -46,7 +54,25 @@ export interface OutputNode {
   position: NodePosition;
 }
 
-export type PipelineNode = SourceNode | SeedNode | SqlNode | OutputNode;
+/**
+ * A FileNode represents an external AGS file pulled into the pipeline.
+ * On execution, every group in the file is registered as a DuckDB table
+ * named `{node.name}_{group}` (lowercased). Downstream SQL nodes can
+ * reference any group via `{{ ref('prefix_group') }}` or by raw relation
+ * name. `groups` is cached metadata for the inspector and ref validation.
+ */
+export interface FileNode {
+  id: string;
+  kind: 'file';
+  name: string;
+  format: FileFormat;
+  fileName: string;
+  content: string;
+  groups: FileGroupMeta[];
+  position: NodePosition;
+}
+
+export type PipelineNode = SourceNode | SeedNode | SqlNode | OutputNode | FileNode;
 
 export interface PipelineEdge {
   id: string;

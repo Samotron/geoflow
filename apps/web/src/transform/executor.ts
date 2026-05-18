@@ -1,7 +1,9 @@
 import type { Pipeline } from '@geoflow/transform';
-import { compile, type CompiledStep } from '@geoflow/transform';
+import { compile, fileRelationName, type CompiledStep } from '@geoflow/transform';
+import { decodeBytes, parseStr } from '../core.js';
 import {
   listMainSchemaTables,
+  registerAgsGroupsWithPrefix,
   registerSeed,
   runQuery,
   type QueryResult,
@@ -50,6 +52,30 @@ export async function runPipeline(pipeline: Pipeline, opts: RunOptions = {}): Pr
         ok: false,
         steps: [],
         compileErrors: [`Seed "${node.name}" failed to load: ${msg}`],
+      };
+    }
+  }
+
+  // Register file nodes: parse the AGS content and emit one DuckDB table
+  // per group, named `{prefix}_{group}`.
+  for (const node of pipeline.nodes) {
+    if (node.kind !== 'file') continue;
+    if (!node.content.trim()) continue;
+    onProgress(`Loading file ${node.name}…`);
+    try {
+      const text = node.content;
+      const bytes = new TextEncoder().encode(text);
+      const { file } = parseStr(decodeBytes(bytes));
+      await registerAgsGroupsWithPrefix(file, node.name);
+      for (const g of node.groups) {
+        existingNames.add(fileRelationName(node, g.name));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        steps: [],
+        compileErrors: [`File "${node.name}" failed to load: ${msg}`],
       };
     }
   }

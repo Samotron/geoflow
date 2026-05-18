@@ -1,5 +1,5 @@
 import { topoSort } from './dag.js';
-import type { OutputNode, Pipeline, PipelineNode, SqlNode } from './model.js';
+import type { FileNode, OutputNode, Pipeline, PipelineNode, SqlNode } from './model.js';
 import { isValidRelationName } from './model.js';
 import { extractRefs, quoteIdent, resolveRefs } from './refs.js';
 
@@ -9,13 +9,11 @@ export interface CompiledStep {
   kind: PipelineNode['kind'];
   /**
    * SQL to execute that creates/refreshes the relation for this step.
-   * `null` for source nodes (already exist) and for output nodes
-   * (handled by the executor as a SELECT against the upstream).
+   * `null` for sources, file nodes and outputs (handled at runtime).
    */
   sql: string | null;
   /**
-   * SQL the executor should run to surface results for this step
-   * (used by output nodes and preview pulls).
+   * SQL the executor should run to surface results for this step.
    */
   preview: string | null;
 }
@@ -33,16 +31,32 @@ export interface CompileResult {
 export interface CompileOptions {
   /**
    * Names of relations that already exist in DuckDB (typically AGS group
-   * tables registered by the host app). Source nodes must reference one
-   * of these — when omitted, source nodes are accepted as-is.
+   * tables registered by the host app, plus any tables that file nodes
+   * have registered for this run).
    */
   existingTables?: ReadonlySet<string>;
 }
 
+export function fileRelationName(file: FileNode, group: string): string {
+  return `${file.name}_${group}`.toLowerCase();
+}
+
+interface RelationTarget {
+  kind: 'node';
+  node: PipelineNode;
+}
+interface FileRelationTarget {
+  kind: 'file-group';
+  node: FileNode;
+  groupName: string;
+}
+type ResolvedRelation = RelationTarget | FileRelationTarget;
+
 export function compile(pipeline: Pipeline, opts: CompileOptions = {}): CompileResult {
   const errors: CompileError[] = [];
   const nodesById = new Map(pipeline.nodes.map((n) => [n.id, n]));
-  const nodesByName = new Map<string, PipelineNode>();
+  const relationsByName = new Map<string, ResolvedRelation>();
+  const nodeNamesSeen = new Map<string, string>();
 
   for (const node of pipeline.nodes) {
     if (!isValidRelationName(node.name)) {
@@ -50,11 +64,34 @@ export function compile(pipeline: Pipeline, opts: CompileOptions = {}): CompileR
       continue;
     }
     const lower = node.name.toLowerCase();
-    if (nodesByName.has(lower)) {
+    if (nodeNamesSeen.has(lower)) {
       errors.push({ nodeId: node.id, message: `Duplicate node name: "${node.name}"` });
       continue;
     }
-    nodesByName.set(lower, node);
+    nodeNamesSeen.set(lower, node.id);
+
+    if (node.kind === 'file') {
+      for (const g of node.groups) {
+        const rel = fileRelationName(node, g.name);
+        if (relationsByName.has(rel)) {
+          errors.push({
+            nodeId: node.id,
+            message: `Relation "${rel}" collides with another node`,
+          });
+          continue;
+        }
+        relationsByName.set(rel, { kind: 'file-group', node, groupName: g.name });
+      }
+    } else {
+      if (relationsByName.has(lower)) {
+        errors.push({
+          nodeId: node.id,
+          message: `Relation "${lower}" collides with another node`,
+        });
+        continue;
+      }
+      relationsByName.set(lower, { kind: 'node', node });
+    }
   }
 
   if (opts.existingTables) {
@@ -66,6 +103,16 @@ export function compile(pipeline: Pipeline, opts: CompileOptions = {}): CompileR
           message: `Source table "${node.table}" is not registered in DuckDB`,
         });
       }
+    }
+  }
+
+  for (const node of pipeline.nodes) {
+    if (node.kind !== 'file') continue;
+    if (!node.content.trim()) {
+      errors.push({ nodeId: node.id, message: `File node "${node.name}" has no content loaded` });
+    }
+    if (node.groups.length === 0 && node.content.trim()) {
+      errors.push({ nodeId: node.id, message: `File node "${node.name}" parsed zero groups` });
     }
   }
 
@@ -113,8 +160,21 @@ export function compile(pipeline: Pipeline, opts: CompileOptions = {}): CompileR
         });
         break;
       }
+      case 'file': {
+        const first = node.groups[0];
+        steps.push({
+          nodeId: node.id,
+          nodeName: node.name,
+          kind: 'file',
+          sql: null,
+          preview: first
+            ? `SELECT * FROM ${quoteIdent(fileRelationName(node, first.name))} LIMIT 100`
+            : null,
+        });
+        break;
+      }
       case 'sql': {
-        const compiled = compileSqlNode(node, nodesByName, errors);
+        const compiled = compileSqlNode(node, relationsByName, errors);
         if (compiled !== null) steps.push(compiled);
         break;
       }
@@ -131,19 +191,19 @@ export function compile(pipeline: Pipeline, opts: CompileOptions = {}): CompileR
 
 function compileSqlNode(
   node: SqlNode,
-  nodesByName: Map<string, PipelineNode>,
+  relationsByName: Map<string, ResolvedRelation>,
   errors: CompileError[],
 ): CompiledStep | null {
   const refs = extractRefs(node.sql);
   for (const ref of refs) {
-    if (!nodesByName.has(ref.toLowerCase())) {
+    if (!relationsByName.has(ref.toLowerCase())) {
       errors.push({ nodeId: node.id, message: `Unknown ref: "${ref}"` });
     }
   }
   const resolved = resolveRefs(node.sql, (name) => {
-    const target = nodesByName.get(name.toLowerCase());
+    const target = relationsByName.get(name.toLowerCase());
     if (!target) return quoteIdent(name);
-    return relationFor(target);
+    return relationForTarget(target);
   });
 
   const kind = node.materialization === 'table' ? 'TABLE' : 'VIEW';
@@ -175,7 +235,7 @@ function compileOutputNode(
   const upstream = nodesById.get(upstreamIds[0]!);
   if (!upstream) return null;
   const limit = Number.isFinite(node.rowLimit) && node.rowLimit > 0 ? Math.floor(node.rowLimit) : 1000;
-  const preview = `SELECT * FROM ${relationFor(upstream)} LIMIT ${limit}`;
+  const preview = `SELECT * FROM ${relationForNode(upstream)} LIMIT ${limit}`;
   return {
     nodeId: node.id,
     nodeName: node.name,
@@ -185,7 +245,16 @@ function compileOutputNode(
   };
 }
 
-function relationFor(node: PipelineNode): string {
+function relationForNode(node: PipelineNode): string {
   if (node.kind === 'source') return quoteIdent(node.table);
+  if (node.kind === 'file') {
+    const first = node.groups[0];
+    return first ? quoteIdent(fileRelationName(node, first.name)) : quoteIdent(node.name);
+  }
   return quoteIdent(node.name.toLowerCase());
+}
+
+function relationForTarget(target: ResolvedRelation): string {
+  if (target.kind === 'node') return relationForNode(target.node);
+  return quoteIdent(fileRelationName(target.node, target.groupName));
 }
