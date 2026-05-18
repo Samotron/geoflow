@@ -5,6 +5,7 @@ import {
   extractSectionPolygons,
   suggestSvgHeight,
 } from "./cross-section.js";
+import { geolHatch } from "./geo3d.js";
 import type { Geo3DModel, Borehole3D } from "./geo3d.js";
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
@@ -27,7 +28,7 @@ function makeBh(
       topElev: elev - l.top,
       baseElev: elev - l.base,
       color: l.color ?? "#cccccc",
-      hatch: "none",
+      hatch: geolHatch(l.desc),
     })),
   };
 }
@@ -142,13 +143,61 @@ describe("renderCrossSectionSvg", () => {
   it("contains a legend when showLegend is true", () => {
     const model = makeModel();
     const svg = renderCrossSectionSvg(model, ["BH01", "BH02"], { showLegend: true });
-    expect(svg).toMatch(/Units/);
+    expect(svg).toMatch(/Stratigraphy/);
   });
 
   it("omits the legend when showLegend is false", () => {
     const model = makeModel();
     const svg = renderCrossSectionSvg(model, ["BH01", "BH02"], { showLegend: false });
-    expect(svg).not.toMatch(/>Units</);
+    expect(svg).not.toMatch(/>Stratigraphy</);
+  });
+
+  it("renders hatch patterns when showHatch is true", () => {
+    const model = makeModel();
+    const svg = renderCrossSectionSvg(model, ["BH01", "BH02", "BH03"], { showHatch: true });
+    // CLAY description in fixture → gfx-clay pattern referenced
+    expect(svg).toMatch(/url\(#gfx-clay\)/);
+  });
+
+  it("omits hatch fills when showHatch is false", () => {
+    const model = makeModel();
+    const svg = renderCrossSectionSvg(model, ["BH01", "BH02", "BH03"], { showHatch: false });
+    expect(svg).not.toMatch(/url\(#gfx-clay\)/);
+  });
+
+  it("includes A-A' direction labels by default", () => {
+    const model = makeModel();
+    const svg = renderCrossSectionSvg(model, ["BH01", "BH02", "BH03"]);
+    expect(svg).toMatch(/>A</);
+    expect(svg).toMatch(/A′/);
+  });
+
+  it("respects custom start/end labels", () => {
+    const model = makeModel();
+    const svg = renderCrossSectionSvg(model, ["BH01", "BH02"], { startLabel: "B", endLabel: "B′" });
+    expect(svg).toMatch(/>B</);
+    expect(svg).toMatch(/B′/);
+  });
+
+  it("renders smooth-interpolation polygons with more points than observations", () => {
+    const model = makeModel();
+    const svg = renderCrossSectionSvg(model, ["BH01", "BH02", "BH03"], { interpolation: "smooth" });
+    // Find the first polygon's points list and count comma-separated coords
+    const m = svg.match(/<polygon class="gfx-unit"[^>]*points="([^"]+)"/);
+    expect(m).not.toBeNull();
+    const nPts = m![1]!.split(/\s+/).length;
+    // Smooth densification should produce far more than 6 vertices (3 obs × 2 edges)
+    expect(nPts).toBeGreaterThan(20);
+  });
+
+  it("renders sparse linear polygons when smoothing is disabled", () => {
+    const model = makeModel();
+    const svg = renderCrossSectionSvg(model, ["BH01", "BH02", "BH03"], { interpolation: "linear-chainage" });
+    const m = svg.match(/<polygon class="gfx-unit"[^>]*points="([^"]+)"/);
+    expect(m).not.toBeNull();
+    const nPts = m![1]!.split(/\s+/).length;
+    // 3 obs × 2 edges = 6 vertices, no densification
+    expect(nPts).toBeLessThanOrEqual(10);
   });
 
   it("emits an error SVG for invalid input", () => {
