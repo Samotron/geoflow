@@ -1,5 +1,13 @@
 import { topoSort } from './dag.js';
-import type { FileNode, OutputNode, Pipeline, PipelineNode, SqlNode } from './model.js';
+import type {
+  FileNode,
+  NotebookCell,
+  NotebookNode,
+  OutputNode,
+  Pipeline,
+  PipelineNode,
+  SqlNode,
+} from './model.js';
 import { isValidRelationName } from './model.js';
 import { extractRefs, quoteIdent, resolveRefs } from './refs.js';
 
@@ -16,6 +24,19 @@ export interface CompiledStep {
    * SQL the executor should run to surface results for this step.
    */
   preview: string | null;
+  /**
+   * For SQL and notebook-cell steps: the resolved SELECT body (refs
+   * substituted), without the `CREATE OR REPLACE VIEW … AS` wrapper.
+   * Used by the executor's lineage and column-lineage passes so they
+   * don't have to strip the DDL prefix back off.
+   */
+  selectSql?: string | null;
+  /**
+   * For notebook-cell steps: the name of the relation this cell creates
+   * (= cell name lower-cased). Lets the executor track per-cell
+   * column lineage in the resolution map.
+   */
+  cellRelation?: string | null;
 }
 
 export interface CompileError {
@@ -50,7 +71,12 @@ interface FileRelationTarget {
   node: FileNode;
   groupName: string;
 }
-type ResolvedRelation = RelationTarget | FileRelationTarget;
+interface NotebookCellTarget {
+  kind: 'notebook-cell';
+  node: NotebookNode;
+  cell: NotebookCell;
+}
+type ResolvedRelation = RelationTarget | FileRelationTarget | NotebookCellTarget;
 
 export function compile(pipeline: Pipeline, opts: CompileOptions = {}): CompileResult {
   const errors: CompileError[] = [];
@@ -81,6 +107,41 @@ export function compile(pipeline: Pipeline, opts: CompileOptions = {}): CompileR
           continue;
         }
         relationsByName.set(rel, { kind: 'file-group', node, groupName: g.name });
+      }
+    } else if (node.kind === 'notebook') {
+      // Reserve the notebook's public name (passthrough of last SQL cell).
+      if (relationsByName.has(lower)) {
+        errors.push({
+          nodeId: node.id,
+          message: `Relation "${lower}" collides with another node`,
+        });
+        continue;
+      }
+      relationsByName.set(lower, { kind: 'node', node });
+      // Register each SQL cell as its own relation. Cells reference each
+      // other (and outer nodes) via the same {{ ref('name') }} machinery.
+      const seenInside = new Set<string>();
+      for (const cell of node.cells) {
+        if (cell.kind !== 'sql') continue;
+        if (!isValidRelationName(cell.name)) {
+          errors.push({ nodeId: node.id, message: `Notebook ${node.name}: invalid cell name "${cell.name}"` });
+          continue;
+        }
+        const cellLower = cell.name.toLowerCase();
+        if (cellLower === lower) {
+          errors.push({ nodeId: node.id, message: `Notebook cell "${cell.name}" collides with the notebook's own name` });
+          continue;
+        }
+        if (seenInside.has(cellLower)) {
+          errors.push({ nodeId: node.id, message: `Notebook ${node.name}: duplicate cell name "${cell.name}"` });
+          continue;
+        }
+        if (relationsByName.has(cellLower)) {
+          errors.push({ nodeId: node.id, message: `Notebook cell "${cell.name}" collides with another node` });
+          continue;
+        }
+        seenInside.add(cellLower);
+        relationsByName.set(cellLower, { kind: 'notebook-cell', node, cell });
       }
     } else {
       if (relationsByName.has(lower)) {
@@ -183,6 +244,12 @@ export function compile(pipeline: Pipeline, opts: CompileOptions = {}): CompileR
         if (compiled !== null) steps.push(compiled);
         break;
       }
+      case 'notebook': {
+        for (const cellStep of compileNotebookNode(node, relationsByName, errors)) {
+          steps.push(cellStep);
+        }
+        break;
+      }
     }
   }
 
@@ -215,6 +282,7 @@ function compileSqlNode(
     kind: 'sql',
     sql,
     preview: `SELECT * FROM ${relation} LIMIT 100`,
+    selectSql: resolved.trim(),
   };
 }
 
@@ -256,5 +324,63 @@ function relationForNode(node: PipelineNode): string {
 
 function relationForTarget(target: ResolvedRelation): string {
   if (target.kind === 'node') return relationForNode(target.node);
-  return quoteIdent(fileRelationName(target.node, target.groupName));
+  if (target.kind === 'file-group') return quoteIdent(fileRelationName(target.node, target.groupName));
+  // notebook-cell: each SQL cell materialises under its own name.
+  return quoteIdent(target.cell.name.toLowerCase());
+}
+
+function compileNotebookNode(
+  node: NotebookNode,
+  relationsByName: Map<string, ResolvedRelation>,
+  errors: CompileError[],
+): CompiledStep[] {
+  const sqlCells = node.cells.filter((c) => c.kind === 'sql');
+  if (sqlCells.length === 0) {
+    errors.push({ nodeId: node.id, message: `Notebook "${node.name}" has no SQL cells` });
+    return [];
+  }
+  const out: CompiledStep[] = [];
+  for (const cell of sqlCells) {
+    const refs = extractRefs(cell.content);
+    for (const ref of refs) {
+      if (!relationsByName.has(ref.toLowerCase())) {
+        errors.push({
+          nodeId: node.id,
+          message: `Notebook "${node.name}" cell "${cell.name}": unknown ref "${ref}"`,
+        });
+      }
+    }
+    const resolved = resolveRefs(cell.content, (name) => {
+      const target = relationsByName.get(name.toLowerCase());
+      if (!target) return quoteIdent(name);
+      return relationForTarget(target);
+    });
+    const kind = cell.materialization === 'table' ? 'TABLE' : 'VIEW';
+    const relation = quoteIdent(cell.name.toLowerCase());
+    const sql = `CREATE OR REPLACE ${kind} ${relation} AS\n${resolved.trim()}`;
+    out.push({
+      nodeId: node.id,
+      nodeName: `${node.name}/${cell.name}`,
+      kind: 'notebook',
+      sql,
+      preview: `SELECT * FROM ${relation} LIMIT 100`,
+      selectSql: resolved.trim(),
+      cellRelation: cell.name.toLowerCase(),
+    });
+  }
+  // Last SQL cell also exposes the notebook's public relation as a
+  // passthrough VIEW so other pipeline nodes can `{{ ref('<notebook>') }}`.
+  const last = sqlCells[sqlCells.length - 1]!;
+  const publicName = quoteIdent(node.name.toLowerCase());
+  const lastName = quoteIdent(last.name.toLowerCase());
+  out.push({
+    nodeId: node.id,
+    nodeName: node.name,
+    kind: 'notebook',
+    sql: `CREATE OR REPLACE VIEW ${publicName} AS SELECT * FROM ${lastName}`,
+    preview: `SELECT * FROM ${publicName} LIMIT 100`,
+    selectSql: `SELECT * FROM ${lastName}`,
+    cellRelation: node.name.toLowerCase(),
+  });
+  return out;
 }

@@ -41,6 +41,12 @@ const KIND_STYLES: Record<NodeKind, { color: string; border: string; bg: string;
     bg: '#f3edf7',
     icon: <span style={{ fontWeight: 700 }}>F</span>,
   },
+  notebook: {
+    color: '#a8466b',
+    border: '#e8c4d2',
+    bg: '#faecf2',
+    icon: <span style={{ fontWeight: 700 }}>N</span>,
+  },
 };
 
 const STATUS_DOT: Record<FlowNodeData['status'], string> = {
@@ -128,6 +134,9 @@ export function OutputNodeView({ data, selected }: NodeProps) {
 export function FileNodeView({ data, selected }: NodeProps) {
   return <NodeShell data={data as FlowNodeData} selected={selected ?? false} hasInput={false} hasOutput={true} />;
 }
+export function NotebookNodeView({ data, selected }: NodeProps) {
+  return <NodeShell data={data as FlowNodeData} selected={selected ?? false} hasInput={true} hasOutput={true} />;
+}
 
 export const NODE_TYPES = {
   source: SourceNodeView,
@@ -135,6 +144,7 @@ export const NODE_TYPES = {
   sql: SqlNodeView,
   output: OutputNodeView,
   file: FileNodeView,
+  notebook: NotebookNodeView,
 };
 
 export const SEED_FORMATS: SeedFormat[] = ['csv', 'json'];

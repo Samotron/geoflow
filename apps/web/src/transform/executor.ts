@@ -1,8 +1,8 @@
-import type { Pipeline, PipelineNode } from '@geoflow/transform';
+import type { ColumnRef, OutputColumn, Pipeline, PipelineNode } from '@geoflow/transform';
 import {
   LINEAGE_COLUMN,
   compile,
-  extractRefs,
+  extractColumnLineage,
   fileRelationName,
   lineageViewName,
   quoteIdent,
@@ -40,8 +40,22 @@ export interface NodeRunResult {
    * external relation, etc.).
    */
   lineage: LineageEntry[][] | null;
+  /**
+   * Per-output-column lineage, in `preview.columns` order. Each entry
+   * lists the **base-relation** `(relation, column)` pairs the output
+   * column ultimately depends on (transitively resolved through any
+   * intermediate SQL nodes). `null` when column lineage isn't available.
+   */
+  columnLineage: ResolvedColumnLineage[] | null;
   /** Warnings raised during lineage rewriting (e.g. window function bail). */
   lineageWarnings: string[];
+}
+
+export interface ResolvedColumnLineage {
+  name: string;
+  sources: ColumnRef[];
+  derivation: OutputColumn['derivation'];
+  starOf?: string;
 }
 
 export interface RunResult {
@@ -105,6 +119,9 @@ export async function runPipeline(pipeline: Pipeline, opts: RunOptions = {}): Pr
 
   // ── 4. Determine which relations get lineage views ────────────────────
   const trackedRelations = new Set<string>();
+  // SQL-derived relations whose lineage views are materialised by the
+  // rewriter at step time (not up-front).
+  const sqlDerived = new Set<string>();
   for (const node of pipeline.nodes) {
     if (node.kind === 'source') trackedRelations.add(node.table.toLowerCase());
     else if (node.kind === 'seed') trackedRelations.add(node.name.toLowerCase());
@@ -112,17 +129,23 @@ export async function runPipeline(pipeline: Pipeline, opts: RunOptions = {}): Pr
       for (const g of node.groups) trackedRelations.add(fileRelationName(node, g.name));
     } else if (node.kind === 'sql') {
       trackedRelations.add(node.name.toLowerCase());
+      sqlDerived.add(node.name.toLowerCase());
+    } else if (node.kind === 'notebook') {
+      // Each SQL cell, plus the notebook's public passthrough.
+      trackedRelations.add(node.name.toLowerCase());
+      sqlDerived.add(node.name.toLowerCase());
+      for (const cell of node.cells) {
+        if (cell.kind !== 'sql') continue;
+        trackedRelations.add(cell.name.toLowerCase());
+        sqlDerived.add(cell.name.toLowerCase());
+      }
     }
   }
 
   // Register `_lin_` views for every base relation up front so SQL-node
-  // rewrites can reference them.
+  // rewrites can reference them. SQL-derived relations are handled per step.
   for (const rel of trackedRelations) {
-    // SQL-node lineage views are materialised later from rewritten SQL.
-    const isSqlNode = pipeline.nodes.some(
-      (n) => n.kind === 'sql' && n.name.toLowerCase() === rel,
-    );
-    if (isSqlNode) continue;
+    if (sqlDerived.has(rel)) continue;
     try {
       await registerLineageView(rel);
     } catch (err) {
@@ -134,6 +157,9 @@ export async function runPipeline(pipeline: Pipeline, opts: RunOptions = {}): Pr
   }
 
   // ── 5. Run each step (and build lineage variants for SQL nodes) ──────
+  // We accumulate each SQL node's RESOLVED column lineage (base-relation
+  // columns only) so downstream nodes can resolve refs transitively.
+  const resolvedByRelation = new Map<string, ResolvedColumnLineage[]>();
   const results: NodeRunResult[] = [];
   let anyError = false;
   const nodesById = new Map(pipeline.nodes.map((n) => [n.id, n]));
@@ -144,8 +170,14 @@ export async function runPipeline(pipeline: Pipeline, opts: RunOptions = {}): Pr
       continue;
     }
     const node = nodesById.get(step.nodeId)!;
-    const result = await runStep(step, node, trackedRelations, onProgress);
+    const result = await runStep(step, node, trackedRelations, resolvedByRelation, onProgress);
     if (result.status === 'error') anyError = true;
+    if (result.columnLineage) {
+      // Notebook cell steps key column lineage on the cell's relation name;
+      // SQL nodes (and the notebook passthrough) key on the node name.
+      const key = (step.cellRelation ?? node.name).toLowerCase();
+      resolvedByRelation.set(key, result.columnLineage);
+    }
     results.push(result);
   }
 
@@ -156,6 +188,7 @@ async function runStep(
   step: CompiledStep,
   node: PipelineNode,
   trackedRelations: ReadonlySet<string>,
+  resolvedByRelation: ReadonlyMap<string, ResolvedColumnLineage[]>,
   onProgress: (msg: string) => void,
 ): Promise<NodeRunResult> {
   const t0 = performance.now();
@@ -167,6 +200,7 @@ async function runStep(
     durationMs: 0,
     preview: null,
     lineage: null,
+    columnLineage: null,
     lineageWarnings: [],
   };
   try {
@@ -176,16 +210,17 @@ async function runStep(
       await runQuery(step.sql);
     }
 
-    // 2. For SQL nodes, also build a lineage view via the rewriter.
-    if (node.kind === 'sql') {
-      // Resolve refs first so the rewriter sees the same relation names
-      // as DuckDB will. Then rewrite to inject __src tracking.
-      const resolvedSql = resolveRefs(node.sql, (name) => quoteIdent(name.toLowerCase()));
+    // 2. For SQL nodes and notebook cells, also build a lineage view via
+    //    the rewriter. We use the compiler-provided resolved SELECT body
+    //    (step.selectSql) so refs are already substituted.
+    const resolvedSql = step.selectSql ?? null;
+    const linTarget = step.cellRelation ?? (node.kind === 'sql' ? node.name.toLowerCase() : null);
+    if (resolvedSql !== null && linTarget !== null && (node.kind === 'sql' || node.kind === 'notebook')) {
       const rewrite = rewriteForLineage(resolvedSql, { knownRelations: trackedRelations });
       result.lineageWarnings = rewrite.warnings;
       if (rewrite.rewritten !== null) {
         try {
-          const linViewName = lineageViewName(node.name);
+          const linViewName = lineageViewName(linTarget);
           await runQuery(
             `CREATE OR REPLACE VIEW "${linViewName.replace(/"/g, '""')}" AS\n${rewrite.rewritten}`,
           );
@@ -196,6 +231,22 @@ async function runStep(
           );
         }
       }
+
+      // Compute column lineage and resolve transitively through upstream
+      // SQL nodes so the surfaced sources are always base relations.
+      const colLineage = extractColumnLineage(resolvedSql, { knownRelations: trackedRelations });
+      if (colLineage.outputs) {
+        result.columnLineage = colLineage.outputs.map((c) =>
+          resolveColumnSources(c, resolvedByRelation),
+        );
+      }
+      for (const w of colLineage.warnings) result.lineageWarnings.push(`column lineage: ${w}`);
+    }
+
+    // For non-SQL nodes (source / seed / file / output) we still want a
+    // 1:1 column lineage so the UI can show "this comes from <rel>.<col>".
+    if (node.kind === 'source') {
+      result.columnLineage = null; // populated below once we have the preview columns.
     }
 
     // 3. Run the preview. For nodes whose lineage view exists, the preview
@@ -206,12 +257,124 @@ async function runStep(
         result.preview = await runQuery(step.preview);
       }
     }
+
+    // For source/seed/file previews, fabricate identity column lineage now
+    // that we know the preview columns.
+    if (result.preview && result.columnLineage === null) {
+      const baseRel = baseRelationFor(node);
+      if (baseRel) {
+        result.columnLineage = result.preview.columns.map<ResolvedColumnLineage>((c) => ({
+          name: c,
+          sources: [{ relation: baseRel, column: c }],
+          derivation: 'direct',
+        }));
+      }
+    }
+
+    // If the SQL-node column lineage and the preview columns differ in
+    // order, reorder lineage to match (handles `SELECT *` and column
+    // aliasing where the extractor's column-order may differ from
+    // DuckDB's).
+    if (node.kind === 'sql' && result.preview && result.columnLineage) {
+      result.columnLineage = alignColumnLineage(result.preview.columns, result.columnLineage, node, resolvedByRelation);
+    }
   } catch (err) {
     result.status = 'error';
     result.error = err instanceof Error ? err.message : String(err);
   }
   result.durationMs = performance.now() - t0;
   return result;
+}
+
+function baseRelationFor(node: PipelineNode): string | null {
+  if (node.kind === 'source') return node.table.toLowerCase();
+  if (node.kind === 'seed') return node.name.toLowerCase();
+  if (node.kind === 'file') {
+    const first = node.groups[0];
+    return first ? fileRelationName(node, first.name) : null;
+  }
+  return null;
+}
+
+function resolveColumnSources(
+  col: OutputColumn,
+  resolvedByRelation: ReadonlyMap<string, ResolvedColumnLineage[]>,
+): ResolvedColumnLineage {
+  const seen = new Set<string>();
+  const out: ColumnRef[] = [];
+  const push = (refs: readonly ColumnRef[]): void => {
+    for (const r of refs) {
+      const k = `${r.relation.toLowerCase()}|${r.column.toLowerCase()}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(r);
+    }
+  };
+  for (const src of col.sources) {
+    const upstream = resolvedByRelation.get(src.relation.toLowerCase());
+    if (!upstream) {
+      // Base relation — keep the ref as-is.
+      push([src]);
+      continue;
+    }
+    // Find the matching column in the upstream node's lineage; if found,
+    // substitute its resolved sources.
+    const match = upstream.find((u) => u.name.toLowerCase() === src.column.toLowerCase());
+    if (match) push(match.sources);
+    else push([src]); // fall back to the unresolved ref
+  }
+  return {
+    name: col.name,
+    sources: out,
+    derivation: col.derivation,
+    ...(col.starOf ? { starOf: col.starOf } : {}),
+  };
+}
+
+/**
+ * Aligns column lineage to the preview's actual column order. For star
+ * expansions, fabricates per-column passthrough entries against the
+ * star-of relation. Lineage entries that don't match a preview column
+ * are dropped to keep the array shape correct.
+ */
+function alignColumnLineage(
+  previewColumns: readonly string[],
+  lineage: readonly ResolvedColumnLineage[],
+  node: PipelineNode,
+  resolvedByRelation: ReadonlyMap<string, ResolvedColumnLineage[]>,
+): ResolvedColumnLineage[] {
+  // Build a name-keyed index of explicit lineage entries.
+  const named = new Map<string, ResolvedColumnLineage>();
+  const stars: ResolvedColumnLineage[] = [];
+  for (const c of lineage) {
+    if (c.derivation === 'star') stars.push(c);
+    else named.set(c.name.toLowerCase(), c);
+  }
+  const out: ResolvedColumnLineage[] = [];
+  for (const colName of previewColumns) {
+    const lower = colName.toLowerCase();
+    const direct = named.get(lower);
+    if (direct) { out.push({ ...direct, name: colName }); continue; }
+    // Otherwise this column probably came from a star expansion.
+    const star = stars[0];
+    if (star && star.starOf) {
+      const upstream = resolvedByRelation.get(star.starOf.toLowerCase());
+      if (upstream) {
+        const upCol = upstream.find((u) => u.name.toLowerCase() === lower);
+        if (upCol) { out.push({ ...upCol, name: colName }); continue; }
+      }
+      out.push({
+        name: colName,
+        sources: [{ relation: star.starOf, column: colName }],
+        derivation: 'direct',
+      });
+      continue;
+    }
+    // Unknown source.
+    void node;
+    out.push({ name: colName, sources: [], derivation: 'unknown' });
+  }
+  return out;
 }
 
 /**
@@ -224,7 +387,9 @@ async function tryLineagePreview(
   result: NodeRunResult,
 ): Promise<boolean> {
   if (!step.preview) return false;
-  const previewedRelation = previewRelationFor(node);
+  // For notebooks each cell-step carries its own cellRelation; for the
+  // other kinds the relation is derived from the node.
+  const previewedRelation = step.cellRelation ?? previewRelationFor(node);
   if (!previewedRelation) return false;
   const linView = lineageViewName(previewedRelation);
   // Replace the bare relation in the canned preview with its lineage view
@@ -266,6 +431,7 @@ function previewRelationFor(node: PipelineNode): string | null {
     case 'source': return node.table.toLowerCase();
     case 'seed': return node.name.toLowerCase();
     case 'sql': return node.name.toLowerCase();
+    case 'notebook': return node.name.toLowerCase();
     case 'file': {
       const first = node.groups[0];
       return first ? fileRelationName(node, first.name) : null;
@@ -326,6 +492,7 @@ function skippedResult(step: CompiledStep): NodeRunResult {
     durationMs: 0,
     preview: null,
     lineage: null,
+    columnLineage: null,
     lineageWarnings: [],
   };
 }

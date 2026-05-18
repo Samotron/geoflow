@@ -21,6 +21,8 @@ import type { ChangeEvent } from 'react';
 import type {
   FileGroupMeta,
   FileNode as PipelineFileNode,
+  NotebookCell,
+  NotebookNode as PipelineNotebookNode,
   OutputFormat,
   OutputNode,
   Pipeline,
@@ -44,7 +46,13 @@ import {
   deletePipelineById,
   savePipelineForProject,
 } from '../transform/persistence.js';
-import { fetchLineageRow, runPipeline, type LineageEntry, type NodeRunResult } from '../transform/executor.js';
+import {
+  fetchLineageRow,
+  runPipeline,
+  type LineageEntry,
+  type NodeRunResult,
+  type ResolvedColumnLineage,
+} from '../transform/executor.js';
 import { NODE_TYPES, OUTPUT_FORMATS, SEED_FORMATS, type FlowNodeData } from '../transform/nodes.js';
 import { SqlNodeEditor } from '../transform/SqlNodeEditor.js';
 
@@ -416,6 +424,11 @@ function nodeDetail(n: PipelineNode): string {
     case 'file': return n.groups.length === 0
       ? (n.fileName || 'no file loaded')
       : `${n.fileName || n.format} · ${n.groups.length} groups`;
+    case 'notebook': {
+      const sql = n.cells.filter((c) => c.kind === 'sql').length;
+      const md = n.cells.filter((c) => c.kind === 'markdown').length;
+      return `${sql} SQL · ${md} MD`;
+    }
   }
 }
 
@@ -432,7 +445,25 @@ function createNode(kind: PipelineNode['kind'], name: string, position: { x: num
       return { id, kind, name, format: 'preview', rowLimit: 100, position } as OutputNode;
     case 'file':
       return { id, kind, name, format: 'ags', fileName: '', content: '', groups: [], position } as PipelineFileNode;
+    case 'notebook':
+      return defaultNotebookNode(id, name, position);
   }
+}
+
+function defaultNotebookNode(id: string, name: string, position: { x: number; y: number }): PipelineNotebookNode {
+  return {
+    id, kind: 'notebook', name, position,
+    cells: [
+      {
+        id: crypto.randomUUID(), kind: 'markdown', name: 'intro',
+        content: `# ${name}\n\nA notebook of SQL + Markdown cells. The **last SQL cell** is what other nodes see when they ref this notebook.`,
+      },
+      {
+        id: crypto.randomUUID(), kind: 'sql', name: 'cell_1', materialization: 'view',
+        content: "-- Each SQL cell becomes its own relation, reusable downstream\n-- with {{ ref('cell_name') }}.\nSELECT 1 AS placeholder",
+      },
+    ],
+  };
 }
 
 /**
@@ -596,6 +627,7 @@ function SidePalette({ onAdd, pipelineList, activeId, onSelectPipeline, onDelete
           <PaletteBtn onClick={() => onAdd('file')} label="File" color="#6b4e85" bg="#f3edf7" />
           <PaletteBtn onClick={() => onAdd('seed')} label="Seed" color="#7a5a30" bg="#fbf3e2" />
           <PaletteBtn onClick={() => onAdd('sql')} label="SQL" color="#3f6d4a" bg="#ecf4ee" />
+          <PaletteBtn onClick={() => onAdd('notebook')} label="Notebook" color="#a8466b" bg="#faecf2" />
           <PaletteBtn onClick={() => onAdd('output')} label="Output" color="#86472a" bg="#fbeee0" />
         </div>
       </div>
@@ -802,6 +834,15 @@ function Inspector({ node, tables, availableRefs, onChange, runResult, selectedC
             onChange={onChange}
           />
         )}
+
+        {node.kind === 'notebook' && (
+          <NotebookInspector
+            node={node}
+            tables={tables}
+            availableRefs={availableRefs}
+            onChange={onChange}
+          />
+        )}
       </div>
 
       {runResult && (
@@ -822,6 +863,189 @@ function Inspector({ node, tables, availableRefs, onChange, runResult, selectedC
     </div>
   );
 }
+
+// ── Notebook inspector ──────────────────────────────────────────────────
+
+function NotebookInspector({
+  node,
+  tables,
+  availableRefs,
+  onChange,
+}: {
+  node: PipelineNotebookNode;
+  tables: TableMeta[];
+  availableRefs: string[];
+  onChange: (patch: Partial<PipelineNode>) => void;
+}) {
+  const updateCell = (idx: number, patch: Partial<NotebookCell>) => {
+    const next = node.cells.map((c, i) => (i === idx ? { ...c, ...patch } : c));
+    onChange({ cells: next } as Partial<PipelineNode>);
+  };
+  const addCell = (kind: NotebookCell['kind']) => {
+    const taken = new Set(node.cells.map((c) => c.name.toLowerCase()));
+    let n = node.cells.length + 1;
+    let name = `cell_${n}`;
+    while (taken.has(name.toLowerCase())) { n += 1; name = `cell_${n}`; }
+    const fresh: NotebookCell = kind === 'sql'
+      ? { id: crypto.randomUUID(), kind, name, materialization: 'view', content: '-- new cell\nSELECT 1' }
+      : { id: crypto.randomUUID(), kind, name: `note_${n}`, content: '## ' };
+    onChange({ cells: [...node.cells, fresh] } as Partial<PipelineNode>);
+  };
+  const removeCell = (idx: number) => {
+    if (!confirm(`Delete cell "${node.cells[idx]?.name ?? ''}"?`)) return;
+    onChange({ cells: node.cells.filter((_, i) => i !== idx) } as Partial<PipelineNode>);
+  };
+  const moveCell = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= node.cells.length) return;
+    const next = [...node.cells];
+    const [item] = next.splice(idx, 1);
+    if (item) next.splice(target, 0, item);
+    onChange({ cells: next } as Partial<PipelineNode>);
+  };
+
+  // Cells higher up in the notebook are valid refs for cells lower down.
+  const cellRefs = (currentIdx: number): string[] =>
+    node.cells.slice(0, currentIdx).filter((c) => c.kind === 'sql').map((c) => c.name);
+
+  return (
+    <>
+      <Field label={`Cells (${node.cells.length})`}>
+        <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 6 }}>
+          The last SQL cell becomes the notebook's public output. Earlier cells are
+          materialised as their own views, referenceable by other cells and pipeline nodes
+          via <code style={codeStyle}>{'{{ ref(\'cell_name\') }}'}</code>.
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {node.cells.map((cell, idx) => (
+            <NotebookCellEditor
+              key={cell.id}
+              cell={cell}
+              index={idx}
+              total={node.cells.length}
+              onChange={(patch) => updateCell(idx, patch)}
+              onRemove={() => removeCell(idx)}
+              onMove={(dir) => moveCell(idx, dir)}
+              availableRefs={[...cellRefs(idx), ...availableRefs]}
+              tables={tables}
+            />
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <button
+            onClick={() => addCell('sql')}
+            style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: 'var(--accent-soft)', color: 'var(--navy)', border: '1px solid var(--accent-border)', borderRadius: 4, cursor: 'pointer' }}
+          >+ SQL cell</button>
+          <button
+            onClick={() => addCell('markdown')}
+            style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: 'var(--surface-muted)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}
+          >+ Markdown</button>
+        </div>
+      </Field>
+    </>
+  );
+}
+
+function NotebookCellEditor({
+  cell,
+  index,
+  total,
+  onChange,
+  onRemove,
+  onMove,
+  availableRefs,
+  tables,
+}: {
+  cell: NotebookCell;
+  index: number;
+  total: number;
+  onChange: (patch: Partial<NotebookCell>) => void;
+  onRemove: () => void;
+  onMove: (dir: -1 | 1) => void;
+  availableRefs: string[];
+  tables: TableMeta[];
+}) {
+  const nameInvalid = cell.kind === 'sql' && !isValidRelationName(cell.name);
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'white', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace' }}>[{index + 1}/{total}]</span>
+        <select
+          value={cell.kind}
+          onChange={(e) => onChange({ kind: e.target.value as NotebookCell['kind'] })}
+          style={{ ...selectStyle, width: 'auto', flex: '0 0 100px', fontSize: 11 }}
+        >
+          <option value="sql">SQL</option>
+          <option value="markdown">Markdown</option>
+        </select>
+        <input
+          value={cell.name}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder={cell.kind === 'sql' ? 'cell_name' : 'note_name'}
+          style={{
+            flex: 1, padding: '3px 6px', border: `1px solid ${nameInvalid ? 'var(--red)' : 'var(--border)'}`,
+            borderRadius: 4, fontFamily: 'monospace', fontSize: 11,
+          }}
+        />
+        {cell.kind === 'sql' && (
+          <select
+            value={cell.materialization ?? 'view'}
+            onChange={(e) => onChange({ materialization: e.target.value as 'view' | 'table' })}
+            title="Materialization"
+            style={{ ...selectStyle, width: 'auto', flex: '0 0 80px', fontSize: 11 }}
+          >
+            <option value="view">VIEW</option>
+            <option value="table">TABLE</option>
+          </select>
+        )}
+        <button
+          onClick={() => onMove(-1)}
+          disabled={index === 0}
+          title="Move up"
+          style={{ ...iconBtnStyle, opacity: index === 0 ? 0.4 : 1 }}
+        >↑</button>
+        <button
+          onClick={() => onMove(1)}
+          disabled={index === total - 1}
+          title="Move down"
+          style={{ ...iconBtnStyle, opacity: index === total - 1 ? 0.4 : 1 }}
+        >↓</button>
+        <button
+          onClick={onRemove}
+          title="Delete cell"
+          style={{ ...iconBtnStyle, color: 'var(--red)' }}
+        >✕</button>
+      </div>
+      {cell.kind === 'sql' ? (
+        <SqlNodeEditor
+          value={cell.content}
+          onChange={(v) => onChange({ content: v })}
+          availableRefs={availableRefs}
+          availableTables={tables}
+          height={160}
+        />
+      ) : (
+        <textarea
+          value={cell.content}
+          onChange={(e) => onChange({ content: e.target.value })}
+          rows={4}
+          placeholder="# Heading&#10;&#10;Narrative text in Markdown — not executed."
+          style={{
+            width: '100%', border: 'none', resize: 'vertical',
+            padding: 8, fontSize: 12, fontFamily: 'system-ui, -apple-system, sans-serif',
+            outline: 'none',
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const iconBtnStyle: React.CSSProperties = {
+  width: 24, height: 24, padding: 0,
+  background: 'transparent', border: '1px solid var(--border)', borderRadius: 4,
+  cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'var(--text-dim)',
+};
 
 function FileNodeInspector({
   node,
@@ -1110,6 +1334,8 @@ function LineagePanel({
   const entries: LineageEntry[] = result.lineage?.[selectedCell.rowIdx] ?? [];
   const columnName = result.preview?.columns[selectedCell.colIdx] ?? '';
   const cellValue = result.preview?.rows[selectedCell.rowIdx]?.[selectedCell.colIdx];
+  const columnLineage: ResolvedColumnLineage | null =
+    result.columnLineage?.[selectedCell.colIdx] ?? null;
   const [resolved, setResolved] = useState<ResolvedContributor[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -1166,9 +1392,23 @@ function LineagePanel({
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [resolved]);
 
+  // For the clicked output column, which source columns light up — keyed
+  // by lowercase relation name.
+  const highlightCols = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    if (!columnLineage) return m;
+    for (const s of columnLineage.sources) {
+      const rel = s.relation.toLowerCase();
+      const set = m.get(rel) ?? new Set<string>();
+      set.add(s.column.toLowerCase());
+      m.set(rel, set);
+    }
+    return m;
+  }, [columnLineage]);
+
   return (
     <div style={{ border: '1px solid var(--accent-border)', borderRadius: 8, background: 'var(--accent-soft)', padding: 10, minHeight: 0, overflow: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
         <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--navy)' }}>
           Cell lineage
         </span>
@@ -1176,6 +1416,15 @@ function LineagePanel({
           row {selectedCell.rowIdx + 1} · {columnName} = {cellValue === null || cellValue === undefined ? 'NULL' : String(cellValue).slice(0, 40)}
         </span>
       </div>
+      {columnLineage && (
+        <div style={{ marginBottom: 8, padding: '4px 6px', background: 'white', border: '1px solid var(--accent-border)', borderRadius: 4 }}>
+          <ColumnLineageSummary
+            lineage={columnLineage}
+            columnName={columnName}
+            relationLabel={relationLabel}
+          />
+        </div>
+      )}
       {entries.length === 0 ? (
         <div style={{ fontSize: 11, color: 'var(--muted)' }}>This row has no tracked contributors.</div>
       ) : loading ? (
@@ -1187,26 +1436,78 @@ function LineagePanel({
               Showing first {resolved.length} of {entries.length} contributing rows.
             </div>
           )}
-          {byRelation.map(([rel, contribs]) => (
-            <div key={rel} style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>
-                {relationLabel(rel)}
-                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>
-                  · {contribs.length} row{contribs.length === 1 ? '' : 's'}
-                </span>
+          {byRelation.map(([rel, contribs]) => {
+            const cols = highlightCols.get(rel.toLowerCase()) ?? null;
+            return (
+              <div key={rel} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)', marginBottom: 4 }}>
+                  {relationLabel(rel)}
+                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 400, color: 'var(--muted)' }}>
+                    · {contribs.length} row{contribs.length === 1 ? '' : 's'}
+                  </span>
+                  {cols && cols.size > 0 && (
+                    <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 600, color: 'var(--accent)' }}>
+                      · column{cols.size === 1 ? '' : 's'}: {[...cols].join(', ')}
+                    </span>
+                  )}
+                </div>
+                <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 4, overflow: 'auto', maxHeight: 220 }}>
+                  <ContributorTable contribs={contribs} highlightCols={cols} />
+                </div>
               </div>
-              <div style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 4, overflow: 'auto', maxHeight: 220 }}>
-                <ContributorTable contribs={contribs} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </>
       )}
     </div>
   );
 }
 
-function ContributorTable({ contribs }: { contribs: ResolvedContributor[] }) {
+function ColumnLineageSummary({
+  lineage,
+  columnName,
+  relationLabel,
+}: {
+  lineage: ResolvedColumnLineage;
+  columnName: string;
+  relationLabel: (rel: string) => string;
+}) {
+  const tag =
+    lineage.derivation === 'direct'      ? { label: 'direct',      color: 'var(--green)' }
+    : lineage.derivation === 'expression' ? { label: 'expression', color: 'var(--accent)' }
+    : lineage.derivation === 'aggregated' ? { label: 'aggregated', color: 'var(--amber)' }
+    : lineage.derivation === 'star'       ? { label: 'star',       color: 'var(--muted)' }
+    : lineage.derivation === 'literal'    ? { label: 'literal',    color: 'var(--muted)' }
+    :                                        { label: 'unknown',   color: 'var(--red)' };
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', fontSize: 11 }}>
+      <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--navy)' }}>{columnName || lineage.name}</span>
+      <span style={{ fontSize: 10, color: tag.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+        ← {tag.label}
+      </span>
+      {lineage.sources.length === 0 && lineage.derivation === 'literal' && (
+        <span style={{ color: 'var(--muted)' }}>(no source columns)</span>
+      )}
+      {lineage.sources.length === 0 && lineage.derivation === 'star' && lineage.starOf && (
+        <span style={{ fontFamily: 'monospace', color: 'var(--muted)' }}>{relationLabel(lineage.starOf)}.*</span>
+      )}
+      {lineage.sources.map((s, i) => (
+        <span key={i} style={{ fontFamily: 'monospace', color: 'var(--text-dim)' }}>
+          {i > 0 && <span style={{ color: 'var(--muted)' }}>, </span>}
+          {relationLabel(s.relation)}.<span style={{ color: 'var(--navy)' }}>{s.column}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ContributorTable({
+  contribs,
+  highlightCols,
+}: {
+  contribs: ResolvedContributor[];
+  highlightCols: Set<string> | null;
+}) {
   // Use the columns from the first contributor that resolved; if none did,
   // show a minimal "row id only" table.
   const firstWithData = contribs.find((c) => c.data !== null);
@@ -1224,14 +1525,32 @@ function ContributorTable({ contribs }: { contribs: ResolvedContributor[] }) {
     );
   }
   const columns = firstWithData.data!.columns;
+  const isHighlighted = (col: string): boolean =>
+    highlightCols !== null && highlightCols.size > 0 && highlightCols.has(col.toLowerCase());
+  const anyHighlight = highlightCols !== null && highlightCols.size > 0;
   return (
     <table style={{ borderCollapse: 'collapse', fontSize: 11, fontFamily: 'monospace', width: '100%' }}>
       <thead>
         <tr>
           <th style={{ textAlign: 'left', padding: '3px 8px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', color: 'var(--muted)', position: 'sticky', top: 0 }}>#</th>
-          {columns.map((c) => (
-            <th key={c} style={{ textAlign: 'left', padding: '3px 8px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', color: 'var(--navy)', position: 'sticky', top: 0 }}>{c}</th>
-          ))}
+          {columns.map((c) => {
+            const hl = isHighlighted(c);
+            return (
+              <th
+                key={c}
+                style={{
+                  textAlign: 'left', padding: '3px 8px',
+                  borderBottom: '1px solid var(--border)',
+                  background: hl ? 'var(--accent-soft)' : 'var(--surface-muted)',
+                  color: hl ? 'var(--accent)' : 'var(--navy)',
+                  fontWeight: hl ? 800 : 600,
+                  position: 'sticky', top: 0,
+                }}
+              >
+                {c}
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
@@ -1243,8 +1562,18 @@ function ContributorTable({ contribs }: { contribs: ResolvedContributor[] }) {
               {columns.map((col, j) => {
                 const idx = c.data?.columns.indexOf(col) ?? -1;
                 const v = idx >= 0 && vals ? vals[idx] : null;
+                const hl = isHighlighted(col);
                 return (
-                  <td key={j} style={{ padding: '2px 8px', borderBottom: '1px solid var(--border)' }}>
+                  <td
+                    key={j}
+                    style={{
+                      padding: '2px 8px',
+                      borderBottom: '1px solid var(--border)',
+                      background: hl ? 'var(--accent-soft)' : undefined,
+                      color: hl ? 'var(--navy)' : (anyHighlight ? 'var(--muted)' : undefined),
+                      fontWeight: hl ? 700 : 400,
+                    }}
+                  >
                     {v === null || v === undefined ? <span style={{ color: 'var(--muted)' }}>NULL</span> : String(v).slice(0, 80)}
                   </td>
                 );

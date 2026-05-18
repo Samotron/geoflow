@@ -109,6 +109,10 @@ Node kinds:
 - **seed** — inline CSV/JSON content registered as a DuckDB table.
 - **sql** — `SELECT` materialised as a VIEW or TABLE; supports
   `{{ ref('...') }}` substitution.
+- **notebook** — ordered list of SQL + Markdown cells. Each SQL cell
+  materialises as its own relation (referenceable by name); the last
+  SQL cell is exposed under the notebook's own name as a passthrough,
+  so downstream nodes treat the notebook as a single ref target.
 - **output** — terminal node; previews / downloads as CSV/JSON/GeoJSON.
 
 The Transform tab in `apps/web` renders the DAG with React Flow (`@xyflow/react`),
@@ -123,9 +127,10 @@ failures are non-fatal and surfaced in the Transform tab sidebar.
 
 ### Cell-level lineage
 
-Every SQL node materialises a parallel `_lin_<name>` view that carries a
-`__src` provenance column. Lineage is plumbed via SQL AST rewriting
-(`packages/transform/src/lineage.ts`, using `sql-parser-cst`):
+Every SQL node (and every SQL cell in a notebook) materialises a parallel
+`_lin_<name>` view that carries a `__src` provenance column. Lineage is
+plumbed via SQL AST rewriting (`packages/transform/src/lineage.ts`, using
+`sql-parser-cst`):
 
 - Each base relation (source/seed/file group) gets a `_lin_<rel>` view that
   adds `__rowid` and `__src = ['<rel>|<rowid>']`.
@@ -139,3 +144,13 @@ Every SQL node materialises a parallel `_lin_<name>` view that carries a
 - The preview query for each node pulls `__src` from its `_lin_` view; clicking
   any cell opens the lineage panel, which fetches the contributing source
   rows from the relevant `_lin_<rel>` views by `__rowid`.
+
+Column lineage (`packages/transform/src/column-lineage.ts`) is computed in
+parallel: for each output column, the AST walker collects the contributing
+`(relation, column)` pairs, distinguishing direct references, expressions,
+aggregations, literals, and star expansions. The executor resolves these
+transitively through upstream SQL nodes, so the panel surfaces base-relation
+columns regardless of how many intermediate models the data flows through.
+The lineage panel highlights the contributing columns inside each source row
+and shows a derivation tag (`← direct` / `← expression` / `← aggregated` /
+`← star` / `← literal`).

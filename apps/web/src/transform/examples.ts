@@ -251,6 +251,73 @@ INNER JOIN {{ ref('siteB_loca') }} b USING (LOCA_ID)`,
   ]);
 }
 
+// ── 6. Notebook-style multi-cell analysis ───────────────────────────────────
+
+function notebookAnalysis(): Pipeline {
+  const loca: PipelineNode = {
+    id: 'src_loca', kind: 'source', name: 'loca_src', table: 'loca', position: pos(80, 100),
+  };
+  const geol: PipelineNode = {
+    id: 'src_geol', kind: 'source', name: 'geol_src', table: 'geol', position: pos(80, 240),
+  };
+  const nb: PipelineNode = {
+    id: 'nb_borehole_analysis',
+    kind: 'notebook',
+    name: 'borehole_analysis',
+    position: pos(420, 170),
+    cells: [
+      {
+        id: 'c1', kind: 'markdown', name: 'overview',
+        content: '# Borehole analysis\n\nA short notebook joining LOCA + GEOL and producing summary statistics. The last SQL cell is what downstream nodes see.',
+      },
+      {
+        id: 'c2', kind: 'sql', name: 'cleaned', materialization: 'view',
+        content: `-- Step 1: drop rows missing key columns.
+SELECT
+  LOCA_ID,
+  LOCA_GL::DOUBLE   AS ground_level_m,
+  LOCA_FDEP::DOUBLE AS final_depth_m
+FROM {{ ref('loca_src') }}
+WHERE LOCA_GL IS NOT NULL AND LOCA_FDEP IS NOT NULL`,
+      },
+      {
+        id: 'c3', kind: 'markdown', name: 'strata_note',
+        content: '## Strata\n\nJoin with GEOL to count strata per location.',
+      },
+      {
+        id: 'c4', kind: 'sql', name: 'strata_counts', materialization: 'view',
+        content: `-- Step 2: count strata per borehole.
+SELECT
+  c.LOCA_ID,
+  c.final_depth_m,
+  COUNT(g.LOCA_ID) AS strata_count
+FROM {{ ref('cleaned') }} c
+LEFT JOIN {{ ref('geol_src') }} g USING (LOCA_ID)
+GROUP BY c.LOCA_ID, c.final_depth_m`,
+      },
+      {
+        id: 'c5', kind: 'sql', name: 'summary', materialization: 'view',
+        content: `-- Final cell: roll up to a single-row summary.
+SELECT
+  COUNT(*)                     AS n_boreholes,
+  AVG(final_depth_m)           AS avg_depth_m,
+  MAX(final_depth_m)           AS max_depth_m,
+  SUM(strata_count)            AS total_strata
+FROM {{ ref('strata_counts') }}`,
+      },
+    ],
+  };
+  const out: PipelineNode = {
+    id: 'out_summary', kind: 'output', name: 'summary_out',
+    format: 'preview', rowLimit: 50, position: pos(740, 170),
+  };
+  return makePipeline('Notebook: borehole analysis', [loca, geol, nb, out], [
+    { id: 'e1', source: 'src_loca', target: 'nb_borehole_analysis' },
+    { id: 'e2', source: 'src_geol', target: 'nb_borehole_analysis' },
+    { id: 'e3', source: 'nb_borehole_analysis', target: 'out_summary' },
+  ]);
+}
+
 export const EXAMPLES: PipelineExample[] = [
   {
     id: 'borehole-depth-summary',
@@ -286,5 +353,12 @@ export const EXAMPLES: PipelineExample[] = [
     description: 'Two whole-file nodes joined on LOCA_ID to surface depth/GL deltas.',
     requiresFile: false,
     build: crossFileComparison,
+  },
+  {
+    id: 'notebook-borehole-analysis',
+    name: 'Notebook: borehole analysis',
+    description: 'Multi-cell notebook (Markdown + SQL) chaining cleaning → join → summary.',
+    requiresFile: true,
+    build: notebookAnalysis,
   },
 ];

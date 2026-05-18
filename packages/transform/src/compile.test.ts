@@ -166,6 +166,76 @@ describe('compile · file node', () => {
     expect(errors.some((e) => /zero groups/.test(e.message))).toBe(true);
   });
 
+  it('compiles a notebook into per-cell views plus a public passthrough', () => {
+    const p = pipeline(
+      [
+        { id: 's', kind: 'source', name: 'loca_src', table: 'loca', position: POS },
+        {
+          id: 'nb', kind: 'notebook', name: 'analysis',
+          position: POS,
+          cells: [
+            { id: 'c1', kind: 'markdown', name: 'intro', content: '# overview' },
+            {
+              id: 'c2', kind: 'sql', name: 'cleaned', materialization: 'view',
+              content: "SELECT * FROM {{ ref('loca_src') }} WHERE LOCA_GL IS NOT NULL",
+            },
+            {
+              id: 'c3', kind: 'sql', name: 'summary', materialization: 'view',
+              content: "SELECT COUNT(*) FROM {{ ref('cleaned') }}",
+            },
+          ],
+        },
+        {
+          id: 'm', kind: 'sql', name: 'downstream', materialization: 'view',
+          sql: "SELECT * FROM {{ ref('analysis') }}", position: POS,
+        },
+      ],
+      [
+        { id: 'e1', source: 's', target: 'nb' },
+        { id: 'e2', source: 'nb', target: 'm' },
+      ],
+    );
+    const { steps, errors } = compile(p);
+    expect(errors).toEqual([]);
+    const stepNames = steps.map((s) => s.nodeName);
+    // Per-cell steps + public passthrough + downstream node.
+    expect(stepNames).toEqual([
+      'loca_src',
+      'analysis/cleaned',
+      'analysis/summary',
+      'analysis',
+      'downstream',
+    ]);
+    // Downstream sees the notebook's public relation.
+    const downstream = steps.find((s) => s.nodeName === 'downstream')!;
+    expect(downstream.sql).toContain('"analysis"');
+  });
+
+  it('reports notebooks with no SQL cells', () => {
+    const p = pipeline([
+      {
+        id: 'nb', kind: 'notebook', name: 'docs_only', position: POS,
+        cells: [{ id: 'c1', kind: 'markdown', name: 'note', content: 'hi' }],
+      },
+    ]);
+    const { errors } = compile(p);
+    expect(errors.some((e) => /no SQL cells/i.test(e.message))).toBe(true);
+  });
+
+  it('reports duplicate cell names inside a notebook', () => {
+    const p = pipeline([
+      {
+        id: 'nb', kind: 'notebook', name: 'nb', position: POS,
+        cells: [
+          { id: 'c1', kind: 'sql', name: 'foo', content: 'SELECT 1' },
+          { id: 'c2', kind: 'sql', name: 'foo', content: 'SELECT 2' },
+        ],
+      },
+    ]);
+    const { errors } = compile(p);
+    expect(errors.some((e) => /duplicate cell name/i.test(e.message))).toBe(true);
+  });
+
   it('reports collisions between file relation and a sibling node', () => {
     const p = pipeline([
       {

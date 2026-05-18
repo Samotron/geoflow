@@ -1,4 +1,4 @@
-export type NodeKind = 'source' | 'seed' | 'sql' | 'output' | 'file';
+export type NodeKind = 'source' | 'seed' | 'sql' | 'output' | 'file' | 'notebook';
 
 export type Materialization = 'view' | 'table';
 
@@ -72,7 +72,42 @@ export interface FileNode {
   position: NodePosition;
 }
 
-export type PipelineNode = SourceNode | SeedNode | SqlNode | OutputNode | FileNode;
+/**
+ * One cell inside a NotebookNode. A notebook is a linear sequence of cells:
+ * SQL cells materialise as views inside the pipeline, Markdown cells are
+ * narrative-only and ignored at execution time.
+ *
+ * SQL cells reference each other (and outer pipeline nodes) via the same
+ * `{{ ref('name') }}` syntax used elsewhere. Each SQL cell's `name` becomes
+ * its public relation name inside the pipeline, so other cells —
+ * and other top-level nodes — can ref it.
+ */
+export interface NotebookCell {
+  id: string;
+  kind: 'sql' | 'markdown';
+  /** User-visible cell identifier. Must be unique inside the notebook;
+   *  for SQL cells, doubles as the materialised relation's name. */
+  name: string;
+  content: string;
+  /** SQL cells: VIEW (default) or TABLE materialization. */
+  materialization?: Materialization;
+}
+
+/**
+ * A notebook bundles an ordered list of cells under one DAG node. The
+ * notebook itself exposes the LAST SQL cell as its public relation
+ * (named after the node), so downstream nodes can `{{ ref('notebook_name') }}`
+ * it like any other model.
+ */
+export interface NotebookNode {
+  id: string;
+  kind: 'notebook';
+  name: string;
+  cells: NotebookCell[];
+  position: NodePosition;
+}
+
+export type PipelineNode = SourceNode | SeedNode | SqlNode | OutputNode | FileNode | NotebookNode;
 
 export interface PipelineEdge {
   id: string;
