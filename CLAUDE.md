@@ -45,6 +45,7 @@ packages/
   rules-engine/  # @geoflow/rules-engine — JEXL-based rule pack evaluator
   db/            # @geoflow/db     — SQLite/GeoPackage ingest + query (node-only)
   rules/         # @geoflow/rules  — built-in YAML rule packs (data only)
+  transform/     # @geoflow/transform — pipeline DAG model, ref resolution, SQL compilation
 
 apps/
   web/           # @geoflow/web    — GitHub Pages SPA (Vite + React)
@@ -91,3 +92,18 @@ Exit codes: 0 = success, 1 = validation failure, 2 = usage/runtime error.
 - **pnpm workspaces** — workspace protocol (`workspace:*`) for internal deps.
 - **Effect-TS** — `Option` types used in the core data model.
 - **better-sqlite3** — optional dependency in `@geoflow/db`; excluded from browser bundles via conditional exports.
+
+## Transformation engine (web)
+
+`@geoflow/transform` is a pure-TS package that models dbt-style pipelines: nodes
+(source, seed, sql, output), edges, ref resolution via `{{ ref('node_name') }}`,
+topological sort, and compilation into ordered DuckDB statements.
+
+The Transform tab in `apps/web` renders the DAG with React Flow (`@xyflow/react`),
+uses Monaco for SQL editing with autocomplete for refs / table columns / spatial
+functions, and runs pipelines against the browser DuckDB-wasm instance shared
+with the Query tab. Pipelines auto-save to IndexedDB per project and can be
+exported/imported as JSON.
+
+DuckDB-wasm autoloads `spatial` and `httpfs` extensions on engine startup; load
+failures are non-fatal and surfaced in the Transform tab sidebar.

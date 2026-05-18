@@ -9,7 +9,8 @@
     "noEmit": true,
     "paths": {
       "@geoflow/core": ["../../packages/core/src/index.ts"],
-      "@geoflow/rules-engine": ["../../packages/rules-engine/src/index.ts"]
+      "@geoflow/rules-engine": ["../../packages/rules-engine/src/index.ts"],
+      "@geoflow/transform": ["../../packages/transform/src/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

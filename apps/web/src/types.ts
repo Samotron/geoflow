@@ -3,7 +3,7 @@ export interface LoadedFile {
   bytes: Uint8Array;
 }
 
-export type TabId = 'inspect' | 'data' | 'map' | '3d' | 'plots' | 'report' | 'diff' | 'convert' | 'query' | 'rules' | 'edit' | 'voxel' | 'describe' | 'section' | 'cpt' | 'correlations';
+export type TabId = 'inspect' | 'data' | 'map' | '3d' | 'plots' | 'report' | 'diff' | 'convert' | 'query' | 'rules' | 'edit' | 'voxel' | 'describe' | 'section' | 'cpt' | 'correlations' | 'transform';
 
 export interface PackDiagnostic {
   rule_id: string;

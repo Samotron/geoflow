@@ -19,6 +19,7 @@ import { DescribeTab } from './tabs/DescribeTab.js';
 import { SectionTab } from './tabs/SectionTab.js';
 import { CptTab } from './tabs/CptTab.js';
 import { CorrelationsTab } from './tabs/CorrelationsTab.js';
+import { TransformTab } from './tabs/TransformTab.js';
 import { ProjectManager } from './components/ProjectManager.js';
 import { ConflictResolver } from './components/ConflictResolver.js';
 import { DisclaimerBanner, DisclaimerModal } from './components/Disclaimer.js';
@@ -420,6 +421,7 @@ const ICONS: Record<TabId, ReactNode> = {
   section: <Icon d="M3 4v16 M21 4v16 M3 8h18 M3 13h18 M3 18h18 M8 4l-2 4 3 5-2 5 2 2 M16 4l2 4-3 5 2 5-2 2" />,
   cpt: <Icon d="M12 2v2 M11 4h2v3h-2z M12 7v15 M9 10l3 2 3-2 M9 14l3 2 3-2 M9 18l3 2 3-2" />,
   correlations: <Icon d="M4 20h16 M4 4v16 M8 14l3-4 4 2 5-7" />,
+  transform: <Icon d="M4 5h7l-3-3 M4 5l3 3 M20 19h-7l3 3 M20 19l-3-3 M10 12h4" />,
 };
 
 // ── Nav structure ────────────────────────────────────────────────────────────
@@ -451,6 +453,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'diff', label: 'Diff' },
       { id: 'query', label: 'Query' },
+      { id: 'transform', label: 'Transform' },
       { id: 'rules', label: 'Rules' },
       { id: 'describe', label: 'Describe' },
       { id: 'cpt', label: 'CPT' },
@@ -469,7 +472,7 @@ const NAV_GROUPS: NavGroup[] = [
 const ALL_TAB_IDS: TabId[] = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.id));
 
 // Tabs that need a file loaded to be useful (diff & describe also work without one).
-const TABS_NEED_FILE = new Set<TabId>(ALL_TAB_IDS.filter((t) => t !== 'diff' && t !== 'describe' && t !== 'cpt'));
+const TABS_NEED_FILE = new Set<TabId>(ALL_TAB_IDS.filter((t) => t !== 'diff' && t !== 'describe' && t !== 'cpt' && t !== 'transform'));
 
 function hashTab(): TabId {
   const hash = window.location.hash.replace('#', '') as TabId;
@@ -1076,6 +1079,7 @@ export default function App() {
               {tab === 'section' && <SectionTab fileBytes={fileBytes} fileName={fileName} locationGroups={locationGroups} />}
               {tab === 'cpt' && <CptTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'correlations' && <CorrelationsTab fileBytes={fileBytes} />}
+              {tab === 'transform' && <TransformTab fileBytes={fileBytes} currentProject={currentProject} />}
             </div>
           )}
         </main>

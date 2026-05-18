@@ -6,6 +6,7 @@ export default defineProject({
     alias: {
       "@geoflow/core": resolve(__dirname, "../../packages/core/src/index.ts"),
       "@geoflow/rules-engine": resolve(__dirname, "../../packages/rules-engine/src/index.ts"),
+      "@geoflow/transform": resolve(__dirname, "../../packages/transform/src/index.ts"),
     },
   },
   test: {
