@@ -144,10 +144,22 @@ Ordered by leverage-per-unit-effort, not by category.
 4. GeoJSON + CSV export buttons. *CSV/TSV already shipped; `geoflow export <file> --format geojson [--crs ...]` and `locationsToGeoJson()` added.*
 
 **Tier 2 — earn the "geotech" in GeoFlow** — ✓ landed in this branch
-5. Atterberg/Casagrande chart and PSD curve plots — pure wins on existing data. *Pre-existing in `apps/web/src/plots/shared.tsx` (plasticitySpec, psdSpec).*
+5. Atterberg/Casagrande chart and PSD curve plots — pure wins on existing data. *Pre-existing in `apps/web/src/plots/shared.tsx` (plasticitySpec, psdSpec); now under test coverage.*
 6. USCS / BS5930 classification tied back to the description parser. *Pre-existing in `describe.ts` (inferUscs / inferBs5930 / inferIso14688 / inferAashto).*
 7. SPT / CPT parameter correlations panel. *CPT already produced Su/ϕ′/Dr; new `packages/core/src/spt.ts` covers SPT (N₁,₆₀, ϕ′, Dr, cu, Es, Vs) with a new Correlations tab in the web app.*
 8. Fence diagrams (chain of cross-sections along a polyline). *`buildSectionData` already supported polylines; UI now exposes a Fence / Best-fit toggle in SectionTab.*
+
+**Advanced plots (Tier 2 extension)** — ✓ landed in this branch
+- Verified all 11 existing plots produce data against a new comprehensive lab fixture (`tests/fixtures/ags/lab_data_comprehensive.ags`).
+- Fixed a latent bug: SPT depth extractor now falls back from `ISPT_DPTH` → `ISPT_TOP`.
+- Added 7 advanced plots in `apps/web/src/plots/shared.tsx`:
+  - **Effective stress profile** (σv, u₀, σ′v vs depth) from GEOL + WSTK.
+  - **Activity chart** (Skempton) — PI vs % clay-fraction from LLPL + PSD.
+  - **Permeability vs depth** — log-scale, from PERM / IRDX / IPRM.
+  - **Derived ϕ′ vs depth** — from `correlateIspt` (Hatanaka-Uchida).
+  - **Derived Vs vs depth** — Imai 1981.
+  - **N₁,₆₀ vs depth** — Liao-Whitman overburden correction.
+  - **Triaxial stress paths** (p′-q with Kf lines) from TRIG.
 
 **Tier 3 — unlock new audiences**
 9. **AGSi support** — interpretive ground model in *and* out. Biggest strategic
