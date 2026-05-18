@@ -194,4 +194,63 @@ FROM duckdb_tables()
 WHERE schema_name = 'main'
 ORDER BY table_name;`,
   },
+  {
+    label: 'Moisture content per borehole',
+    category: 'Lab tests',
+    description: 'LNMC moisture content with depth',
+    sql: `SELECT
+  LOCA_ID,
+  CAST(SAMP_TOP  AS DOUBLE) AS depth_m,
+  CAST(LNMC_MC   AS DOUBLE) AS moisture_pct,
+  SAMP_REF
+FROM lnmc
+WHERE LNMC_MC IS NOT NULL
+ORDER BY LOCA_ID, depth_m;`,
+  },
+  {
+    label: 'Undrained shear strength (cu)',
+    category: 'Lab tests',
+    description: 'Combined cu from triaxial, vane, and pocket penetrometer',
+    sql: `SELECT LOCA_ID, CAST(SAMP_TOP AS DOUBLE) AS depth_m,
+       CAST(TCON_SHST AS DOUBLE) AS cu_kpa, 'TCON' AS source
+FROM tcon WHERE TCON_SHST IS NOT NULL
+UNION ALL
+SELECT LOCA_ID, CAST(VANE_DPTH AS DOUBLE), CAST(VANE_SHCU AS DOUBLE), 'VANE'
+FROM vane WHERE VANE_SHCU IS NOT NULL
+ORDER BY LOCA_ID, depth_m;`,
+  },
+  {
+    label: 'Boreholes near each other',
+    category: 'Locations',
+    description: 'Pairs of boreholes within 50 m — useful for siting checks',
+    sql: `WITH bh AS (
+  SELECT LOCA_ID,
+         CAST(LOCA_NATE AS DOUBLE) AS e,
+         CAST(LOCA_NATN AS DOUBLE) AS n
+  FROM loca
+  WHERE LOCA_NATE IS NOT NULL AND LOCA_NATN IS NOT NULL
+)
+SELECT a.LOCA_ID AS bh_a, b.LOCA_ID AS bh_b,
+       ROUND(SQRT(POW(a.e - b.e, 2) + POW(a.n - b.n, 2)), 2) AS dist_m
+FROM bh a JOIN bh b ON a.LOCA_ID < b.LOCA_ID
+WHERE SQRT(POW(a.e - b.e, 2) + POW(a.n - b.n, 2)) < 50
+ORDER BY dist_m;`,
+  },
+  {
+    label: 'Geology unit thickness summary',
+    category: 'Geology',
+    description: 'Total and mean thickness of each geology unit across all boreholes',
+    sql: `SELECT
+  GEOL_LEG AS unit_code,
+  COUNT(*)                                              AS layer_count,
+  COUNT(DISTINCT LOCA_ID)                               AS borehole_count,
+  ROUND(SUM(CAST(GEOL_BASE AS DOUBLE) - CAST(GEOL_TOP AS DOUBLE)), 2) AS total_thickness_m,
+  ROUND(AVG(CAST(GEOL_BASE AS DOUBLE) - CAST(GEOL_TOP AS DOUBLE)), 2) AS mean_thickness_m,
+  MIN(CAST(GEOL_TOP  AS DOUBLE))                        AS shallowest_top_m,
+  MAX(CAST(GEOL_BASE AS DOUBLE))                        AS deepest_base_m
+FROM geol
+WHERE GEOL_LEG IS NOT NULL
+GROUP BY GEOL_LEG
+ORDER BY total_thickness_m DESC;`,
+  },
 ];

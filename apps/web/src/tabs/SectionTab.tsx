@@ -7,10 +7,12 @@ import {
   renderCrossSectionSvg,
 } from '../core.js';
 import type { AgsFile, Geo3DModel, CrossSectionOptions } from '../core.js';
+import type { useLocationGroups } from '../location-groups.js';
 
 interface Props {
   fileBytes: Uint8Array | null;
   fileName?: string | undefined;
+  locationGroups?: ReturnType<typeof useLocationGroups>;
 }
 
 const PANEL_STYLE: React.CSSProperties = {
@@ -68,7 +70,7 @@ const INPUT_STYLE: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-export function SectionTab({ fileBytes, fileName }: Props) {
+export function SectionTab({ fileBytes, fileName, locationGroups }: Props) {
   const agsFile = useMemo<AgsFile | null>(() => {
     if (!fileBytes) return null;
     try { return parseStr(decodeBytes(fileBytes)).file; } catch { return null; }
@@ -82,11 +84,22 @@ export function SectionTab({ fileBytes, fileName }: Props) {
   const allHoleIds = useMemo(() => model?.boreholes.map(b => b.id) ?? [], [model]);
 
   const [selected, setSelected] = useState<string[]>([]);
+  const activeGroupId = locationGroups?.activeGroupId ?? null;
+  const activeGroup = locationGroups?.activeGroup ?? null;
   useEffect(() => {
     if (selected.length === 0 && allHoleIds.length >= 2) {
       setSelected(allHoleIds.slice(0, Math.min(4, allHoleIds.length)));
     }
   }, [allHoleIds]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the user activates a location group elsewhere, switch the section
+  // selection to match it. Preserves manual order if the user has already
+  // arranged the boreholes within the group.
+  useEffect(() => {
+    if (!activeGroup) return;
+    const inGroup = allHoleIds.filter((id) => activeGroup.locaIds.includes(id));
+    if (inGroup.length >= 2) setSelected(inGroup);
+  }, [activeGroupId, allHoleIds, activeGroup]);
 
   // Style controls
   const [vexag, setVexag] = useState(1);
@@ -294,6 +307,34 @@ export function SectionTab({ fileBytes, fileName }: Props) {
             <button onClick={() => setSelected([])} style={BUTTON_STYLE}>Clear</button>
             <button onClick={() => setSelected(allHoleIds)} style={BUTTON_STYLE}>Select all</button>
           </div>
+          {locationGroups && locationGroups.groups.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <label style={LABEL_STYLE}>Load from location group</label>
+              <select
+                value={activeGroupId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value || null;
+                  locationGroups.setActiveGroupId(id);
+                  if (id) {
+                    const g = locationGroups.groups.find((x) => x.id === id);
+                    if (g) {
+                      const inGroup = allHoleIds.filter((bh) => g.locaIds.includes(bh));
+                      if (inGroup.length >= 2) setSelected(inGroup);
+                    }
+                  }
+                }}
+                style={INPUT_STYLE}
+              >
+                <option value="">— No group (manual) —</option>
+                {locationGroups.groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name} ({g.locaIds.length})</option>
+                ))}
+              </select>
+              <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+                Define groups on the Map tab. Selecting one loads its boreholes here.
+              </p>
+            </div>
+          )}
         </div>
 
         <div style={PANEL_STYLE}>

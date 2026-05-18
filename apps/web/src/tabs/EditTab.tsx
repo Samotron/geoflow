@@ -530,6 +530,7 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
   const [focusedCellHeading, setFocusedCellHeading] = useState<string | null>(null);
   const [fixNotice, setFixNotice] = useState<FixNotice | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saved'>('idle');
+  const [expandedDim, setExpandedDim] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
   // Auto-commit: fire onAutoCommit 30 s after the last edit, using refs to
@@ -886,18 +887,87 @@ export function EditTab({ fileBytes, fileName, onAutoCommit }: Props) {
           {/* Dimension scores */}
           {qualityReport && (
             <div style={{ marginTop: 10, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: 10 }}>Quality Dimensions</div>
-              {qualityReport.dimensions.map((dim) => (
-                <div key={dim.id} style={{ marginBottom: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text)' }}>{dim.name}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: scoreColor(dim.score) }}>{dim.score}</span>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: 10 }}>
+                Quality Dimensions <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— click to see issues</span>
+              </div>
+              {qualityReport.dimensions.map((dim) => {
+                const isOpen = expandedDim === dim.id;
+                const hasIssues = dim.issues.length > 0;
+                return (
+                  <div key={dim.id} style={{ marginBottom: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => hasIssues && setExpandedDim(isOpen ? null : dim.id)}
+                      title={hasIssues ? dim.description : `${dim.description} — no issues`}
+                      disabled={!hasIssues}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        background: isOpen ? 'var(--surface-muted)' : 'transparent',
+                        border: 'none',
+                        padding: '2px 4px',
+                        borderRadius: 4,
+                        cursor: hasIssues ? 'pointer' : 'default',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text)' }}>
+                          {hasIssues ? (isOpen ? '▾ ' : '▸ ') : '· '}{dim.name}
+                          {hasIssues && (
+                            <span style={{ marginLeft: 5, fontSize: 9, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+                              {dim.issues.length}
+                            </span>
+                          )}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: scoreColor(dim.score) }}>{dim.score}</span>
+                      </div>
+                      <div style={{ height: 4, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${dim.score}%`, background: scoreColor(dim.score), borderRadius: 99, transition: 'width 0.4s' }} />
+                      </div>
+                    </button>
+                    {isOpen && hasIssues && (
+                      <div style={{ marginTop: 4, padding: '6px 4px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {dim.issues.slice(0, 12).map((issue, i) => {
+                          const sev = issue.severity;
+                          const sevColor = sev === 'error' ? 'var(--red)' : sev === 'warning' ? 'var(--orange)' : 'var(--muted)';
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => handleIssueSelect(issue)}
+                              style={{
+                                textAlign: 'left',
+                                background: 'transparent',
+                                border: '1px solid var(--border)',
+                                borderLeft: `3px solid ${sevColor}`,
+                                borderRadius: 3,
+                                padding: '4px 6px',
+                                cursor: 'pointer',
+                                fontSize: 11,
+                                color: 'var(--text)',
+                                lineHeight: 1.35,
+                              }}
+                              title={`${issue.rule_id}: ${issue.message}`}
+                            >
+                              <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: sevColor, letterSpacing: '0.3px' }}>
+                                {sev} · {issue.rule_id}
+                              </div>
+                              <div style={{ marginTop: 1, color: 'var(--text)' }}>
+                                {issue.message}
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {dim.issues.length > 12 && (
+                          <div style={{ fontSize: 10, color: 'var(--muted)', textAlign: 'center', padding: '2px 0' }}>
+                            +{dim.issues.length - 12} more issues
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ height: 4, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${dim.score}%`, background: scoreColor(dim.score), borderRadius: 99, transition: 'width 0.4s' }} />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

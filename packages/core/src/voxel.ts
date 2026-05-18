@@ -138,6 +138,21 @@ function computeStats(values: number[]): VoxelStats {
 // ── Geological unit inference ─────────────────────────────────────────────────
 
 /**
+ * Real-world topsoil is rarely thicker than 150–250 mm. Voxel cells deeper
+ * than this should never be labelled as topsoil, even when the nearest GEOL
+ * record reports an unrealistically deep topsoil layer (often a logging
+ * shorthand for the first sample interval). Below this depth the next
+ * non-topsoil unit is preferred.
+ */
+const TOPSOIL_MAX_DEPTH_M = 0.25;
+
+function isTopsoilUnit(key: string | null | undefined): boolean {
+  if (!key) return false;
+  const u = key.toUpperCase();
+  return u === 'TOPS' || u === 'TS' || u.includes('TOPSOIL') || u.includes('TOP SOIL');
+}
+
+/**
  * Infer the geological unit at a point (cx, cy, cz) in local coordinates.
  *
  * Priority:
@@ -145,24 +160,45 @@ function computeStats(values: number[]): VoxelStats {
  *      fitted 3-D model — interpolates geology between boreholes.
  *   2. Nearest borehole GEOL layer at matching depth — exact at borehole
  *      locations, degrades to nearest-neighbour elsewhere.
+ *
+ * Topsoil is only ever assigned to cells within `TOPSOIL_MAX_DEPTH_M` of the
+ * ground surface; deeper cells fall through to the next candidate unit.
  */
 function inferGeolUnit(
   cx: number, cy: number, cz: number,
   model: Geo3DModel,
 ): string | null {
+  // Estimate depth below ground from nearest borehole collar (cheap proxy)
+  let bestBh: { x: number; y: number; elev: number } | null = null;
+  let bestD2 = Infinity;
+  for (const bh of model.boreholes) {
+    const d2 = (bh.x - cx) ** 2 + (bh.y - cy) ** 2;
+    if (d2 < bestD2) { bestD2 = d2; bestBh = bh; }
+  }
+  const depthBelowGround = bestBh ? bestBh.elev - cz : Infinity;
+  const allowTopsoil = depthBelowGround <= TOPSOIL_MAX_DEPTH_M;
+
   // 1. Try fitted unit surfaces
+  let topsoilFallback: string | null = null;
   for (const unit of model.units) {
     const topSurf = unit.contactSurface ?? unit.topSurface;
     if (!topSurf) continue;
     const topZ = topSurf.evaluate(cx, cy);
     if (!isFinite(topZ)) continue;
     const baseZ = unit.baseSurface ? unit.baseSurface.evaluate(cx, cy) : -Infinity;
-    if (cz <= topZ + 0.25 && cz >= baseZ - 0.25) return unit.key;
+    if (cz <= topZ + 0.25 && cz >= baseZ - 0.25) {
+      if (isTopsoilUnit(unit.key) && !allowTopsoil) {
+        topsoilFallback ??= unit.key;
+        continue; // skip; prefer a deeper, non-topsoil unit
+      }
+      return unit.key;
+    }
   }
 
   // 2. Nearest borehole depth match
   let bestKey: string | null = null;
   let bestDist2 = Infinity;
+  let topsoilNeighbour: string | null = null;
   for (const bh of model.boreholes) {
     if (bh.layers.length === 0) continue;
     const d2 = (bh.x - cx) ** 2 + (bh.y - cy) ** 2;
@@ -170,13 +206,17 @@ function inferGeolUnit(
     const depthInBh = bh.elev - cz;
     for (const layer of bh.layers) {
       if (depthInBh >= layer.topDepth - 0.25 && depthInBh <= layer.baseDepth + 0.25) {
+        if (isTopsoilUnit(layer.unitKey) && !allowTopsoil) {
+          topsoilNeighbour ??= layer.unitKey;
+          continue;
+        }
         bestDist2 = d2;
         bestKey = layer.unitKey;
         break;
       }
     }
   }
-  return bestKey;
+  return bestKey ?? topsoilFallback ?? topsoilNeighbour;
 }
 
 // ── Property discovery ────────────────────────────────────────────────────────

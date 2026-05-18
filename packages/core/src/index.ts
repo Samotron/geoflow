@@ -27,3 +27,4 @@ export * from "./cpt.js";
 export * from "./cross-section.js";
 export * from "./geojson.js";
 export * from "./spt.js";
+export * from "./ground-model.js";

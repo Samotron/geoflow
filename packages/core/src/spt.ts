@@ -177,8 +177,10 @@ export function correlateIspt(
   const out: IsptCorrelationRow[] = [];
   for (const row of ispt.rows) {
     const locaId = stringValue(row["LOCA_ID"]);
-    const N = numericValue(row["ISPT_NVAL"]);
-    const depth = numericValue(row["ISPT_TOP"]) ?? numericValue(row["ISPT_DPTH"]);
+    const N = nValue(row["ISPT_NVAL"]);
+    const depth = numericValue(row["ISPT_TOP"])
+      ?? numericValue(row["ISPT_DPTH"])
+      ?? numericValue(row["SAMP_TOP"]);
     if (locaId === null || N === null || depth === null) continue;
     if (N <= 0) continue;
 
@@ -233,4 +235,22 @@ function numericValue(v: AgsRow[string] | undefined): number | null {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
   const n = Number(String(v).trim());
   return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Parse ISPT_NVAL tolerantly:
+ *   "35"        → 35
+ *   "50/100mm"  → 50  (refusal — keep numerator)
+ *   "R"/"REF"   → 50  (assume refusal cap)
+ */
+function nValue(v: AgsRow[string] | undefined): number | null {
+  const direct = numericValue(v);
+  if (direct !== null) return direct;
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (!s) return null;
+  const slash = s.match(/^(\d+)\s*\//);
+  if (slash) return parseInt(slash[1]!, 10);
+  if (/^R(EF(USAL)?)?$/i.test(s)) return 50;
+  return null;
 }

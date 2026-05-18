@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { decodeBytes, parseStr } from '../core.js';
 import type { AgsFile } from '../core.js';
 import {
@@ -16,14 +16,19 @@ import {
   stressProfileSpec, activitySpec, permeabilitySpec,
   derivedSptSpec, stressPathSpec,
 } from '../plots/shared.js';
+import type { useLocationGroups } from '../location-groups.js';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
-interface Props { fileBytes: Uint8Array | null; fileName?: string; }
+interface Props {
+  fileBytes: Uint8Array | null;
+  fileName?: string;
+  locationGroups?: ReturnType<typeof useLocationGroups>;
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function PlotsTab({ fileBytes }: Props) {
+export function PlotsTab({ fileBytes, locationGroups }: Props) {
   const [colorField, setColorField] = useState<ColorField>('LOCA_ID');
   const [boreholeFilter, setBoreholeFilter] = useState<Set<string>>(new Set());
   const [activePlots, setActivePlots] = useState<Set<PlotId>>(new Set(ALL_PLOTS.map(p => p.id)));
@@ -37,7 +42,22 @@ export function PlotsTab({ fileBytes }: Props) {
   const allLocas   = useMemo(() => agsFile ? extractAllLocaIds(agsFile) : [], [agsFile]);
   const layers     = useMemo(() => agsFile ? getGeolLayers(agsFile) : [], [agsFile]);
   const geolFields = useMemo(() => agsFile ? getGeolFields(agsFile) : ['LOCA_ID' as ColorField], [agsFile]);
-  const bh = boreholeFilter;
+
+  // When a location group is active, restrict every extractor to its members.
+  // Manual borehole-filter checkboxes still narrow further within that set.
+  const activeGroupId = locationGroups?.activeGroupId ?? null;
+  const activeGroupSet = locationGroups?.activeLocaSet ?? new Set<string>();
+  const bh = useMemo<Set<string>>(() => {
+    if (activeGroupSet.size === 0) return boreholeFilter;
+    if (boreholeFilter.size === 0) return activeGroupSet;
+    const out = new Set<string>();
+    for (const id of boreholeFilter) if (activeGroupSet.has(id)) out.add(id);
+    return out;
+  }, [boreholeFilter, activeGroupSet]);
+
+  // Reset the per-tab manual filter whenever the active group switches —
+  // otherwise prior selections may make no sense in the new group's context.
+  useEffect(() => { setBoreholeFilter(new Set()); }, [activeGroupId]);
 
   const sptDepth   = useMemo(() => agsFile ? extractSptDepth(agsFile, layers, colorField, bh) : [], [agsFile, layers, colorField, bh]);
   const sptElev    = useMemo(() => agsFile ? extractSptElev(agsFile, locaMap, layers, colorField, bh) : [], [agsFile, locaMap, layers, colorField, bh]);
@@ -153,30 +173,60 @@ export function PlotsTab({ fileBytes }: Props) {
           </select>
         </div>
 
-        {allLocas.length > 0 && allLocas.length <= 30 && (
+        {locationGroups && locationGroups.groups.length > 0 && (
           <div>
-            <span style={LABEL_STYLE}>Filter boreholes</span>
-            <button
-              onClick={() => setBoreholeFilter(new Set())}
-              style={{ width: '100%', marginBottom: 6, padding: '5px 8px', background: 'var(--border)', color: 'var(--text)', fontSize: 11, borderRadius: 5, cursor: 'pointer', border: 'none' }}
+            <span style={LABEL_STYLE}>Location group</span>
+            <select
+              value={activeGroupId ?? ''}
+              onChange={e => locationGroups.setActiveGroupId(e.target.value || null)}
+              style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: '#fff', fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}
             >
-              Show all ({allLocas.length})
-            </button>
-            <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {allLocas.map(id => (
-                <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0', cursor: 'pointer', fontSize: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={boreholeFilter.size === 0 || boreholeFilter.has(id)}
-                    onChange={() => toggleBorehole(id)}
-                    style={{ flexShrink: 0 }}
-                  />
-                  <span style={{ fontFamily: 'monospace', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{id}</span>
-                </label>
+              <option value="">— All boreholes —</option>
+              {locationGroups.groups.map(g => (
+                <option key={g.id} value={g.id}>
+                  {g.name} ({g.locaIds.length})
+                </option>
               ))}
-            </div>
+            </select>
+            {locationGroups.activeGroup && (
+              <div style={{ marginTop: 4, fontSize: 10, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 99, background: locationGroups.activeGroup.color, display: 'inline-block' }} />
+                Filtering to {locationGroups.activeGroup.locaIds.length} borehole{locationGroups.activeGroup.locaIds.length === 1 ? '' : 's'}
+              </div>
+            )}
           </div>
         )}
+
+        {(() => {
+          const visibleLocas = activeGroupSet.size > 0
+            ? allLocas.filter((id) => activeGroupSet.has(id))
+            : allLocas;
+          if (visibleLocas.length === 0 || visibleLocas.length > 30) return null;
+          return (
+            <div>
+              <span style={LABEL_STYLE}>Filter boreholes</span>
+              <button
+                onClick={() => setBoreholeFilter(new Set())}
+                style={{ width: '100%', marginBottom: 6, padding: '5px 8px', background: 'var(--border)', color: 'var(--text)', fontSize: 11, borderRadius: 5, cursor: 'pointer', border: 'none' }}
+              >
+                Show all ({visibleLocas.length})
+              </button>
+              <div style={{ maxHeight: 200, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {visibleLocas.map(id => (
+                  <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0', cursor: 'pointer', fontSize: 12 }}>
+                    <input
+                      type="checkbox"
+                      checked={boreholeFilter.size === 0 || boreholeFilter.has(id)}
+                      onChange={() => toggleBorehole(id)}
+                      style={{ flexShrink: 0 }}
+                    />
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{id}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         <div>
           <span style={LABEL_STYLE}>Visible plots</span>

@@ -125,16 +125,39 @@ export function extractAllLocaIds(file: AgsFile): string[] {
   return (file.groups['LOCA']?.rows ?? []).map(r => str(r, 'LOCA_ID')).filter(Boolean);
 }
 
-/** SPT test depth: prefer ISPT_TOP (start of test), fall back to ISPT_DPTH. */
+/** SPT test depth: prefer ISPT_TOP, fall back to ISPT_DPTH then SAMP_TOP. */
 function sptDepth(row: AgsRow): number | null {
-  return num(row, 'ISPT_TOP') ?? num(row, 'ISPT_DPTH');
+  return num(row, 'ISPT_TOP') ?? num(row, 'ISPT_DPTH') ?? num(row, 'SAMP_TOP');
+}
+
+/**
+ * Parse ISPT_NVAL, tolerating refusal annotations commonly seen in field
+ * data. Returns null when no numeric value can be inferred.
+ *
+ * Examples handled:
+ *   "35"           → 35
+ *   "50/100mm"     → 50  (refusal — use the cap value)
+ *   "50/75"        → 50
+ *   "R" / "REF"    → 50  (assume refusal at 50 blows)
+ */
+function sptNValue(row: AgsRow): number | null {
+  const direct = num(row, 'ISPT_NVAL');
+  if (direct != null) return direct;
+  const raw = String(row['ISPT_NVAL'] ?? '').trim();
+  if (!raw) return null;
+  // "50/100mm", "50/75": take the numerator
+  const slash = raw.match(/^(\d+)\s*\//);
+  if (slash) return parseInt(slash[1]!, 10);
+  // "R", "REF", "REFUSAL"
+  if (/^R(EF(USAL)?)?$/i.test(raw)) return 50;
+  return null;
 }
 
 export function extractSptDepth(file: AgsFile, layers: GeolLayer[], cf: ColorField, bh: Set<string>): DepthDatum[] {
   return (file.groups['ISPT']?.rows ?? []).flatMap(r => {
     const locaId = str(r, 'LOCA_ID');
     if (!locaId || (bh.size > 0 && !bh.has(locaId))) return [];
-    const depth = sptDepth(r), n = num(r, 'ISPT_NVAL');
+    const depth = sptDepth(r), n = sptNValue(r);
     if (depth == null || n == null) return [];
     return [{ locaId, depth, value: n, colorKey: ckAtDepth(locaId, depth, layers, cf) }];
   });
@@ -144,7 +167,7 @@ export function extractSptElev(file: AgsFile, locaMap: Map<string, number | null
   return (file.groups['ISPT']?.rows ?? []).flatMap(r => {
     const locaId = str(r, 'LOCA_ID');
     if (!locaId || (bh.size > 0 && !bh.has(locaId))) return [];
-    const depth = sptDepth(r), n = num(r, 'ISPT_NVAL');
+    const depth = sptDepth(r), n = sptNValue(r);
     if (depth == null || n == null) return [];
     const gl = locaMap.get(locaId) ?? null;
     if (gl == null) return [];
