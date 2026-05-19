@@ -101,20 +101,42 @@ function str(row: AgsRow, key: string): string {
 interface BoreholeMeta {
   projId?: string;
   projName?: string;
+  projLoc?: string;
   loca?: AgsRow;
+  hdph?: AgsRow;
+  wgen?: AgsRow[];
   generatedAt?: string;
 }
 
-/** Column geometry — single source of truth so headers, dividers and body align. */
+/** Column geometry — single source of truth so headers, dividers and body align.
+ *  Order follows traditional UK/AGS convention: depth & level on the left,
+ *  graphic strata column immediately adjacent to the description. */
 const COLS = {
-  depth: { x: 0,   w: 52,  label: "Depth (m)" },
-  litho: { x: 52,  w: 88,  label: "Legend" },
-  desc:  { x: 140, w: 200, label: "Description" },
-  spt:   { x: 340, w: 90,  label: "SPT N-Value" },
-  samp:  { x: 430, w: 50,  label: "Sample" },
-  water: { x: 480, w: 40,  label: "Water" },
+  depth: { x:   0, w:  32, label: "Depth",  unit: "(m)" },
+  level: { x:  32, w:  42, label: "Level",  unit: "(m OD)" },
+  water: { x:  74, w:  30, label: "Water",  unit: "" },
+  samp:  { x: 104, w:  60, label: "Samples",  unit: "& Tests" },
+  spt:   { x: 164, w:  72, label: "SPT (N)",  unit: "blows/300mm" },
+  litho: { x: 236, w:  50, label: "Legend", unit: "" },
+  desc:  { x: 286, w: 234, label: "Stratum Description", unit: "" },
 } as const;
 const TOTAL_W = 520;
+
+/** Standard AGS sample-type abbreviations (BS EN ISO 22475-1). */
+const SAMP_TYPE_LABELS: Record<string, string> = {
+  B:   "Bulk disturbed",
+  BLK: "Block sample",
+  D:   "Small disturbed",
+  ES:  "Environmental sample",
+  J:   "Jar sample",
+  P:   "Piston (thin-wall)",
+  PS:  "Piston sample",
+  SPT: "SPT split-spoon",
+  U:   "Undisturbed (U100)",
+  U4:  "Undisturbed (U100)",
+  W:   "Water sample",
+  WS:  "Wash sample",
+};
 
 function renderBoreholeSvg(
   locaId: string,
@@ -124,146 +146,197 @@ function renderBoreholeSvg(
   wstk: AgsRow[],
   meta: BoreholeMeta = {},
 ): string {
-  // ── Depth scale ────────────────────────────────────────────────────────────
+  // ── Inputs ────────────────────────────────────────────────────────────────
   const loca = meta.loca ?? {};
+  const hdph = meta.hdph ?? {};
+  const wgen = meta.wgen ?? [];
   const fdep = num(loca["LOCA_FDEP"]);
+  const glNum = parseFloat(String(loca["LOCA_GL"] ?? ""));
+  const hasGL = !isNaN(glNum);
+
   let maxDepth = Math.max(10, fdep);
   for (const r of geol) maxDepth = Math.max(maxDepth, num(r["GEOL_BASE"]));
   for (const r of ispt) maxDepth = Math.max(maxDepth, num(r["ISPT_TOP"]));
+  for (const r of wgen) maxDepth = Math.max(maxDepth, num(r["WGEN_DTOP"]));
   maxDepth = Math.ceil(maxDepth) + 1;
 
   const PX_PER_M = 18;
-  const bodyH = maxDepth * PX_PER_M;
-  const HEAD_H = 90;    // title block
-  const COL_H  = 22;    // column header strip
-  const FOOT_H = 18;    // footer attribution
+  const bodyH   = maxDepth * PX_PER_M;
+  const HEAD_H  = 116;   // 4-row title block
+  const COL_H   = 28;    // 2-row column header strip
+  const FOOT_H  = 18;    // attribution strip
 
-  // ── Legend block (only for kinds present in this borehole) ────────────────
+  // Lithology kinds present (drives the legend block size)
   const kindsInUse = new Set<LithoKind>();
   for (const layer of geol) kindsInUse.add(geolKind(str(layer, "GEOL_DESC")));
   const legendItems = Array.from(kindsInUse);
-  const LEG_COLS = 3;
+
+  // Sample-type codes present (drives the abbreviations block size)
+  const sampTypesInUse = new Set<string>();
+  for (const s of samp) {
+    const t = str(s, "SAMP_TYPE").trim().toUpperCase();
+    if (t) sampTypesInUse.add(t);
+  }
+  if (ispt.length) sampTypesInUse.add("SPT");
+  const abbrItems = Array.from(sampTypesInUse).sort();
+
+  // Lower legend/key block: two columns side-by-side (lithology | abbreviations).
+  // The water-symbol row at the bottom of the abbreviations panel always
+  // reserves an additional row so it never overlaps the type-code list.
   const LEG_ROW_H = 14;
-  const legendRows = Math.max(1, Math.ceil(legendItems.length / LEG_COLS));
-  const LEG_H = legendItems.length === 0 ? 0 : 22 + legendRows * LEG_ROW_H + 6;
+  const lithoRows = Math.ceil(Math.max(legendItems.length, 1) / 2);
+  const abbrRows  = Math.ceil(Math.max(abbrItems.length, 1) / 2);
+  const KEY_H = (legendItems.length === 0 && abbrItems.length === 0)
+    ? 0
+    : 22 + Math.max(lithoRows, abbrRows + 1) * LEG_ROW_H + 6;
 
-  const totalH = HEAD_H + COL_H + bodyH + LEG_H + FOOT_H;
+  const totalH = HEAD_H + COL_H + bodyH + KEY_H + FOOT_H;
 
-  // ── Metadata strings ──────────────────────────────────────────────────────
+  // Metadata strings
   const projId   = meta.projId   ?? "";
   const projName = meta.projName ?? "";
+  const projLoc  = meta.projLoc  ?? "";
   const holeType = str(loca, "LOCA_TYPE") || "BH";
   const east     = str(loca, "LOCA_NATE");
   const north    = str(loca, "LOCA_NATN");
   const gl       = str(loca, "LOCA_GL");
-  const startDt  = str(loca, "LOCA_STAR") || str(loca, "LOCA_ENDD");
+  const startDt  = str(loca, "LOCA_STAR");
+  const endDt    = str(loca, "LOCA_ENDD");
   const logger   = str(loca, "LOCA_LOGD") || str(loca, "LOCA_ENG");
+  const checker  = str(loca, "LOCA_CHKD");
+  const method   = str(hdph, "HDPH_METH") || str(loca, "LOCA_METH");
+  const hdia     = str(hdph, "HDPH_HDIA");
+  const contractor = str(hdph, "HDPH_CONT") || str(hdph, "HDPH_NGCO");
   const tdShown  = (fdep > 0 ? fdep : maxDepth - 1).toFixed(2);
   const idSuffix = (locaId || "x").replace(/[^A-Za-z0-9_-]/g, "_");
 
   const lines: string[] = [];
   lines.push(`<svg width="${TOTAL_W}" height="${totalH}" viewBox="0 0 ${TOTAL_W} ${totalH}" font-family="'Helvetica Neue',Arial,sans-serif" xmlns="http://www.w3.org/2000/svg">`);
-
-  // Definitions: lithology hatch patterns
   lines.push(`<defs>${lithologyPatternDefs(idSuffix)}</defs>`);
-
-  // Outer engineering frame
   lines.push(`<rect x="0.5" y="0.5" width="${TOTAL_W - 1}" height="${totalH - 1}" fill="#fff" stroke="#111" stroke-width="1"/>`);
 
-  // ── 1. Title block ────────────────────────────────────────────────────────
+  // ── 1. Title block (4 rows × variable columns) ────────────────────────────
   const tb = (x: number, y: number, w: number, h: number) =>
-    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" stroke="#111" stroke-width="1"/>`;
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" stroke="#111" stroke-width="0.7"/>`;
   const tbLabel = (x: number, y: number, t: string) =>
-    `<text x="${x + 4}" y="${y + 8}" font-size="6.5" fill="#475569" font-weight="700" letter-spacing="0.5">${esc(t.toUpperCase())}</text>`;
-  const tbValue = (x: number, y: number, t: string, size = 10, weight = "600") =>
-    `<text x="${x + 4}" y="${y + 20}" font-size="${size}" fill="#0f172a" font-weight="${weight}">${esc(t)}</text>`;
+    `<text x="${x + 4}" y="${y + 8}" font-size="6.2" fill="#475569" font-weight="700" letter-spacing="0.5">${esc(t.toUpperCase())}</text>`;
+  const tbValue = (x: number, y: number, t: string, size = 9, weight = "600") =>
+    `<text x="${x + 4}" y="${y + 19}" font-size="${size}" fill="#0f172a" font-weight="${weight}">${esc(t)}</text>`;
+  const tbCell = (x: number, y: number, w: number, h: number, label: string, value: string, size = 9) => {
+    return [
+      tb(x, y, w, h),
+      tbLabel(x, y, label),
+      tbValue(x, y, value || "—", size, "600"),
+    ].join("");
+  };
 
-  // Row 1 (40px high): big BH-ID + project banner
-  lines.push(tb(0, 0, 180, 40));
+  // Row 1 (44px) — big BH-ID block + project banner
+  lines.push(tb(0, 0, 150, 44));
   lines.push(tbLabel(0, 0, "Borehole / Trial Pit"));
-  lines.push(`<text x="6" y="32" font-size="20" font-weight="800" fill="#0f172a" font-family="'Helvetica Neue',Arial,sans-serif">${esc(locaId)}</text>`);
-  lines.push(`<text x="170" y="32" font-size="8" font-weight="700" fill="#475569" text-anchor="end">${esc(holeType)}</text>`);
+  lines.push(`<text x="6" y="36" font-size="22" font-weight="800" fill="#0f172a">${esc(locaId)}</text>`);
+  lines.push(`<text x="144" y="38" font-size="8" font-weight="700" fill="#475569" text-anchor="end">${esc(holeType)}</text>`);
 
-  lines.push(tb(180, 0, TOTAL_W - 180, 40));
-  lines.push(tbLabel(180, 0, "Project"));
-  lines.push(`<text x="186" y="28" font-size="12" font-weight="700" fill="#0f172a">${esc(projName || "—")}</text>`);
+  lines.push(tb(150, 0, TOTAL_W - 150, 44));
+  lines.push(tbLabel(150, 0, "Project"));
+  lines.push(`<text x="156" y="26" font-size="13" font-weight="700" fill="#0f172a">${esc(projName || "—")}</text>`);
+  if (projLoc) {
+    lines.push(`<text x="156" y="38" font-size="8" fill="#475569">${esc(projLoc)}</text>`);
+  }
   if (projId) {
     lines.push(`<text x="${TOTAL_W - 6}" y="14" font-size="7" font-weight="700" fill="#475569" text-anchor="end">PROJ ID: ${esc(projId)}</text>`);
   }
 
-  // Row 2 (24px) — coordinates
-  lines.push(tb(0,   40, 130, 24));
-  lines.push(tbLabel(0,   40, "Easting (m)"));
-  lines.push(tbValue(0,   40, east || "—", 9));
-  lines.push(tb(130, 40, 130, 24));
-  lines.push(tbLabel(130, 40, "Northing (m)"));
-  lines.push(tbValue(130, 40, north || "—", 9));
-  lines.push(tb(260, 40, 130, 24));
-  lines.push(tbLabel(260, 40, "Ground Level (m OD)"));
-  lines.push(tbValue(260, 40, gl || "—", 9));
-  lines.push(tb(390, 40, TOTAL_W - 390, 24));
-  lines.push(tbLabel(390, 40, "Final Depth (m)"));
-  lines.push(tbValue(390, 40, tdShown, 9));
+  // Row 2 (24px) — coordinates / GL / final depth
+  let x = 0;
+  const r2y = 44;
+  lines.push(tbCell(x, r2y, 100, 24, "Easting (m)",        east));    x += 100;
+  lines.push(tbCell(x, r2y, 100, 24, "Northing (m)",       north));   x += 100;
+  lines.push(tbCell(x, r2y, 110, 24, "Ground Level (m OD)", gl));     x += 110;
+  lines.push(tbCell(x, r2y,  95, 24, "Final Depth (m)",    tdShown)); x += 95;
+  lines.push(tbCell(x, r2y, TOTAL_W - x, 24, "Hole Diameter (mm)", hdia));
 
-  // Row 3 (26px) — dates / scale / sheet
-  lines.push(tb(0,   64, 200, 26));
-  lines.push(tbLabel(0,   64, "Date"));
-  lines.push(tbValue(0,   64, startDt || meta.generatedAt || "—", 9, "500"));
-  lines.push(tb(200, 64, 140, 26));
-  lines.push(tbLabel(200, 64, "Logged by"));
-  lines.push(tbValue(200, 64, logger || "—", 9, "500"));
-  lines.push(tb(340, 64, 110, 26));
-  lines.push(tbLabel(340, 64, "Scale"));
-  lines.push(tbValue(340, 64, `1 cm ≈ ${(10 / PX_PER_M).toFixed(2)} m`, 8, "500"));
-  lines.push(tb(450, 64, TOTAL_W - 450, 26));
-  lines.push(tbLabel(450, 64, "Sheet"));
-  lines.push(tbValue(450, 64, "1 of 1", 9, "500"));
+  // Row 3 (24px) — dates / logged / checked
+  x = 0;
+  const r3y = 68;
+  const dateStr = startDt && endDt && startDt !== endDt
+    ? `${startDt} – ${endDt}`
+    : (startDt || endDt || meta.generatedAt || "");
+  lines.push(tbCell(x, r3y, 140, 24, "Date Drilled",  dateStr, 8.5)); x += 140;
+  lines.push(tbCell(x, r3y, 110, 24, "Logged by",     logger,  8.5)); x += 110;
+  lines.push(tbCell(x, r3y, 110, 24, "Checked by",    checker, 8.5)); x += 110;
+  lines.push(tbCell(x, r3y, TOTAL_W - x, 24, "Contractor", contractor, 8.5));
 
-  // ── 2. Column header strip ───────────────────────────────────────────────
+  // Row 4 (24px) — method / scale / sheet
+  x = 0;
+  const r4y = 92;
+  lines.push(tbCell(x, r4y, 250, 24, "Drilling Method", method, 8.5)); x += 250;
+  lines.push(tbCell(x, r4y, 110, 24, "Scale (vertical)", `1 cm ≈ ${(10 / PX_PER_M).toFixed(2)} m`, 8.5)); x += 110;
+  lines.push(tbCell(x, r4y, 80, 24, "Sheet",  "1 of 1", 8.5)); x += 80;
+  lines.push(tbCell(x, r4y, TOTAL_W - x, 24, "Hole Type", holeType, 8.5));
+
+  // ── 2. Column header strip (two rows: label + unit/sub-label) ─────────────
   const colHeadY = HEAD_H;
   lines.push(`<rect x="0" y="${colHeadY}" width="${TOTAL_W}" height="${COL_H}" fill="#1e293b" stroke="#111" stroke-width="1"/>`);
   for (const c of Object.values(COLS)) {
-    lines.push(`<line x1="${c.x}" y1="${colHeadY}" x2="${c.x}" y2="${colHeadY + COL_H}" stroke="#0f172a" stroke-width="0.7"/>`);
-    lines.push(`<text x="${c.x + c.w / 2}" y="${colHeadY + 14}" font-size="8.5" font-weight="700" fill="#f8fafc" text-anchor="middle" letter-spacing="0.4">${esc(c.label.toUpperCase())}</text>`);
+    lines.push(`<line x1="${c.x}" y1="${colHeadY}" x2="${c.x}" y2="${colHeadY + COL_H}" stroke="#0f172a" stroke-width="0.6"/>`);
+    const labelFont = c.label.length > 10 ? 7.5 : 8.5;
+    lines.push(`<text x="${c.x + c.w / 2}" y="${colHeadY + 12}" font-size="${labelFont}" font-weight="700" fill="#f8fafc" text-anchor="middle" letter-spacing="0.4">${esc(c.label.toUpperCase())}</text>`);
+    if (c.unit) {
+      lines.push(`<text x="${c.x + c.w / 2}" y="${colHeadY + 22}" font-size="6.5" fill="#cbd5e1" text-anchor="middle" font-style="italic">${esc(c.unit)}</text>`);
+    }
   }
-  // SPT axis sub-labels (0 / 30 / 60)
-  lines.push(`<text x="${COLS.spt.x + 4}" y="${colHeadY + 20}" font-size="6" fill="#cbd5e1">0</text>`);
-  lines.push(`<text x="${COLS.spt.x + COLS.spt.w / 2}" y="${colHeadY + 20}" font-size="6" fill="#cbd5e1" text-anchor="middle">30</text>`);
-  lines.push(`<text x="${COLS.spt.x + COLS.spt.w - 4}" y="${colHeadY + 20}" font-size="6" fill="#cbd5e1" text-anchor="end">60</text>`);
+  // SPT axis tick labels live in the unit row (overrides the generic unit text)
+  lines.push(`<rect x="${COLS.spt.x + 1}" y="${colHeadY + 15}" width="${COLS.spt.w - 2}" height="11" fill="#1e293b"/>`);
+  lines.push(`<text x="${COLS.spt.x + 4}" y="${colHeadY + 24}" font-size="6.5" fill="#cbd5e1">0</text>`);
+  lines.push(`<text x="${COLS.spt.x + COLS.spt.w * 0.25}" y="${colHeadY + 24}" font-size="6.5" fill="#cbd5e1" text-anchor="middle">15</text>`);
+  lines.push(`<text x="${COLS.spt.x + COLS.spt.w * 0.5}" y="${colHeadY + 24}" font-size="6.5" fill="#cbd5e1" text-anchor="middle">30</text>`);
+  lines.push(`<text x="${COLS.spt.x + COLS.spt.w * 0.75}" y="${colHeadY + 24}" font-size="6.5" fill="#cbd5e1" text-anchor="middle">45</text>`);
+  lines.push(`<text x="${COLS.spt.x + COLS.spt.w - 4}" y="${colHeadY + 24}" font-size="6.5" fill="#cbd5e1" text-anchor="end">60</text>`);
 
   // ── 3. Body ───────────────────────────────────────────────────────────────
   const bodyY = HEAD_H + COL_H;
   lines.push(`<g transform="translate(0,${bodyY})">`);
 
-  // Column backgrounds + crisp dividers
+  // Backgrounds + crisp dividers
   lines.push(`<rect x="0" y="0" width="${TOTAL_W}" height="${bodyH}" fill="#fff"/>`);
+  // Subtle tint on the narrow data columns to differentiate from description
+  lines.push(`<rect x="${COLS.depth.x}" y="0" width="${COLS.depth.w + COLS.level.w}" height="${bodyH}" fill="#f1f5f9"/>`);
+  lines.push(`<rect x="${COLS.water.x}" y="0" width="${COLS.water.w}" height="${bodyH}" fill="#f0f9ff"/>`);
+  lines.push(`<rect x="${COLS.litho.x}" y="0" width="${COLS.litho.w}" height="${bodyH}" fill="#fafafa"/>`);
   for (const c of Object.values(COLS)) {
-    lines.push(`<line x1="${c.x}" y1="0" x2="${c.x}" y2="${bodyH}" stroke="#111" stroke-width="0.8"/>`);
+    lines.push(`<line x1="${c.x}" y1="0" x2="${c.x}" y2="${bodyH}" stroke="#111" stroke-width="0.7"/>`);
   }
-  lines.push(`<line x1="${TOTAL_W}" y1="0" x2="${TOTAL_W}" y2="${bodyH}" stroke="#111" stroke-width="0.8"/>`);
+  lines.push(`<line x1="${TOTAL_W}" y1="0" x2="${TOTAL_W}" y2="${bodyH}" stroke="#111" stroke-width="0.7"/>`);
 
-  // SPT axis gridlines (at N=15,30,45)
+  // SPT axis gridlines at N = 15, 30, 45 (dashed)
   for (const n of [15, 30, 45]) {
-    const x = COLS.spt.x + (n / 60) * COLS.spt.w;
-    lines.push(`<line x1="${x}" y1="0" x2="${x}" y2="${bodyH}" stroke="#e5e7eb" stroke-width="0.5" stroke-dasharray="2,3"/>`);
+    const gx = COLS.spt.x + (n / 60) * COLS.spt.w;
+    lines.push(`<line x1="${gx}" y1="0" x2="${gx}" y2="${bodyH}" stroke="#cbd5e1" stroke-width="0.4" stroke-dasharray="2,3"/>`);
   }
 
-  // Depth scale: minor tick every 1 m, major tick + label every metre,
-  // bold tick + bold label every 5 m, full-width grid line every 5 m.
+  // Depth + Reduced Level scale (per-metre ticks; bold every 5 m)
   for (let i = 0; i <= maxDepth; i++) {
     const y = i * PX_PER_M;
     const major = i % 5 === 0;
+    const dxR = COLS.depth.x + COLS.depth.w; // right edge of depth col
+    const lxR = COLS.level.x + COLS.level.w; // right edge of level col
     if (major) {
-      lines.push(`<line x1="${COLS.depth.x}" y1="${y}" x2="${COLS.depth.x + COLS.depth.w}" y2="${y}" stroke="#111" stroke-width="0.8"/>`);
-      lines.push(`<line x1="${COLS.depth.x + COLS.depth.w}" y1="${y}" x2="${TOTAL_W}" y2="${y}" stroke="#cbd5e1" stroke-width="0.5"/>`);
-      lines.push(`<text x="${COLS.depth.x + COLS.depth.w - 18}" y="${y + 3}" font-size="9" text-anchor="end" font-weight="700" fill="#0f172a">${i}</text>`);
+      // Bold tick across both Depth and Level columns
+      lines.push(`<line x1="0" y1="${y}" x2="${lxR}" y2="${y}" stroke="#111" stroke-width="0.7"/>`);
+      // Faint full-width grid line across data columns (helps eye trace)
+      lines.push(`<line x1="${lxR}" y1="${y}" x2="${TOTAL_W}" y2="${y}" stroke="#e2e8f0" stroke-width="0.5"/>`);
+      lines.push(`<text x="${dxR - 3}" y="${y + 3}" font-size="9" text-anchor="end" font-weight="700" fill="#0f172a">${i.toFixed(0)}</text>`);
+      if (hasGL) {
+        lines.push(`<text x="${lxR - 3}" y="${y + 3}" font-size="8.5" text-anchor="end" font-weight="600" fill="#0f172a">${(glNum - i).toFixed(2)}</text>`);
+      }
     } else {
-      lines.push(`<line x1="${COLS.depth.x + COLS.depth.w - 8}" y1="${y}" x2="${COLS.depth.x + COLS.depth.w}" y2="${y}" stroke="#475569" stroke-width="0.5"/>`);
-      lines.push(`<text x="${COLS.depth.x + COLS.depth.w - 12}" y="${y + 3}" font-size="7" text-anchor="end" fill="#475569">${i}</text>`);
+      // Minor tick — just a small mark on the depth col right edge
+      lines.push(`<line x1="${dxR - 5}" y1="${y}" x2="${dxR}" y2="${y}" stroke="#475569" stroke-width="0.45"/>`);
+      lines.push(`<text x="${dxR - 3}" y="${y + 3}" font-size="6.5" text-anchor="end" fill="#64748b">${i.toFixed(0)}</text>`);
     }
   }
 
-  // GEOL layers — colour fill, hatch overlay, description
+  // GEOL layers — graphic strata + description
   for (const layer of geol) {
     const top = num(layer["GEOL_TOP"]);
     const base = num(layer["GEOL_BASE"]);
@@ -273,94 +346,155 @@ function renderBoreholeSvg(
     if (h <= 0) continue;
     const desc = str(layer, "GEOL_DESC");
     const geolGeol = str(layer, "GEOL_GEOL");
+    const geolStat = str(layer, "GEOL_STAT");
     const kind = geolKind(desc);
     const col = LITHO_INFO[kind].color;
 
-    // Colour fill + pattern overlay in the Legend column
+    // Graphic strata column (colour + hatch overlay + border)
     lines.push(`<rect x="${COLS.litho.x}" y="${yTop}" width="${COLS.litho.w}" height="${h}" fill="${col}"/>`);
     lines.push(`<rect x="${COLS.litho.x}" y="${yTop}" width="${COLS.litho.w}" height="${h}" fill="url(#pat-${kind}-${idSuffix})"/>`);
-    lines.push(`<rect x="${COLS.litho.x}" y="${yTop}" width="${COLS.litho.w}" height="${h}" fill="none" stroke="#111" stroke-width="0.6"><title>${esc(desc)} (${top.toFixed(2)} – ${base.toFixed(2)} m)</title></rect>`);
+    lines.push(`<rect x="${COLS.litho.x}" y="${yTop}" width="${COLS.litho.w}" height="${h}" fill="none" stroke="#111" stroke-width="0.5"><title>${esc(desc)} (${top.toFixed(2)} – ${base.toFixed(2)} m)</title></rect>`);
 
-    // Solid contact line across the data columns
-    lines.push(`<line x1="${COLS.desc.x}" y1="${yBot}" x2="${TOTAL_W}" y2="${yBot}" stroke="#111" stroke-width="0.6"/>`);
+    // Stratum-base contact: solid line across every column except graphic + depth/level
+    lines.push(`<line x1="${COLS.water.x}" y1="${yBot}" x2="${COLS.litho.x}" y2="${yBot}" stroke="#111" stroke-width="0.5"/>`);
+    lines.push(`<line x1="${COLS.desc.x}" y1="${yBot}" x2="${TOTAL_W}" y2="${yBot}" stroke="#111" stroke-width="0.7"/>`);
 
-    // Description: depth-range + lithology code, then the full description
-    lines.push(`<text x="${COLS.desc.x + 6}" y="${yTop + 11}" font-size="7" font-weight="700" fill="#475569" letter-spacing="0.3">${top.toFixed(2)} – ${base.toFixed(2)} m${geolGeol ? `  ·  ${esc(geolGeol)}` : ""}</text>`);
-    if (h > 18) {
-      // Word-wrap description across however many lines fit
-      const maxLines = Math.floor((h - 14) / 9);
-      const wrapped = wrapText(desc, 36, maxLines);
+    // Stratigraphy code badge inside the graphic column (where it fits)
+    if (geolGeol && h > 14) {
+      lines.push(`<text x="${COLS.litho.x + COLS.litho.w - 3}" y="${yTop + 9}" font-size="7" font-weight="700" fill="#0f172a" text-anchor="end" opacity="0.7">${esc(geolGeol.slice(0, 4))}</text>`);
+    }
+
+    // Description: bold lithology summary then wrapped detail
+    const headerParts: string[] = [];
+    headerParts.push(`${top.toFixed(2)} – ${base.toFixed(2)} m`);
+    if (geolGeol) headerParts.push(geolGeol);
+    if (geolStat) headerParts.push(geolStat);
+    lines.push(`<text x="${COLS.desc.x + 5}" y="${yTop + 10}" font-size="7" font-weight="700" fill="#475569" letter-spacing="0.3">${esc(headerParts.join("  ·  "))}</text>`);
+    if (h > 16) {
+      const maxLines = Math.floor((h - 12) / 9);
+      const wrapped = wrapText(desc, 52, maxLines);
       wrapped.forEach((ln, ix) => {
-        lines.push(`<text x="${COLS.desc.x + 6}" y="${yTop + 22 + ix * 9}" font-size="8" fill="#0f172a">${esc(ln)}</text>`);
+        lines.push(`<text x="${COLS.desc.x + 5}" y="${yTop + 20 + ix * 9}" font-size="8" fill="#0f172a">${esc(ln)}</text>`);
       });
     }
   }
 
-  // ISPT SPT bars (preserved improvement, now horizontal bar + N label)
+  // ISPT — SPT N-value bars with numeric label
   for (const test of ispt) {
     const depth = num(test["ISPT_TOP"]);
     const rawN = num(test["ISPT_NVAL"]);
     const nval = Math.min(rawN, 60);
     const barPx = (nval / 60) * COLS.spt.w;
-    const yBar = depth * PX_PER_M - 4;
-    lines.push(`<line x1="${COLS.spt.x}" y1="${depth * PX_PER_M}" x2="${COLS.spt.x + barPx}" y2="${depth * PX_PER_M}" stroke="#9a3412" stroke-width="0.4"/>`);
-    lines.push(`<rect x="${COLS.spt.x}" y="${yBar}" width="${barPx.toFixed(1)}" height="8" fill="#f97316" stroke="#9a3412" stroke-width="0.6"><title>SPT N=${Math.round(rawN)} at ${depth.toFixed(2)} m</title></rect>`);
+    const yCentre = depth * PX_PER_M;
+    const yBar = yCentre - 3.5;
+    lines.push(`<rect x="${COLS.spt.x}" y="${yBar}" width="${barPx.toFixed(1)}" height="7" fill="#f97316" stroke="#9a3412" stroke-width="0.5"><title>SPT N=${Math.round(rawN)} at ${depth.toFixed(2)} m</title></rect>`);
     if (rawN > 0) {
-      const labelX = COLS.spt.x + Math.min(COLS.spt.w - 4, barPx + 3);
-      lines.push(`<text x="${labelX}" y="${yBar + 6}" font-size="7.5" font-weight="700" fill="#0f172a">${Math.round(rawN)}</text>`);
+      const labelX = COLS.spt.x + Math.min(COLS.spt.w - 3, barPx + 3);
+      lines.push(`<text x="${labelX}" y="${yBar + 6}" font-size="7" font-weight="700" fill="#0f172a">N=${Math.round(rawN)}</text>`);
     }
   }
 
-  // SAMP markers — engineering-style boxed icon with type code
+  // SAMP — narrow vertical "stick" + boxed type code at the sample depth
   for (const s of samp) {
-    const depth = num(s["SAMP_TOP"]);
-    const yS = depth * PX_PER_M - 5;
-    const sampType = str(s, "SAMP_TYPE") || "B";
+    const depthTop = num(s["SAMP_TOP"]);
+    const depthBase = num(s["SAMP_BASE"]) || depthTop;
+    const sampType = (str(s, "SAMP_TYPE") || "B").toUpperCase();
     const sampRef = str(s, "SAMP_REF");
-    lines.push(`<rect x="${COLS.samp.x + 4}" y="${yS}" width="${COLS.samp.w - 8}" height="10" fill="#fff" stroke="#1e3a8a" stroke-width="0.7"><title>Sample ${esc(sampRef)} (${esc(sampType)}) at ${depth.toFixed(2)} m</title></rect>`);
-    lines.push(`<text x="${COLS.samp.x + COLS.samp.w / 2}" y="${yS + 7.5}" font-size="7.5" text-anchor="middle" font-weight="700" fill="#1e3a8a">${esc(sampType.slice(0, 3))}</text>`);
+    const yT = depthTop * PX_PER_M;
+    const yB = Math.max(depthBase * PX_PER_M, yT + 2);
+    const stickX = COLS.samp.x + 6;
+    // Recovery / interval stick (left side of column)
+    lines.push(`<line x1="${stickX}" y1="${yT}" x2="${stickX}" y2="${yB}" stroke="#1e3a8a" stroke-width="1.4"/>`);
+    lines.push(`<line x1="${stickX - 3}" y1="${yT}" x2="${stickX + 3}" y2="${yT}" stroke="#1e3a8a" stroke-width="1"/>`);
+    lines.push(`<line x1="${stickX - 3}" y1="${yB}" x2="${stickX + 3}" y2="${yB}" stroke="#1e3a8a" stroke-width="1"/>`);
+    // Type-code box to the right of the stick + small SAMP_REF label below
+    const boxX = stickX + 6;
+    const boxY = yT - 5;
+    const boxW = COLS.samp.x + COLS.samp.w - boxX - 3;
+    lines.push(`<rect x="${boxX}" y="${boxY}" width="${boxW}" height="10" fill="#fff" stroke="#1e3a8a" stroke-width="0.7"><title>Sample ${esc(sampRef)} (${esc(sampType)}) ${depthTop.toFixed(2)}–${depthBase.toFixed(2)} m</title></rect>`);
+    lines.push(`<text x="${boxX + boxW / 2}" y="${boxY + 7.5}" font-size="7" text-anchor="middle" font-weight="700" fill="#1e3a8a">${esc(sampType.slice(0, 3))}</text>`);
+    if (sampRef && yB - yT < 14) {
+      lines.push(`<text x="${boxX + boxW / 2}" y="${boxY + 16}" font-size="6" text-anchor="middle" fill="#475569">${esc(sampRef.slice(0, 8))}</text>`);
+    }
   }
 
-  // WSTK water strikes — inverted triangle + horizontal level line
+  // WSTK — water strike encountered while drilling: OPEN inverted triangle ∇
   for (const ws of wstk) {
     const depth = num(ws["WSTK_DPTH"]);
     const cy = depth * PX_PER_M;
     const cx = COLS.water.x + COLS.water.w / 2;
-    lines.push(`<line x1="${COLS.water.x + 4}" y1="${cy}" x2="${COLS.water.x + COLS.water.w - 4}" y2="${cy}" stroke="#0369a1" stroke-width="0.6" stroke-dasharray="3,2"/>`);
-    lines.push(`<polygon points="${cx},${cy + 8} ${cx - 5},${cy - 2} ${cx + 5},${cy - 2}" fill="#0ea5e9" stroke="#0369a1" stroke-width="0.6"><title>Water strike at ${depth.toFixed(2)} m</title></polygon>`);
+    lines.push(`<line x1="${COLS.water.x + 2}" y1="${cy}" x2="${COLS.water.x + COLS.water.w - 2}" y2="${cy}" stroke="#0369a1" stroke-width="0.6" stroke-dasharray="2,2"/>`);
+    lines.push(`<polygon points="${cx - 5},${cy} ${cx + 5},${cy} ${cx},${cy + 8}" fill="#fff" stroke="#0369a1" stroke-width="0.9"><title>Water strike at ${depth.toFixed(2)} m</title></polygon>`);
   }
 
-  // End-of-hole marker
+  // WGEN — standing water level after monitoring: FILLED triangle ▼
+  for (const ws of wgen) {
+    const depth = num(ws["WGEN_DTOP"]);
+    if (depth <= 0) continue;
+    const cy = depth * PX_PER_M;
+    const cx = COLS.water.x + COLS.water.w / 2;
+    lines.push(`<line x1="${COLS.water.x + 2}" y1="${cy}" x2="${COLS.water.x + COLS.water.w - 2}" y2="${cy}" stroke="#0369a1" stroke-width="0.7"/>`);
+    lines.push(`<polygon points="${cx - 5},${cy} ${cx + 5},${cy} ${cx},${cy + 8}" fill="#0ea5e9" stroke="#0369a1" stroke-width="0.7"><title>Standing water at ${depth.toFixed(2)} m</title></polygon>`);
+  }
+
+  // End-of-hole marker — thick black line across all columns
   if (fdep > 0 && fdep <= maxDepth) {
     const y = fdep * PX_PER_M;
-    lines.push(`<line x1="${COLS.litho.x}" y1="${y}" x2="${TOTAL_W}" y2="${y}" stroke="#111" stroke-width="1.4"/>`);
-    lines.push(`<text x="${COLS.desc.x + COLS.desc.w / 2}" y="${y + 11}" font-size="8" font-weight="700" fill="#475569" text-anchor="middle" letter-spacing="0.4">END OF HOLE — ${fdep.toFixed(2)} m</text>`);
+    lines.push(`<line x1="0" y1="${y}" x2="${TOTAL_W}" y2="${y}" stroke="#111" stroke-width="1.6"/>`);
+    lines.push(`<text x="${COLS.desc.x + COLS.desc.w / 2}" y="${y + 11}" font-size="8" font-weight="700" fill="#0f172a" text-anchor="middle" letter-spacing="0.4">End of Borehole at ${fdep.toFixed(2)} m</text>`);
   }
 
   lines.push(`</g>`);
 
-  // ── 4. Legend block ──────────────────────────────────────────────────────
-  if (LEG_H > 0) {
-    const lY = HEAD_H + COL_H + bodyH;
-    lines.push(`<rect x="0" y="${lY}" width="${TOTAL_W}" height="${LEG_H}" fill="#f8fafc" stroke="#111" stroke-width="1"/>`);
-    lines.push(`<text x="8" y="${lY + 14}" font-size="8" font-weight="700" fill="#475569" letter-spacing="0.5">LEGEND — LITHOLOGY</text>`);
-    const colW = (TOTAL_W - 16) / LEG_COLS;
+  // ── 4. Key block — lithology legend (left) + abbreviations (right) ────────
+  if (KEY_H > 0) {
+    const kY = HEAD_H + COL_H + bodyH;
+    const half = TOTAL_W / 2;
+    lines.push(`<rect x="0" y="${kY}" width="${TOTAL_W}" height="${KEY_H}" fill="#f8fafc" stroke="#111" stroke-width="1"/>`);
+    lines.push(`<line x1="${half}" y1="${kY}" x2="${half}" y2="${kY + KEY_H}" stroke="#111" stroke-width="0.7"/>`);
+
+    // LEFT: Lithology legend
+    lines.push(`<text x="8" y="${kY + 14}" font-size="7.5" font-weight="700" fill="#475569" letter-spacing="0.5">LITHOLOGY KEY</text>`);
+    const lithoColW = (half - 16) / 2;
     legendItems.forEach((kind, ix) => {
-      const row = Math.floor(ix / LEG_COLS);
-      const col = ix % LEG_COLS;
-      const x = 8 + col * colW;
-      const y = lY + 22 + row * LEG_ROW_H;
+      const row = Math.floor(ix / 2);
+      const col = ix % 2;
+      const lx = 8 + col * lithoColW;
+      const ly = kY + 22 + row * LEG_ROW_H;
       const info = LITHO_INFO[kind];
-      lines.push(`<rect x="${x}" y="${y}" width="22" height="10" fill="${info.color}" stroke="#111" stroke-width="0.5"/>`);
-      lines.push(`<rect x="${x}" y="${y}" width="22" height="10" fill="url(#pat-${kind}-${idSuffix})"/>`);
-      lines.push(`<text x="${x + 28}" y="${y + 8}" font-size="8" fill="#0f172a">${esc(info.label)}</text>`);
+      lines.push(`<rect x="${lx}" y="${ly}" width="20" height="10" fill="${info.color}" stroke="#111" stroke-width="0.5"/>`);
+      lines.push(`<rect x="${lx}" y="${ly}" width="20" height="10" fill="url(#pat-${kind}-${idSuffix})"/>`);
+      lines.push(`<text x="${lx + 24}" y="${ly + 8}" font-size="7.5" fill="#0f172a">${esc(info.label)}</text>`);
     });
+
+    // RIGHT: Abbreviations / sample-type key
+    lines.push(`<text x="${half + 8}" y="${kY + 14}" font-size="7.5" font-weight="700" fill="#475569" letter-spacing="0.5">SAMPLE / TEST KEY</text>`);
+    const abbrColW = (half - 16) / 2;
+    abbrItems.forEach((code, ix) => {
+      const row = Math.floor(ix / 2);
+      const col = ix % 2;
+      const ax = half + 8 + col * abbrColW;
+      const ay = kY + 22 + row * LEG_ROW_H;
+      const label = SAMP_TYPE_LABELS[code] ?? "—";
+      lines.push(`<rect x="${ax}" y="${ay}" width="22" height="10" fill="#fff" stroke="#1e3a8a" stroke-width="0.6"/>`);
+      lines.push(`<text x="${ax + 11}" y="${ay + 7.5}" font-size="6.5" text-anchor="middle" font-weight="700" fill="#1e3a8a">${esc(code)}</text>`);
+      lines.push(`<text x="${ax + 26}" y="${ay + 8}" font-size="7.5" fill="#0f172a">${esc(label)}</text>`);
+    });
+
+    // Water-symbol key — slotted into the row immediately below the
+    // last abbreviation entry so it never overlaps the type-code list.
+    const wsY = kY + 22 + abbrRows * LEG_ROW_H + 1;
+    const symX = half + 8;
+    lines.push(`<polygon points="${symX + 5},${wsY} ${symX + 13},${wsY} ${symX + 9},${wsY + 7}" fill="#fff" stroke="#0369a1" stroke-width="0.7"/>`);
+    lines.push(`<text x="${symX + 18}" y="${wsY + 7}" font-size="7" fill="#0f172a">Water strike</text>`);
+    lines.push(`<polygon points="${symX + 80},${wsY} ${symX + 88},${wsY} ${symX + 84},${wsY + 7}" fill="#0ea5e9" stroke="#0369a1" stroke-width="0.7"/>`);
+    lines.push(`<text x="${symX + 93}" y="${wsY + 7}" font-size="7" fill="#0f172a">Standing water</text>`);
   }
 
   // ── 5. Footer ────────────────────────────────────────────────────────────
   const fY = totalH - FOOT_H;
   lines.push(`<line x1="0" y1="${fY}" x2="${TOTAL_W}" y2="${fY}" stroke="#111" stroke-width="1"/>`);
-  lines.push(`<text x="6" y="${fY + 12}" font-size="7" fill="#475569">GeoFlow Explorer  ·  Borehole strip log  ·  not to scale when reproduced</text>`);
+  lines.push(`<text x="6" y="${fY + 12}" font-size="7" fill="#475569">GeoFlow Explorer  ·  Strip log to BS 5930 / AGS conventions  ·  not to scale when reproduced</text>`);
   if (meta.generatedAt) {
     lines.push(`<text x="${TOTAL_W - 6}" y="${fY + 12}" font-size="7" fill="#475569" text-anchor="end">Generated ${esc(meta.generatedAt)}</text>`);
   }
@@ -416,6 +550,7 @@ export function renderExplorer(file: AgsFile, options: ExplorerOptions = {}): st
   const projRow = file.groups["PROJ"]?.rows[0] ?? {};
   const projId = str(projRow as AgsRow, "PROJ_ID");
   const projName = str(projRow as AgsRow, "PROJ_NAME");
+  const projLoc = str(projRow as AgsRow, "PROJ_LOC");
   const generatedAt = new Date().toISOString().slice(0, 10);
 
   // Build per-borehole SVG sections
@@ -429,9 +564,14 @@ export function renderExplorer(file: AgsFile, options: ExplorerOptions = {}): st
     const ispt = filterById(file.groups["ISPT"]?.rows ?? []);
     const samp = filterById(file.groups["SAMP"]?.rows ?? []);
     const wstk = filterById(file.groups["WSTK"]?.rows ?? []);
+    const wgen = filterById(file.groups["WGEN"]?.rows ?? []);
+    const hdph = filterById(file.groups["HDPH"]?.rows ?? [])[0];
 
     const meta: BoreholeMeta = { projId, projName, generatedAt };
+    if (projLoc) meta.projLoc = projLoc;
     if (loca) meta.loca = loca;
+    if (hdph) meta.hdph = hdph;
+    if (wgen.length) meta.wgen = wgen;
     const svg = renderBoreholeSvg(locaId, geol, ispt, samp, wstk, meta);
     boreholeSections.push(`
       <section class="borehole" id="bh-${esc(locaId)}">
