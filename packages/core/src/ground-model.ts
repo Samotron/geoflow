@@ -59,9 +59,53 @@ export interface RepresentativeGroundModel {
 
 export interface RepresentativeGroundModelOptions {
   /** Vertical sample step (m). Default 0.25. Smaller = more detail, more memory. */
-  sampleStep?: number;
+  sampleStep?: number | undefined;
   /** Minimum support fraction (0–1) for a layer to be emitted. Default 0 (always emit). */
-  minSupport?: number;
+  minSupport?: number | undefined;
+  /**
+   * GEOL field used as the unit key when sampling each borehole. Defaults to
+   * the historical waterfall: `GEOL_GEOL` → `GEOL_LEG` → `GEOL_DESC`. Pass an
+   * explicit field name (e.g. `'GEOL_STAT'`, `'GEOL_BGS'`) to override.
+   */
+  unitKeyField?: string | undefined;
+}
+
+/**
+ * Enumerate GEOL columns that look usable as the unit-key for ground-model
+ * inference. Returns column names that appear in the file and have at least
+ * one non-empty value across the supplied LOCA_IDs (or all rows if `locaIds`
+ * is empty/undefined).
+ */
+export function availableUnitKeyFields(
+  file: AgsFile,
+  locaIds?: ReadonlyArray<string>,
+): string[] {
+  const geol = file.groups['GEOL'];
+  if (!geol) return [];
+  const idSet = locaIds && locaIds.length > 0 ? new Set(locaIds) : null;
+  const candidates = [
+    'GEOL_GEOL',
+    'GEOL_LEG',
+    'GEOL_DESC',
+    'GEOL_STAT',
+    'GEOL_BGS',
+    'GEOL_REM',
+  ];
+  const present = new Set(geol.headings.map((h) => h.name));
+  const out: string[] = [];
+  for (const c of candidates) {
+    if (!present.has(c)) continue;
+    const hasValue = geol.rows.some((row) => {
+      if (idSet) {
+        const id = String(row['LOCA_ID'] ?? '').trim();
+        if (!idSet.has(id)) return false;
+      }
+      const v = row[c];
+      return v !== undefined && v !== null && String(v).trim() !== '';
+    });
+    if (hasValue) out.push(c);
+  }
+  return out;
 }
 
 interface BoreholeStack {
@@ -80,6 +124,7 @@ export function representativeGroundModel(
 ): RepresentativeGroundModel {
   const sampleStep = Math.max(0.05, opts.sampleStep ?? 0.25);
   const minSupport = Math.max(0, Math.min(1, opts.minSupport ?? 0));
+  const unitKeyField = opts.unitKeyField;
 
   const idSet = new Set(locaIds);
   const stacks: BoreholeStack[] = [];
@@ -90,7 +135,7 @@ export function representativeGroundModel(
     const top = numericValue(row['GEOL_TOP']);
     const base = numericValue(row['GEOL_BASE']);
     if (top === null || base === null || base <= top) continue;
-    const key = canonicalUnitKey(row);
+    const key = canonicalUnitKey(row, unitKeyField);
     if (!key) continue;
     const desc = stringValue(row['GEOL_DESC']) ?? '';
 
@@ -202,7 +247,16 @@ function finalizeLayer(c: { top: number; base: number; key: string; desc: string
   };
 }
 
-function canonicalUnitKey(row: AgsRow): string {
+function canonicalUnitKey(row: AgsRow, field?: string): string {
+  if (field) {
+    const v = row[field];
+    if (v !== null && v !== undefined) {
+      const s = String(v).trim();
+      if (s) return s.toUpperCase().slice(0, 32);
+    }
+    // Fall through to the default waterfall if the requested field is empty
+    // on this row — better to produce a layer than skip it silently.
+  }
   const candidates = [row['GEOL_GEOL'], row['GEOL_LEG'], row['GEOL_DESC']];
   for (const c of candidates) {
     if (c === null || c === undefined) continue;

@@ -12,18 +12,23 @@ import * as OPlot from '@observablehq/plot';
 import type { AgsFile } from '../core.js';
 import {
   CHANNELS,
+  buildLayerInputs,
+  correlationsForParameter,
   describe as describeStats,
   extractChannel,
+  runCorrelations,
   samplesInRange,
 } from '@geoflow/ground-model';
 import type {
   ChannelKey,
   ChannelMeta,
+  CorrelationResult,
   GroundModel,
   Layer,
   ParameterValue,
   Sample,
   SampleStats,
+  UserDensityEntry,
 } from '@geoflow/ground-model';
 
 interface ParametersStepProps {
@@ -40,6 +45,21 @@ export function ParametersStep({ file, model, onChange, onNext }: ParametersStep
       map.set(meta.key, extractChannel(file, meta.key, model.group.locaIds));
     }
     return map;
+  }, [file, model.group.locaIds]);
+
+  // Mean ground level — needed to convert layer RL → depth for correlations.
+  const meanGL = useMemo(() => {
+    const locaRows = file.groups['LOCA']?.rows ?? [];
+    const idSet = new Set(model.group.locaIds);
+    const gls: number[] = [];
+    for (const r of locaRows) {
+      const id = String(r['LOCA_ID'] ?? '').trim();
+      if (!idSet.has(id)) continue;
+      const gl = Number(r['LOCA_GL']);
+      if (Number.isFinite(gl)) gls.push(gl);
+    }
+    if (gls.length === 0) return 0;
+    return gls.reduce((a, x) => a + x, 0) / gls.length;
   }, [file, model.group.locaIds]);
 
   const [activeLayer, setActiveLayer] = useState<string | null>(model.layers[0]?.id ?? null);
@@ -63,6 +83,70 @@ export function ParametersStep({ file, model, onChange, onNext }: ParametersStep
     });
     void onChange({ ...model, layers });
   };
+
+  const updateUserDensities = (next: UserDensityEntry[]) => {
+    void onChange({ ...model, userDensities: next });
+  };
+
+  // Bundle channel samples filtered to the active layer's RL window so we
+  // can compute correlations and surface them next to each parameter.
+  const layerSamples = useMemo(() => {
+    const inRange = (key: ChannelKey) => samplesInRange(allChannels.get(key) ?? [], layer.topRL, layer.baseRL);
+    return {
+      spt: inRange('spt_n'),
+      mc: inRange('mc'),
+      ll: inRange('ll'),
+      pl: inRange('pl'),
+      pi: inRange('pi'),
+      bulkDensity: inRange('bulk_density'),
+      dryDensity: inRange('dry_density'),
+      cu: inRange('cu'),
+    };
+  }, [allChannels, layer.topRL, layer.baseRL]);
+
+  // Fold user-entered density measurements that fall inside the layer into
+  // the bulk density bundle so correlations pick them up.
+  const userDensitiesInLayer = useMemo(() => {
+    const list = model.userDensities ?? [];
+    return list.filter((d) => d.rl <= Math.max(layer.topRL, layer.baseRL) && d.rl >= Math.min(layer.topRL, layer.baseRL));
+  }, [model.userDensities, layer.topRL, layer.baseRL]);
+
+  const correlations = useMemo<CorrelationResult[]>(() => {
+    const family: 'granular' | 'cohesive' | 'unknown' = inferFamilyFromUnit(layer.unitKey, layer.description);
+    // Fold user density entries into the bulkDensity / dryDensity arrays so
+    // the inputs builder considers them.
+    const augmentedBulk = [
+      ...layerSamples.bulkDensity,
+      ...userDensitiesInLayer
+        .filter((d) => d.kind === 'bulk')
+        .map((d) => ({ value: d.value, rl: d.rl, depth: 0, ref: { locaId: 'user', group: 'USER', rowIndex: -1 } as Sample['ref'] })),
+    ];
+    const augmentedDry = [
+      ...layerSamples.dryDensity,
+      ...userDensitiesInLayer
+        .filter((d) => d.kind === 'dry')
+        .map((d) => ({ value: d.value, rl: d.rl, depth: 0, ref: { locaId: 'user', group: 'USER', rowIndex: -1 } as Sample['ref'] })),
+    ];
+    const inputs = buildLayerInputs(
+      {
+        spt: layerSamples.spt,
+        mc: layerSamples.mc,
+        ll: layerSamples.ll,
+        pl: layerSamples.pl,
+        pi: layerSamples.pi,
+        bulkDensity: augmentedBulk,
+        dryDensity: augmentedDry,
+        cu: layerSamples.cu,
+      },
+      {
+        topRL: layer.topRL,
+        baseRL: layer.baseRL,
+        meanGL,
+        family,
+      },
+    );
+    return runCorrelations(inputs);
+  }, [layer.topRL, layer.baseRL, layer.unitKey, layer.description, layerSamples, userDensitiesInLayer, meanGL]);
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 16, alignItems: 'flex-start' }}>
@@ -115,6 +199,12 @@ export function ParametersStep({ file, model, onChange, onNext }: ParametersStep
           </div>
         </Card>
 
+        <UserDensitiesCard
+          layer={layer}
+          entries={model.userDensities ?? []}
+          onChange={updateUserDensities}
+        />
+
         {layer.parameters.map((param) => {
           // Channels whose `parameterHint` matches this parameter come first;
           // every other channel is still selectable so the user has the full
@@ -122,6 +212,7 @@ export function ParametersStep({ file, model, onChange, onNext }: ParametersStep
           const relevant = CHANNELS.filter((c) => c.parameterHint === param.key);
           const others = CHANNELS.filter((c) => c.parameterHint !== param.key);
           const channels = [...relevant, ...others];
+          const paramCorrs = correlationsForParameter(correlations, param.key);
           return (
             <ParameterCard
               key={param.key}
@@ -129,6 +220,7 @@ export function ParametersStep({ file, model, onChange, onNext }: ParametersStep
               param={param}
               channels={channels}
               allSamples={allChannels}
+              correlations={paramCorrs}
               onChange={(patch) => updateParam(param.key, patch)}
             />
           );
@@ -152,10 +244,11 @@ interface ParameterCardProps {
   param: ParameterValue;
   channels: ReadonlyArray<ChannelMeta>;
   allSamples: Map<ChannelKey, Sample[]>;
+  correlations: ReadonlyArray<CorrelationResult>;
   onChange: (patch: Partial<ParameterValue>) => void;
 }
 
-function ParameterCard({ layer, param, channels, allSamples, onChange }: ParameterCardProps) {
+function ParameterCard({ layer, param, channels, allSamples, correlations, onChange }: ParameterCardProps) {
   // Default to the first relevant channel
   const [activeChannel, setActiveChannel] = useState<ChannelKey>(channels[0]?.key ?? CHANNELS[0]!.key);
   const samples = allSamples.get(activeChannel) ?? [];
@@ -211,9 +304,268 @@ function ParameterCard({ layer, param, channels, allSamples, onChange }: Paramet
           }} attached={param.evidenceRefs.length} />
         </div>
       </div>
+      {correlations.length > 0 && (
+        <div style={{
+          borderTop: '1px solid var(--border)',
+          padding: 14, background: 'var(--surface-muted)',
+        }}>
+          <CorrelationsList correlations={correlations} onApply={(v) => onChange({ value: v })} />
+        </div>
+      )}
     </div>
   );
 }
+
+function CorrelationsList({ correlations, onApply }: {
+  correlations: ReadonlyArray<CorrelationResult>;
+  onApply: (value: number) => void;
+}) {
+  return (
+    <div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 8,
+      }}>
+        <span style={{
+          fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+          letterSpacing: '0.5px', color: 'var(--muted)',
+        }}>
+          Correlations ({correlations.length})
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+          click → adopt as chosen value
+        </span>
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr>
+            <th style={corrTh}>Correlation</th>
+            <th style={corrTh}>Source</th>
+            <th style={{ ...corrTh, textAlign: 'right' }}>Min</th>
+            <th style={{ ...corrTh, textAlign: 'right' }}>Estimate</th>
+            <th style={{ ...corrTh, textAlign: 'right' }}>Max</th>
+            <th style={corrTh}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {correlations.map((c, i) => {
+            const inputSummary = Object.entries(c.inputs)
+              .filter(([, v]) => Number.isFinite(v) && v !== -1)
+              .map(([k, v]) => `${k}=${Math.abs(v) < 0.01 ? v.toExponential(2) : Number(v).toPrecision(3)}`)
+              .join(', ');
+            return (
+              <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={corrTd} title={c.caveat || inputSummary}>
+                  <span style={{ fontWeight: 600 }}>{c.label}</span>
+                  <span style={{ color: 'var(--muted)', marginLeft: 6, fontSize: 11 }}>({c.units})</span>
+                  {c.caveat && (
+                    <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic', marginTop: 2 }}>
+                      {c.caveat}
+                    </div>
+                  )}
+                  {inputSummary && (
+                    <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'monospace', marginTop: 1 }}>
+                      {inputSummary}
+                    </div>
+                  )}
+                </td>
+                <td style={{ ...corrTd, fontSize: 11, color: 'var(--muted)' }}>{c.source}</td>
+                <td style={{ ...corrTd, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMaybe(c.min)}</td>
+                <td style={{ ...corrTd, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmtMaybe(c.representative)}</td>
+                <td style={{ ...corrTd, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMaybe(c.max)}</td>
+                <td style={corrTd}>
+                  {c.representative !== undefined && (
+                    <button
+                      onClick={() => onApply(c.representative!)}
+                      style={{
+                        padding: '2px 8px', fontSize: 11, fontWeight: 600,
+                        background: 'transparent', color: 'var(--accent)',
+                        border: '1px solid var(--accent-border)', borderRadius: 4, cursor: 'pointer',
+                      }}
+                    >use</button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function fmtMaybe(v: number | undefined): string {
+  if (v === undefined || !Number.isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  if (abs > 0 && (abs < 0.01 || abs >= 1e6)) return v.toExponential(2);
+  return v.toFixed(abs < 10 ? 2 : 1);
+}
+
+const corrTh: React.CSSProperties = {
+  padding: '5px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700,
+  textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--muted)',
+  borderBottom: '1px solid var(--border)',
+};
+const corrTd: React.CSSProperties = {
+  padding: '5px 8px', borderBottom: '1px solid var(--border)',
+  verticalAlign: 'top',
+};
+
+function inferFamilyFromUnit(unitKey: string, desc: string): 'granular' | 'cohesive' | 'unknown' {
+  const blob = `${unitKey} ${desc}`.toLowerCase();
+  if (/clay|silt|peat|organic|ml|mh|ch|cl|lc|ck/.test(blob)) return 'cohesive';
+  if (/sand|gravel|cobble|boulder|sa|sp|sw|gp|gr|gw|rx|rock/.test(blob)) return 'granular';
+  return 'unknown';
+}
+
+// ── User-entered density values ─────────────────────────────────────────────
+
+interface UserDensitiesCardProps {
+  layer: Layer;
+  entries: ReadonlyArray<UserDensityEntry>;
+  onChange: (next: UserDensityEntry[]) => void;
+}
+
+function UserDensitiesCard({ layer, entries, onChange }: UserDensitiesCardProps) {
+  const top = Math.max(layer.topRL, layer.baseRL);
+  const base = Math.min(layer.topRL, layer.baseRL);
+  const inLayer = entries.filter((e) => e.rl <= top && e.rl >= base);
+
+  const update = (id: string, patch: Partial<UserDensityEntry>) => {
+    onChange(entries.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  };
+  const remove = (id: string) => {
+    onChange(entries.filter((e) => e.id !== id));
+  };
+  const add = () => {
+    const mid = (top + base) / 2;
+    onChange([
+      ...entries,
+      {
+        id: crypto.randomUUID(),
+        rl: Number(mid.toFixed(2)),
+        value: 1.9,
+        kind: 'bulk',
+        units: 'Mg/m³',
+        note: '',
+      },
+    ]);
+  };
+
+  return (
+    <div style={{
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: 'var(--radius)', overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '10px 14px', borderBottom: '1px solid var(--border)',
+        background: 'var(--surface-muted)', display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          Densities — engineer input
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          ({inLayer.length} in this layer · {entries.length} total)
+        </span>
+        <button
+          onClick={add}
+          style={{
+            marginLeft: 'auto',
+            padding: '4px 10px', fontSize: 11, fontWeight: 600,
+            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer',
+          }}
+        >+ Add density</button>
+      </div>
+      <div style={{ padding: 14 }}>
+        {entries.length === 0 ? (
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0, lineHeight: 1.55 }}>
+            Add density measurements when the AGS file is missing RDEN rows,
+            or to override a single dubious lab value. Entries feed into γ
+            correlations alongside any RDEN samples.
+          </p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={corrTh}>RL (mAOD)</th>
+                <th style={corrTh}>Kind</th>
+                <th style={{ ...corrTh, textAlign: 'right' }}>Value (Mg/m³)</th>
+                <th style={corrTh}>Source / note</th>
+                <th style={corrTh}>In layer?</th>
+                <th style={corrTh}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => {
+                const within = e.rl <= top && e.rl >= base;
+                return (
+                  <tr key={e.id} style={{ background: within ? 'var(--accent-soft)' : 'transparent' }}>
+                    <td style={corrTd}>
+                      <input
+                        type="number" step={0.1}
+                        value={e.rl}
+                        onChange={(ev) => update(e.id, { rl: Number(ev.target.value) })}
+                        style={{ ...densityInput, width: 80 }}
+                      />
+                    </td>
+                    <td style={corrTd}>
+                      <select
+                        value={e.kind}
+                        onChange={(ev) => update(e.id, { kind: ev.target.value as 'bulk' | 'dry' })}
+                        style={{ ...densityInput, width: 80 }}
+                      >
+                        <option value="bulk">bulk</option>
+                        <option value="dry">dry</option>
+                      </select>
+                    </td>
+                    <td style={{ ...corrTd, textAlign: 'right' }}>
+                      <input
+                        type="number" step={0.05}
+                        value={e.value}
+                        onChange={(ev) => update(e.id, { value: Number(ev.target.value) })}
+                        style={{ ...densityInput, width: 90, textAlign: 'right' }}
+                      />
+                    </td>
+                    <td style={corrTd}>
+                      <input
+                        type="text"
+                        placeholder="e.g. Lab core 3, 2024-08"
+                        value={e.note}
+                        onChange={(ev) => update(e.id, { note: ev.target.value })}
+                        style={{ ...densityInput, width: '100%' }}
+                      />
+                    </td>
+                    <td style={corrTd}>
+                      {within
+                        ? <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent)' }}>yes</span>
+                        : <span style={{ fontSize: 10, color: 'var(--muted)' }}>no</span>}
+                    </td>
+                    <td style={corrTd}>
+                      <button
+                        onClick={() => remove(e.id)}
+                        style={{
+                          padding: '2px 6px', fontSize: 11, fontWeight: 600,
+                          background: 'transparent', color: 'var(--muted)',
+                          border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer',
+                        }}
+                      >✕</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const densityInput: React.CSSProperties = {
+  padding: '4px 8px', fontSize: 12, color: 'var(--text)',
+  background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 4,
+  outline: 'none',
+};
 
 function StatsTable({ stats, units }: { stats: SampleStats; units: string }) {
   const rows: Array<[string, string]> = [

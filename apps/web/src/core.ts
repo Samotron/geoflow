@@ -54,6 +54,7 @@ export {
   correlateIspt,
   locationsToGeoJson,
   representativeGroundModel,
+  availableUnitKeyFields,
 } from '@geoflow/core';
 
 export type {

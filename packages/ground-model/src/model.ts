@@ -106,6 +106,26 @@ export interface GroundModelGroup {
   centroid?: { east: number; north: number } | undefined;
 }
 
+/**
+ * A user-supplied density measurement. Lets the engineer drop bulk/dry
+ * density values onto the column even when the AGS file has no RDEN group
+ * (or to override a single dubious lab measurement with field judgement).
+ */
+export interface UserDensityEntry {
+  /** Stable id (React key). */
+  id: string;
+  /** Reduced level (mAOD) at which the value applies. */
+  rl: number;
+  /** Density value. */
+  value: number;
+  /** Which density quantity this is. */
+  kind: 'bulk' | 'dry';
+  /** Units; only Mg/m³ supported today, but stored for forward-compat. */
+  units: 'Mg/m³';
+  /** Optional free-text source / note. */
+  note: string;
+}
+
 export interface GroundModel {
   /** Stable id (used as IndexedDB primary key and AGSi modelInstance id). */
   id: string;
@@ -119,6 +139,17 @@ export interface GroundModel {
   layers: Layer[];
   /** Sample step (m) used when running the GEOL skeleton. */
   sampleStep: number;
+  /**
+   * GEOL column used to seed the layer skeleton (e.g. `'GEOL_GEOL'`,
+   * `'GEOL_LEG'`, `'GEOL_STAT'`, `'GEOL_BGS'`). Undefined = use the default
+   * waterfall in `representativeGroundModel`.
+   */
+  unitKeyField?: string | undefined;
+  /**
+   * Engineer-entered density measurements that should be considered alongside
+   * AGS RDEN rows when picking γ values. Empty / missing = none.
+   */
+  userDensities?: UserDensityEntry[] | undefined;
   createdAt: number;
   updatedAt: number;
 }

@@ -41,8 +41,39 @@ function colorForUnit(unitKey: string): string {
 }
 
 export interface BuildSkeletonOptions {
-  sampleStep?: number;
-  minSupport?: number;
+  sampleStep?: number | undefined;
+  minSupport?: number | undefined;
+  /**
+   * GEOL column whose value is used as the unit key. Passed through to
+   * `representativeGroundModel`. Default = its waterfall (GEOL_GEOL →
+   * GEOL_LEG → GEOL_DESC).
+   */
+  unitKeyField?: string | undefined;
+}
+
+/** One unit transition observed in a single borehole, in RL. */
+export interface BoreholeContact {
+  /** Reduced level (mAOD) of the contact (top of the lower unit). */
+  rl: number;
+  /** Depth below ground level (m). */
+  depth: number;
+  /** Unit key of the layer above the contact (empty for the top of hole). */
+  unitAbove: string;
+  /** Unit key of the layer below the contact. */
+  unitBelow: string;
+}
+
+/** Every contact recorded for a single borehole, ordered top → base. */
+export interface PerBoreholeContacts {
+  locaId: string;
+  /** LOCA_GL (mAOD), if known — informational. */
+  groundLevel?: number | undefined;
+  /** Top-of-hole RL (= GL). */
+  topRL?: number | undefined;
+  /** Base-of-hole RL (deepest GEOL_BASE), if any. */
+  baseRL?: number | undefined;
+  /** Contact list (skips top-of-hole and base-of-hole). */
+  contacts: BoreholeContact[];
 }
 
 export interface SkeletonResult {
@@ -52,6 +83,12 @@ export interface SkeletonResult {
   layers: Layer[];
   /** Boundary candidates from every signal source. */
   boundaries: BoundarySuggestion[];
+  /**
+   * Every interpreted contact, grouped by borehole. Surfaced in the Layers
+   * step so the user can compare the consolidated model against the
+   * underlying borehole interpretations.
+   */
+  perBoreholeContacts: PerBoreholeContacts[];
 }
 
 /**
@@ -73,6 +110,7 @@ export function buildSkeleton(
   const rep = representativeGroundModel(file, [...locaIds], {
     sampleStep,
     minSupport: opts.minSupport ?? 0,
+    unitKeyField: opts.unitKeyField,
   });
 
   const layers: Layer[] = rep.layers.map((l, i) => ({
@@ -88,19 +126,70 @@ export function buildSkeleton(
 
   const boundaries: BoundarySuggestion[] = [];
 
-  // GEOL boundaries: every distinct top from each borehole.
-  const seenGeolRL = new Set<number>();
+  // Per-borehole layer stacks (sorted top → base by depth).
+  interface RawLayer { top: number; base: number; unit: string; desc: string; }
+  const perBh = new Map<string, RawLayer[]>();
   for (const row of file.groups['GEOL']?.rows ?? []) {
     const id = String(row['LOCA_ID'] ?? '').trim();
     if (!id || !locaIds.includes(id)) continue;
+    const top = Number(row['GEOL_TOP']);
+    const base = Number(row['GEOL_BASE']);
+    if (!Number.isFinite(top) || !Number.isFinite(base)) continue;
+    const unit = pickUnitKey(row, opts.unitKeyField);
+    if (!unit) continue;
+    const desc = String(row['GEOL_DESC'] ?? '').trim();
+    const arr = perBh.get(id) ?? [];
+    arr.push({ top, base, unit, desc });
+    perBh.set(id, arr);
+  }
+
+  // GEOL boundary candidates: every distinct top RL from any borehole.
+  const seenGeolRL = new Set<number>();
+  for (const [id, stack] of perBh) {
     const gl = gls.get(id);
     if (gl == null) continue;
-    const top = Number(row['GEOL_TOP']);
-    if (!Number.isFinite(top)) continue;
-    const rl = round(gl - top, 2);
-    if (seenGeolRL.has(rl)) continue;
-    seenGeolRL.add(rl);
-    boundaries.push({ rl, source: 'GEOL', confidence: 0.8, note: 'GEOL contact' });
+    for (const l of stack) {
+      const rl = round(gl - l.top, 2);
+      if (seenGeolRL.has(rl)) continue;
+      seenGeolRL.add(rl);
+      boundaries.push({ rl, source: 'GEOL', confidence: 0.8, note: 'GEOL contact' });
+    }
+  }
+
+  // Build per-borehole contact lists in RL.
+  const perBoreholeContacts: PerBoreholeContacts[] = [];
+  for (const id of locaIds) {
+    const stack = perBh.get(id);
+    if (!stack || stack.length === 0) continue;
+    stack.sort((a, b) => a.top - b.top);
+    const gl = gls.get(id);
+    const toRL = (depth: number): number =>
+      gl == null ? -depth : round(gl - depth, 2);
+    const contacts: BoreholeContact[] = [];
+    for (let i = 0; i < stack.length - 1; i++) {
+      const a = stack[i]!;
+      const b = stack[i + 1]!;
+      // Only emit when the unit actually changes; a flat-key "split" is noise.
+      if (a.unit === b.unit) continue;
+      // Use the upper layer's base as the contact (depth-wise) — typically
+      // matches the lower layer's top, but be defensive.
+      const contactDepth = a.base;
+      contacts.push({
+        rl: toRL(contactDepth),
+        depth: round(contactDepth, 2),
+        unitAbove: a.unit,
+        unitBelow: b.unit,
+      });
+    }
+    perBoreholeContacts.push({
+      locaId: id,
+      groundLevel: gl ?? undefined,
+      topRL: gl != null ? round(gl, 2) : undefined,
+      baseRL: gl != null && stack.length > 0
+        ? round(gl - stack[stack.length - 1]!.base, 2)
+        : undefined,
+      contacts,
+    });
   }
 
   // ISPT change-points: simple sliding-window mean-shift detector.
@@ -137,7 +226,29 @@ export function buildSkeleton(
     }
   }
 
-  return { meanGL: round(meanGL, 2), layers, boundaries };
+  return { meanGL: round(meanGL, 2), layers, boundaries, perBoreholeContacts };
+}
+
+/**
+ * Resolve a GEOL row to its unit key. Mirrors the waterfall used inside
+ * `representativeGroundModel.canonicalUnitKey`, but exposed locally so the
+ * skeleton can derive per-borehole contacts without re-querying core.
+ */
+function pickUnitKey(row: Record<string, unknown>, field?: string): string {
+  if (field) {
+    const v = row[field];
+    if (v !== null && v !== undefined) {
+      const s = String(v).trim();
+      if (s) return s.toUpperCase().slice(0, 32);
+    }
+  }
+  for (const c of ['GEOL_GEOL', 'GEOL_LEG', 'GEOL_DESC']) {
+    const v = row[c];
+    if (v === null || v === undefined) continue;
+    const s = String(v).trim();
+    if (s) return s.toUpperCase().slice(0, 32);
+  }
+  return '';
 }
 
 function parseSptN(raw: string): number | null {
