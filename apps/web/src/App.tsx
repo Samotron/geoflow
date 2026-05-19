@@ -20,6 +20,7 @@ import { SectionTab } from './tabs/SectionTab.js';
 import { CptTab } from './tabs/CptTab.js';
 import { CorrelationsTab } from './tabs/CorrelationsTab.js';
 import { TransformTab } from './tabs/TransformTab.js';
+import { GroundModelMode } from './ground-model/GroundModelMode.js';
 import { ProjectManager } from './components/ProjectManager.js';
 import { ConflictResolver } from './components/ConflictResolver.js';
 import { DisclaimerBanner, DisclaimerModal } from './components/Disclaimer.js';
@@ -708,9 +709,26 @@ function Sidebar(props: SidebarProps) {
 // ── App ──────────────────────────────────────────────────────────────────────
 
 const SIDEBAR_STATE_KEY = 'geoflow:sidebar-collapsed';
+const MODE_STATE_KEY = 'geoflow:mode';
+
+export type AppMode = 'data' | 'ground-models';
+
+function initialMode(): AppMode {
+  try {
+    const m = localStorage.getItem(MODE_STATE_KEY);
+    return m === 'ground-models' ? 'ground-models' : 'data';
+  } catch {
+    return 'data';
+  }
+}
 
 export default function App() {
   const [tab, setTab] = useState<TabId>(hashTab);
+  const [mode, setModeState] = useState<AppMode>(initialMode);
+  const setMode = useCallback((m: AppMode) => {
+    setModeState(m);
+    try { localStorage.setItem(MODE_STATE_KEY, m); } catch { /* ignore */ }
+  }, []);
 
   // ── No-project state: naive multi-file merge ──────────────────────────────
   const [loadedFiles, setLoadedFiles] = useState<LoadedFile[]>([]);
@@ -1000,6 +1018,8 @@ export default function App() {
             )}
           </div>
 
+          <ModeToggle mode={mode} onChange={setMode} />
+
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
               onClick={() => setShowProjectManager(true)}
@@ -1023,20 +1043,33 @@ export default function App() {
         </header>
 
         {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={toggleSidebar}
-          tab={tab}
-          onTab={switchTab}
-          hasFile={hasFile}
-          loadedFiles={loadedFiles}
-          currentProject={currentProject}
-          headCommit={headCommit}
-          onFile={(n, b) => { void onFile(n, b); }}
-          onAddFile={(n, b) => { void onAddFile(n, b); }}
-          onRemoveFile={onRemoveFile}
-          onClearSession={onClearSession}
-        />
+        {mode === 'data' && (
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={toggleSidebar}
+            tab={tab}
+            onTab={switchTab}
+            hasFile={hasFile}
+            loadedFiles={loadedFiles}
+            currentProject={currentProject}
+            headCommit={headCommit}
+            onFile={(n, b) => { void onFile(n, b); }}
+            onAddFile={(n, b) => { void onAddFile(n, b); }}
+            onRemoveFile={onRemoveFile}
+            onClearSession={onClearSession}
+          />
+        )}
+        {mode === 'ground-models' && (
+          <GroundModelSidebar
+            currentProject={currentProject}
+            headCommit={headCommit}
+            loadedFiles={loadedFiles}
+            onFile={(n, b) => { void onFile(n, b); }}
+            onAddFile={(n, b) => { void onAddFile(n, b); }}
+            onRemoveFile={onRemoveFile}
+            onClearSession={onClearSession}
+          />
+        )}
 
         {/* ── Main content ─────────────────────────────────────────────────── */}
         <main
@@ -1047,7 +1080,15 @@ export default function App() {
             position: 'relative',
           }}
         >
-          {(!hasFile && TABS_NEED_FILE.has(tab)) ? welcomePane : (
+          {mode === 'ground-models' ? (
+            <div style={{ padding: '20px 24px 32px' }}>
+              <GroundModelMode
+                fileBytes={fileBytes}
+                fileName={fileName}
+                projectId={currentProject?.id ?? null}
+              />
+            </div>
+          ) : (!hasFile && TABS_NEED_FILE.has(tab)) ? welcomePane : (
             <div style={{ padding: '20px 24px 32px' }}>
               {tab === 'inspect' && <InspectTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
@@ -1162,6 +1203,148 @@ export default function App() {
         <DisclaimerModal onClose={() => setShowDisclaimer(false)} />
       )}
     </>
+  );
+}
+
+// ── Mode toggle (segmented control in header) ────────────────────────────────
+
+function ModeToggle({ mode, onChange }: { mode: AppMode; onChange: (m: AppMode) => void }) {
+  const opts: Array<{ id: AppMode; label: string; icon: ReactNode }> = [
+    { id: 'data',          label: 'Data',          icon: <Icon d="M3 5h18M3 12h18M3 19h18" size={14} /> },
+    { id: 'ground-models', label: 'Ground Models', icon: <Icon d="M3 7l9-4 9 4 M3 12l9 4 9-4 M3 17l9 4 9-4" size={14} /> },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="Mode"
+      style={{
+        display: 'inline-flex',
+        padding: 3,
+        gap: 2,
+        marginLeft: 10,
+        background: 'rgba(255,255,255,0.08)',
+        border: '1px solid rgba(255,255,255,0.14)',
+        borderRadius: 8,
+      }}
+    >
+      {opts.map((o) => {
+        const isActive = o.id === mode;
+        return (
+          <button
+            key={o.id}
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(o.id)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '4px 11px', fontSize: 12, fontWeight: 600,
+              background: isActive ? '#ffffff' : 'transparent',
+              color: isActive ? 'var(--navy)' : '#e2e6ee',
+              border: 'none', borderRadius: 6, cursor: 'pointer',
+              transition: 'background .15s, color .15s',
+            }}
+          >
+            {o.icon}
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Minimal sidebar for Ground Models mode ──────────────────────────────────
+// Keeps the file/project block so users can swap data without leaving the
+// mode, but drops the per-tab nav — Ground Models has its own internal
+// step navigation.
+
+interface GroundModelSidebarProps {
+  loadedFiles: LoadedFile[];
+  currentProject: Project | null;
+  headCommit: Commit | null;
+  onFile: (name: string, bytes: Uint8Array) => void;
+  onAddFile: (name: string, bytes: Uint8Array) => void;
+  onRemoveFile: (index: number) => void;
+  onClearSession: () => void;
+}
+
+function GroundModelSidebar(props: GroundModelSidebarProps) {
+  const { loadedFiles, currentProject, headCommit, onFile, onAddFile, onRemoveFile, onClearSession } = props;
+  const hasFile = loadedFiles.length > 0 || currentProject !== null;
+  return (
+    <aside
+      style={{
+        gridArea: 'sidebar',
+        background: 'var(--sidebar)',
+        borderRight: '1px solid var(--border)',
+        display: 'flex',
+        flexDirection: 'column',
+        width: 'var(--sidebar-w)',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ padding: 12, borderBottom: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--sidebar-muted)', marginBottom: 8, paddingLeft: 4 }}>
+          {currentProject ? 'Project' : 'Source'}
+        </div>
+        {currentProject && (
+          <div style={{
+            padding: '8px 10px', marginBottom: 8, background: 'var(--surface-muted)',
+            borderRadius: 6, border: '1px solid var(--border)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13, color: 'var(--navy)' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentProject.name}</span>
+            </div>
+            {headCommit && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, fontFamily: 'monospace' }}>
+                HEAD · {headCommit.id.slice(0, 7)}
+              </div>
+            )}
+          </div>
+        )}
+        {hasFile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {loadedFiles.map((f, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 8px', background: 'var(--surface-muted)',
+                  border: '1px solid var(--border)', borderRadius: 6, fontSize: 12,
+                }}
+              >
+                <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }} title={f.name}>{f.name}</span>
+                {loadedFiles.length > 1 && (
+                  <button
+                    onClick={() => onRemoveFile(i)}
+                    title="Remove"
+                    style={{ padding: '1px 6px', fontSize: 11, background: 'transparent', color: 'var(--muted)', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+                  >✕</button>
+                )}
+              </div>
+            ))}
+            <DropZone onFile={onAddFile} label="+ Add another" compact />
+            {!currentProject && (
+              <button
+                onClick={onClearSession}
+                style={{
+                  marginTop: 2, padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                  background: 'transparent', color: 'var(--muted)',
+                  border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
+                }}
+              >Clear session</button>
+            )}
+          </div>
+        ) : (
+          <DropZone onFile={onFile} compact />
+        )}
+      </div>
+      <div style={{ padding: 16, color: 'var(--muted)', fontSize: 12, lineHeight: 1.55 }}>
+        Ground model mode reads from the file loaded above. Switch back to
+        <strong style={{ color: 'var(--text)' }}> Data </strong>
+        mode to inspect, edit, or transform the source data.
+      </div>
+    </aside>
   );
 }
 

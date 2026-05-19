@@ -9,6 +9,7 @@
     "noEmit": true,
     "paths": {
       "@geoflow/core": ["../../packages/core/src/index.ts"],
+      "@geoflow/ground-model": ["../../packages/ground-model/src/index.ts"],
       "@geoflow/rules-engine": ["../../packages/rules-engine/src/index.ts"],
       "@geoflow/transform": ["../../packages/transform/src/index.ts"]
     }

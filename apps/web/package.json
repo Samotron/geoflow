@@ -12,6 +12,7 @@
     "@duckdb/duckdb-wasm": "1.33.1-dev45.0",
     "@observablehq/plot": "^0.6.16",
     "@geoflow/core": "workspace:*",
+    "@geoflow/ground-model": "workspace:*",
     "@geoflow/rules-engine": "workspace:*",
     "@geoflow/transform": "workspace:*",
     "@monaco-editor/react": "^4.7.0",

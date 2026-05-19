@@ -53,6 +53,9 @@ importers:
       '@geoflow/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@geoflow/ground-model':
+        specifier: workspace:*
+        version: link:../../packages/ground-model
       '@geoflow/rules-engine':
         specifier: workspace:*
         version: link:../../packages/rules-engine
@@ -182,6 +185,12 @@ importers:
       better-sqlite3:
         specifier: ^11.3.0
         version: 11.10.0
+
+  packages/ground-model:
+    dependencies:
+      '@geoflow/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/rules:
     dependencies:

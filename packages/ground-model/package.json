@@ -1,0 +1,25 @@
+{
+  "name": "@geoflow/ground-model",
+  "version": "0.1.0",
+  "description": "GeoFlow ground-model package — 1D layered models derived from grouped boreholes, with AGSi-aligned JSON export",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/samotron/geoflow" },
+  "publishConfig": { "access": "public" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@geoflow/core": "workspace:*"
+  }
+}
