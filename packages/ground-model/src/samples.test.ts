@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { parseStr } from '@geoflow/core';
 import { buildSkeleton } from './skeleton.js';
 import { extractChannel, samplesInRange, locaGroundLevels, CHANNELS } from './samples.js';
@@ -14,8 +15,10 @@ import { defaultParameterValues } from './model.js';
 import { toAgsi } from './agsi.js';
 import type { GroundModel } from './model.js';
 
+const HERE = dirname(fileURLToPath(import.meta.url));
+
 function loadFixture(name: string): string {
-  return readFileSync(resolve(__dirname, '../../../tests/fixtures/ags', name), 'utf-8');
+  return readFileSync(resolve(HERE, '../../../tests/fixtures/ags', name), 'utf-8');
 }
 
 describe('end-to-end ground model pipeline', () => {
