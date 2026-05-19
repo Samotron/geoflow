@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseStr } from "./ags/parser.js";
-import { representativeGroundModel } from "./ground-model.js";
+import { availableUnitKeyFields, representativeGroundModel } from "./ground-model.js";
 
 const AGS_3BH = `"GROUP","PROJ"
 "HEADING","PROJ_ID"
@@ -91,6 +91,36 @@ describe("representativeGroundModel", () => {
     const { file } = parseStr(ags);
     const m = representativeGroundModel(file, ["BH01", "BH02"]);
     expect(m.layers[0]?.unitKey).toBe("ALLUVIUM");
+  });
+
+  it("respects unitKeyField when specified", () => {
+    const ags = `"GROUP","PROJ"
+"HEADING","PROJ_ID"
+"UNIT",""
+"TYPE","ID"
+"DATA","P1"
+
+"GROUP","GEOL"
+"HEADING","LOCA_ID","GEOL_TOP","GEOL_BASE","GEOL_GEOL","GEOL_LEG","GEOL_STAT"
+"UNIT","","m","m","","",""
+"TYPE","ID","2DP","2DP","X","PA","X"
+"DATA","BH01","0.00","5.00","ALLUVIUM","AL","HOLOCENE"
+"DATA","BH02","0.00","4.50","ALLUVIUM","AL","HOLOCENE"
+`;
+    const { file } = parseStr(ags);
+    const def = representativeGroundModel(file, ["BH01", "BH02"]);
+    expect(def.layers[0]?.unitKey).toBe("ALLUVIUM");
+    const stat = representativeGroundModel(file, ["BH01", "BH02"], { unitKeyField: "GEOL_STAT" });
+    expect(stat.layers[0]?.unitKey).toBe("HOLOCENE");
+  });
+
+  it("availableUnitKeyFields enumerates non-empty GEOL columns", () => {
+    const { file } = parseStr(AGS_3BH);
+    const fields = availableUnitKeyFields(file);
+    expect(fields).toContain("GEOL_DESC");
+    expect(fields).toContain("GEOL_LEG");
+    // GEOL_GEOL is absent from the fixture and should not be reported
+    expect(fields).not.toContain("GEOL_GEOL");
   });
 
   it("skips layers below minSupport", () => {

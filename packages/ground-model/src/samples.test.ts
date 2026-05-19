@@ -82,4 +82,24 @@ describe('end-to-end ground model pipeline', () => {
     const s = describeStats([]);
     expect(s.count).toBe(0);
   });
+
+  it('skeleton exposes per-borehole contacts derived from GEOL', () => {
+    const text = loadFixture('browser_explorer.ags');
+    const { file } = parseStr(text);
+    const locaIds = (file.groups['LOCA']?.rows ?? [])
+      .map((r) => String(r['LOCA_ID'] ?? '').trim())
+      .filter(Boolean);
+    const skel = buildSkeleton(file, locaIds);
+    expect(Array.isArray(skel.perBoreholeContacts)).toBe(true);
+    // At least one borehole should have at least one contact.
+    const totalContacts = skel.perBoreholeContacts.reduce((a, b) => a + b.contacts.length, 0);
+    expect(totalContacts).toBeGreaterThan(0);
+    // Every contact's RL should be at-or-below ground level.
+    for (const bh of skel.perBoreholeContacts) {
+      if (bh.groundLevel === undefined) continue;
+      for (const c of bh.contacts) {
+        expect(c.rl).toBeLessThanOrEqual(bh.groundLevel + 1e-6);
+      }
+    }
+  });
 });
