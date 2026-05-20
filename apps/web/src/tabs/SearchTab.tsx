@@ -1,18 +1,21 @@
 /**
  * Search tab — full-text find across every cell in every group of the
- * currently loaded AGS file. Click a hit to jump to the Data tab pre-filtered
- * to that group / row.
+ * currently loaded AGS file. Hits can be clicked to jump to the Data tab
+ * focused on that row's group.
  *
- * The match is a plain case-insensitive substring on the cell value AND on
- * the heading name. Supports an optional group filter and exact-match toggle.
+ * Queries can be saved to IndexedDB and reloaded later; saved searches are
+ * project-scoped (or session-scoped when no project is active).
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { parseStr, decodeBytes } from '../core.js';
 import type { AgsFile } from '../core.js';
+import type { StoredSearch } from '../storage/types.js';
+import { getSavedSearches, saveSavedSearch, deleteSavedSearch } from '../storage/db.js';
 
 interface Props {
   fileBytes: Uint8Array | null;
+  projectId: string | null;
   onJumpToRow?: (group: string, rowIndex: number) => void;
 }
 
@@ -25,8 +28,9 @@ interface Hit {
 }
 
 const MAX_HITS = 500;
+const SESSION_PROJECT_ID = '_session';
 
-export function SearchTab({ fileBytes, onJumpToRow }: Props) {
+export function SearchTab({ fileBytes, projectId, onJumpToRow }: Props) {
   const file = useMemo<AgsFile | null>(() => {
     if (!fileBytes) return null;
     try {
@@ -77,7 +81,6 @@ export function SearchTab({ fileBytes, onJumpToRow }: Props) {
         const locaId = String(row['LOCA_ID'] ?? '');
         cells += headingNames.length;
 
-        // 1. heading matches: emit one hit per match, showing the row's value for that heading.
         for (const h of headingMatches) {
           if (out.length >= MAX_HITS) return { hits: out, truncated: true, totalRows: rows, totalCells: cells };
           out.push({
@@ -88,13 +91,12 @@ export function SearchTab({ fileBytes, onJumpToRow }: Props) {
             locaId,
           });
         }
-        // 2. value matches: emit one hit per matching cell.
         for (const h of headingNames) {
           const v = row[h];
           if (v == null) continue;
           const s = String(v);
           if (!matches(s)) continue;
-          if (headingMatches.includes(h)) continue; // avoid dup
+          if (headingMatches.includes(h)) continue;
           if (out.length >= MAX_HITS) return { hits: out, truncated: true, totalRows: rows, totalCells: cells };
           out.push({ group: groupName, rowIndex: i, heading: h, value: s, locaId });
         }
@@ -102,6 +104,78 @@ export function SearchTab({ fileBytes, onJumpToRow }: Props) {
     }
     return { hits: out, truncated: false, totalRows: rows, totalCells: cells };
   }, [file, query, groupFilter, exact, caseSensitive]);
+
+  // ── Saved searches ──────────────────────────────────────────────────────
+  const scopeId = projectId ?? SESSION_PROJECT_ID;
+  const [saved, setSaved] = useState<StoredSearch[]>([]);
+  const [showSavePanel, setShowSavePanel] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getSavedSearches(scopeId).then((rows) => {
+      if (active) setSaved(rows);
+    }).catch(() => { /* IDB unavailable */ });
+    return () => { active = false; };
+  }, [scopeId]);
+
+  const refresh = async () => {
+    try {
+      const rows = await getSavedSearches(scopeId);
+      setSaved(rows);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSave = async () => {
+    setSaveError(null);
+    if (!saveName.trim()) {
+      setSaveError('Name is required');
+      return;
+    }
+    if (!query.trim()) {
+      setSaveError('Enter a query first');
+      return;
+    }
+    const now = Date.now();
+    const entry: StoredSearch = {
+      id: `${scopeId}-${now}-${Math.random().toString(36).slice(2, 8)}`,
+      projectId: scopeId,
+      name: saveName.trim(),
+      query,
+      groupFilter,
+      exact,
+      caseSensitive,
+      createdAt: now,
+      updatedAt: now,
+    };
+    try {
+      await saveSavedSearch(entry);
+      await refresh();
+      setSaveName('');
+      setShowSavePanel(false);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleLoad = (s: StoredSearch) => {
+    setQuery(s.query);
+    setGroupFilter(s.groupFilter);
+    setExact(s.exact);
+    setCaseSensitive(s.caseSensitive);
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteSavedSearch(id);
+      await refresh();
+    } catch {
+      // ignore
+    }
+  };
 
   if (!fileBytes) {
     return (
@@ -158,19 +232,57 @@ export function SearchTab({ fileBytes, onJumpToRow }: Props) {
           Aa
         </label>
 
+        <button onClick={() => setShowSavePanel((v) => !v)} style={toolbarButton} disabled={query.trim().length === 0}>
+          Save
+        </button>
+
         {query.length > 0 && (
-          <button
-            onClick={() => setQuery('')}
-            style={{
-              padding: '6px 12px', fontSize: 12, fontWeight: 600,
-              background: 'transparent', border: '1px solid var(--border)', borderRadius: 4,
-              color: 'var(--text-dim)',
-            }}
-          >
-            Clear
-          </button>
+          <button onClick={() => setQuery('')} style={toolbarButtonGhost}>Clear</button>
         )}
       </div>
+
+      {/* ── Save panel ─────────────────────────────────────────────────── */}
+      {showSavePanel && (
+        <div style={{
+          background: 'var(--card)', border: '1px solid var(--accent-border)',
+          borderRadius: 'var(--radius)', padding: 12,
+          display: 'flex', gap: 8, alignItems: 'center',
+        }}>
+          <input
+            placeholder="Save current query as…"
+            value={saveName}
+            onChange={(e) => setSaveName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void handleSave(); }}
+            style={{ flex: 1, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }}
+          />
+          <button onClick={() => void handleSave()} style={toolbarButton}>Save query</button>
+          <button onClick={() => { setShowSavePanel(false); setSaveError(null); }} style={toolbarButtonGhost}>Cancel</button>
+          {saveError && <span style={{ color: 'var(--red)', fontSize: 11 }}>{saveError}</span>}
+        </div>
+      )}
+
+      {/* ── Saved searches strip ───────────────────────────────────────── */}
+      {saved.length > 0 && (
+        <div style={{
+          background: 'var(--card)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)', padding: 8,
+          display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3px', color: 'var(--muted)', marginRight: 4 }}>
+            Saved:
+          </span>
+          {saved.map((s) => (
+            <div key={s.id} style={savedChipStyle}>
+              <button onClick={() => handleLoad(s)} title={`${s.query}${s.groupFilter !== '*' ? ` in ${s.groupFilter}` : ''}`} style={{
+                background: 'transparent', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer',
+              }}>
+                {s.name}
+              </button>
+              <button onClick={() => void handleDelete(s.id)} title="Delete" style={chipDeleteStyle}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Status line ────────────────────────────────────────────────── */}
       <div style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -304,4 +416,43 @@ const jumpButtonStyle: React.CSSProperties = {
   color: 'var(--accent)',
   border: '1px solid var(--accent-border)',
   borderRadius: 4,
+};
+const toolbarButton: React.CSSProperties = {
+  padding: '6px 12px',
+  fontSize: 12,
+  fontWeight: 600,
+  background: 'var(--accent-soft)',
+  color: 'var(--accent)',
+  border: '1px solid var(--accent-border)',
+  borderRadius: 4,
+};
+const toolbarButtonGhost: React.CSSProperties = {
+  padding: '6px 12px',
+  fontSize: 12,
+  fontWeight: 600,
+  background: 'transparent',
+  border: '1px solid var(--border)',
+  borderRadius: 4,
+  color: 'var(--text-dim)',
+};
+const savedChipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: '4px 6px 4px 10px',
+  fontSize: 11,
+  fontWeight: 600,
+  background: 'var(--accent-soft)',
+  color: 'var(--accent)',
+  border: '1px solid var(--accent-border)',
+  borderRadius: 16,
+};
+const chipDeleteStyle: React.CSSProperties = {
+  padding: '0 4px',
+  fontSize: 14,
+  lineHeight: 1,
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--muted)',
+  cursor: 'pointer',
 };

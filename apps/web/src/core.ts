@@ -56,6 +56,11 @@ export {
   representativeGroundModel,
   availableUnitKeyFields,
   buildProjectSummary,
+  toAgsi,
+  toAgsiJson,
+  mergeAgsFiles,
+  mergeAgsFilesN,
+  applyConflictResolutions,
 } from '@geoflow/core';
 
 export type {
@@ -146,4 +151,9 @@ export type {
   HoleScheduleEntry,
   UnitSummaryEntry,
   DepthDistribution,
+  AgsiExportDocument,
+  AgsiModelInstance,
+  AgsiGeologicalUnit,
+  MergeResult,
+  MergeConflict,
 } from '@geoflow/core';

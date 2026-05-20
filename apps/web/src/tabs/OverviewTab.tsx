@@ -11,8 +11,9 @@
  */
 
 import { useMemo, useState } from 'react';
-import { buildProjectSummary, parseStr, decodeBytes, assessQuality } from '../core.js';
+import { buildProjectSummary, parseStr, decodeBytes, assessQuality, toAgsiJson } from '../core.js';
 import type { ProjectSummary, AgsFile, QualityReport, HoleScheduleEntry } from '../core.js';
+import { downloadBlob, exportBaseName, exportDatePrefix } from '../export/utils.js';
 
 interface Props {
   fileBytes: Uint8Array | null;
@@ -44,6 +45,14 @@ export function OverviewTab({ fileBytes, fileName }: Props) {
 
   const [sortBy, setSortBy] = useState<ScheduleSort>('id');
   const [showAllUnits, setShowAllUnits] = useState(false);
+
+  const downloadAgsi = () => {
+    if (!parsed.file) return;
+    const json = toAgsiJson(parsed.file);
+    const base = exportBaseName(fileName);
+    const date = exportDatePrefix();
+    downloadBlob(json, `${date}-${base}.agsi.json`, 'application/json');
+  };
 
   if (!fileBytes) {
     return (
@@ -197,11 +206,22 @@ export function OverviewTab({ fileBytes, fileName }: Props) {
       {/* ── Geological unit summary ────────────────────────────────────── */}
       <Card title="Geological units"
         subtitle={`${summary.units.length} unique codes · ranked by total thickness`}
-        right={summary.units.length > 8 ? (
-          <button onClick={() => setShowAllUnits((v) => !v)} style={linkButtonStyle}>
-            {showAllUnits ? 'Show top 8' : `Show all ${summary.units.length}`}
-          </button>
-        ) : null}>
+        right={(
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={downloadAgsi}
+              title="Download an AGSi-aligned JSON document with units + per-borehole layers"
+              style={agsiButtonStyle}
+            >
+              Export AGSi JSON
+            </button>
+            {summary.units.length > 8 && (
+              <button onClick={() => setShowAllUnits((v) => !v)} style={linkButtonStyle}>
+                {showAllUnits ? 'Show top 8' : `Show all ${summary.units.length}`}
+              </button>
+            )}
+          </div>
+        )}>
         {summary.units.length === 0
           ? <div style={{ color: 'var(--muted)', fontSize: 12 }}>No GEOL rows with GEOL_GEOL/GEOL_LEG codes.</div>
           : (
@@ -386,6 +406,15 @@ const linkButtonStyle: React.CSSProperties = {
   fontWeight: 600,
   background: 'transparent',
   border: '1px solid var(--border)',
+  color: 'var(--accent)',
+  borderRadius: 4,
+};
+const agsiButtonStyle: React.CSSProperties = {
+  padding: '4px 10px',
+  fontSize: 11,
+  fontWeight: 600,
+  background: 'var(--accent-soft)',
+  border: '1px solid var(--accent-border)',
   color: 'var(--accent)',
   borderRadius: 4,
 };

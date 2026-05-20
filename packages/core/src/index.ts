@@ -29,3 +29,5 @@ export * from "./geojson.js";
 export * from "./spt.js";
 export * from "./ground-model.js";
 export * from "./summary.js";
+export * from "./merge.js";
+export * from "./agsi-export.js";

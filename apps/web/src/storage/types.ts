@@ -64,3 +64,20 @@ export interface StoredGroundModel {
   createdAt: number;
   updatedAt: number;
 }
+
+/**
+ * A saved query for the Search tab. Project-scoped so different projects
+ * can keep distinct query libraries; when no project is active the
+ * synthetic id `'_session'` is used.
+ */
+export interface StoredSearch {
+  id: string;
+  projectId: string;
+  name: string;
+  query: string;
+  groupFilter: string;
+  exact: boolean;
+  caseSensitive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}

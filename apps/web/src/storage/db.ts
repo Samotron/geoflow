@@ -1,7 +1,7 @@
-import type { Project, Commit, StoredPipeline, StoredGroundModel } from './types.js';
+import type { Project, Commit, StoredPipeline, StoredGroundModel, StoredSearch } from './types.js';
 
 const DB_NAME = 'geoflow';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 // Transparently upgrade commits written by the old schema (agsBytes field)
 // to the new storage union without requiring a DB version bump.
@@ -54,6 +54,13 @@ function openDb(): Promise<IDBDatabase> {
         const gs = db.createObjectStore('ground_models', { keyPath: 'id' });
         gs.createIndex('projectId', 'projectId');
         gs.createIndex('updatedAt', 'updatedAt');
+      }
+
+      // v5: saved searches
+      if (oldVersion < 5) {
+        const ss = db.createObjectStore('saved_searches', { keyPath: 'id' });
+        ss.createIndex('projectId', 'projectId');
+        ss.createIndex('updatedAt', 'updatedAt');
       }
     };
     req.onsuccess = (e) => {
@@ -209,4 +216,28 @@ export async function deleteGroundModel(id: string): Promise<void> {
   const db = await openDb();
   const t = db.transaction('ground_models', 'readwrite');
   await idbDelete(t.objectStore('ground_models'), id);
+}
+
+// ── Saved searches ────────────────────────────────────────────────────────────
+
+export async function getSavedSearches(projectId: string): Promise<StoredSearch[]> {
+  const db = await openDb();
+  const t = db.transaction('saved_searches', 'readonly');
+  const all = await idbGetAll<StoredSearch>(
+    t.objectStore('saved_searches').index('projectId'),
+    IDBKeyRange.only(projectId),
+  );
+  return all.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export async function saveSavedSearch(search: StoredSearch): Promise<void> {
+  const db = await openDb();
+  const t = db.transaction('saved_searches', 'readwrite');
+  await idbPut(t.objectStore('saved_searches'), search);
+}
+
+export async function deleteSavedSearch(id: string): Promise<void> {
+  const db = await openDb();
+  const t = db.transaction('saved_searches', 'readwrite');
+  await idbDelete(t.objectStore('saved_searches'), id);
 }
