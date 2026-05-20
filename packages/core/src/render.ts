@@ -1,5 +1,6 @@
 import { Option } from "effect";
-import { Diagnostic, Severity } from "./diagnostics.js";
+import type { Diagnostic} from "./diagnostics.js";
+import { Severity } from "./diagnostics.js";
 
 export enum Format {
   Text = "text",
@@ -7,6 +8,7 @@ export enum Format {
   Junit = "junit",
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace -- enum companion namespace
 export namespace Format {
   export function parse(value: string): Format | null {
     switch (value) {

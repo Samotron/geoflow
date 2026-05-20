@@ -10,7 +10,7 @@
  *   → GEOL_LEG categorical field (5 entries across 3 boreholes)
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -19,8 +19,6 @@ const FIXTURE   = join(__dirname, '../fixtures/ags/browser_explorer.ags');
 const BASE      = '/geoflow/';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-type Page = import('@playwright/test').Page;
 
 async function uploadFixture(page: Page): Promise<void> {
   await page.setInputFiles('input[type="file"]', FIXTURE);

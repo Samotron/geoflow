@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tokenizeLine, LexErrorCode, AgsRowKind } from "./lexer.js";
+import { tokenizeLine, AgsRowKind, AgsRowKindFunctions } from "./lexer.js";
 
 describe("tokenizeLine", () => {
   it("parses simple row", () => {
@@ -40,11 +40,11 @@ describe("tokenizeLine", () => {
 
 describe("AgsRowKind", () => {
   it("parses kind tags", () => {
-    expect(AgsRowKind.parse("GROUP")).toBe(AgsRowKind.Group);
-    expect(AgsRowKind.parse("HEADING")).toBe(AgsRowKind.Heading);
-    expect(AgsRowKind.parse("UNIT")).toBe(AgsRowKind.Unit);
-    expect(AgsRowKind.parse("TYPE")).toBe(AgsRowKind.Type);
-    expect(AgsRowKind.parse("DATA")).toBe(AgsRowKind.Data);
-    expect(AgsRowKind.parse("WAT")).toBe(AgsRowKind.Unknown);
+    expect(AgsRowKindFunctions.parse("GROUP")).toBe(AgsRowKind.Group);
+    expect(AgsRowKindFunctions.parse("HEADING")).toBe(AgsRowKind.Heading);
+    expect(AgsRowKindFunctions.parse("UNIT")).toBe(AgsRowKind.Unit);
+    expect(AgsRowKindFunctions.parse("TYPE")).toBe(AgsRowKind.Type);
+    expect(AgsRowKindFunctions.parse("DATA")).toBe(AgsRowKind.Data);
+    expect(AgsRowKindFunctions.parse("WAT")).toBe(AgsRowKind.Unknown);
   });
 });

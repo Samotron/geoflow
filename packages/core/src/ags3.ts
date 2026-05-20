@@ -1,5 +1,6 @@
 import { Option } from "effect";
-import { AgsFile, AgsGroup, AgsHeading, AgsRow, AgsType, AgsValue, AgsTypeFunctions } from "./model.js";
+import type { AgsFile, AgsGroup, AgsHeading, AgsRow, AgsType, AgsValue} from "./model.js";
+import { AgsTypeFunctions } from "./model.js";
 
 /**
  * Result of AGS 3 migration.
@@ -113,7 +114,7 @@ class GroupBuilder {
     const rows: AgsRow[] = [];
     for (let i = 2; i < this.dataLines.length; i++) {
       const rawRow = this.dataLines[i]!;
-      const row: any = {};
+      const row: AgsRow = {};
       for (let j = 0; j < headings.length; j++) {
         const heading = headings[j]!;
         const raw = (rawRow[j] || "").trim();

@@ -316,7 +316,7 @@ function describeRule(r: SimpleRule): string {
 function autoId(rules: SimpleRule[], kind: CheckKind, group?: string): string {
   const stem = group ? `${group}-${kind.toUpperCase()}` : kind.toUpperCase();
   let n = 1;
-  // eslint-disable-next-line no-constant-condition
+   
   while (true) {
     const candidate = `${stem}-${String(n).padStart(3, '0')}`;
     if (!rules.some(r => r.id === candidate)) return candidate;

@@ -1,4 +1,5 @@
-import { Option, Schema } from "effect";
+import type { Option} from "effect";
+import { Schema } from "effect";
 
 export type AgsType =
   | "X"

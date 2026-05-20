@@ -1,6 +1,6 @@
 import { Option } from "effect";
-import { AgsFile } from "./model.js";
-import { Diagnostic, Severity } from "./diagnostics.js";
+import type { AgsFile } from "./model.js";
+import type { Diagnostic, Severity } from "./diagnostics.js";
 import { standardRules } from "./validate.rules.js";
 
 /**

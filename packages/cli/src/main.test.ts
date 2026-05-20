@@ -467,6 +467,61 @@ describe("@geoflow/cli", () => {
     });
   });
 
+  // ── stats command ───────────────────────────────────────────────────────────
+
+  describe("stats command", () => {
+    const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+
+    it("returns exit code 0 for a valid file", () => {
+      const result = runCli(["stats", fixture]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+    });
+
+    it("reports borehole and group counts in text output", () => {
+      const result = runCli(["stats", fixture]);
+      expect(result.stdout).toContain("boreholes:");
+      expect(result.stdout).toContain("groups:");
+    });
+
+    it("produces valid JSON with --format json", () => {
+      const result = runCli(["stats", fixture, "--format", "json"]);
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      expect(parsed).toHaveProperty("boreholes");
+      expect(parsed).toHaveProperty("groups");
+      expect(parsed).toHaveProperty("hole_types");
+      expect(typeof parsed.boreholes).toBe("number");
+    });
+
+    it("returns exit code 2 when no file given", () => {
+      const result = runCli(["stats"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("stats requires");
+    });
+
+    it("returns exit code 2 for unknown flag", () => {
+      const result = runCli(["stats", fixture, "--unknown"]);
+      expect(result.exitCode).toBe(2);
+    });
+  });
+
+  // ── version flag ────────────────────────────────────────────────────────────
+
+  describe("--version", () => {
+    it("prints version with --version", () => {
+      const result = runCli(["--version"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatch(/^geoflow \d+\.\d+\.\d+/);
+    });
+
+    it("prints version with -V", () => {
+      const result = runCli(["-V"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatch(/^geoflow \d+\.\d+\.\d+/);
+    });
+  });
+
   // ── enhance command ─────────────────────────────────────────────────────────
 
   describe("enhance command", () => {

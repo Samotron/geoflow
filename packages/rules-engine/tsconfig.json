@@ -2,12 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
     "types": ["node"],
     "paths": {
       "@geoflow/core": ["../core/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts"],
-  "references": [{ "path": "../core" }]
+  "include": ["src/**/*.ts"]
 }

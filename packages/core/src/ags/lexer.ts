@@ -7,8 +7,8 @@ export enum AgsRowKind {
   Unknown = "?",
 }
 
-export namespace AgsRowKind {
-  export function parse(tag: string): AgsRowKind {
+export const AgsRowKindFunctions = {
+  parse(tag: string): AgsRowKind {
     switch (tag) {
       case "GROUP": return AgsRowKind.Group;
       case "HEADING": return AgsRowKind.Heading;
@@ -17,12 +17,12 @@ export namespace AgsRowKind {
       case "DATA": return AgsRowKind.Data;
       default: return AgsRowKind.Unknown;
     }
-  }
+  },
 
-  export function toString(kind: AgsRowKind): string {
+  toString(kind: AgsRowKind): string {
     return kind;
-  }
-}
+  },
+};
 
 export enum LexErrorCode {
   UnterminatedQuote = "UnterminatedQuote",

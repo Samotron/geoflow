@@ -6,7 +6,8 @@
  */
 
 import { Option } from "effect";
-import { AgsFile, AgsGroup, AgsHeading, AgsRow, AgsType, AgsTypeFunctions, AgsValue } from "./model.js";
+import type { AgsFile, AgsGroup, AgsHeading, AgsRow, AgsType, AgsValue } from "./model.js";
+import { AgsTypeFunctions } from "./model.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

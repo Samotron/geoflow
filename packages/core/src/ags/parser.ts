@@ -1,8 +1,10 @@
 import iconv from "iconv-lite";
 import { Option } from "effect";
-import { AgsFile, AgsGroup, AgsType, AgsValue, AgsTypeFunctions } from "../model.js";
-import { Diagnostic, DiagnosticBuilder, Severity } from "../diagnostics.js";
-import { tokenizeLine, AgsRowKind, LexError } from "./lexer.js";
+import type { AgsFile, AgsGroup, AgsRow, AgsType, AgsValue} from "../model.js";
+import { AgsTypeFunctions } from "../model.js";
+import type { Diagnostic} from "../diagnostics.js";
+import { DiagnosticBuilder, Severity } from "../diagnostics.js";
+import { tokenizeLine, AgsRowKind, AgsRowKindFunctions, LexError } from "./lexer.js";
 
 /**
  * Parser output: the parsed file plus any diagnostics generated while parsing.
@@ -103,7 +105,7 @@ class ParserState {
 
     if (toks.length === 0) return;
     const tag = toks[0]!;
-    const kind = AgsRowKind.parse(tag);
+    const kind = AgsRowKindFunctions.parse(tag);
     const payload = toks.slice(1);
 
     switch (kind) {
@@ -249,7 +251,7 @@ class ParserState {
     const payloadLen = payload.length;
     const headingLen = group.headings.length;
 
-    const row: any = {};
+    const row: AgsRow = {};
     for (let i = 0; i < payload.length; i++) {
       const raw = payload[i]!;
       const h = group.headings[i];

@@ -1,6 +1,8 @@
-import { Diagnostic, DiagnosticBuilder, Severity } from "./diagnostics.js";
+import type { Diagnostic} from "./diagnostics.js";
+import { DiagnosticBuilder, Severity } from "./diagnostics.js";
 import { currentDict, DictDepthUnitsRule, DictRequiredHeadingsRule } from "./dict.js";
-import { AgsFile, AgsRow, AgsType, AgsTypeFunctions } from "./model.js";
+import type { AgsFile, AgsRow, AgsType} from "./model.js";
+import { AgsTypeFunctions } from "./model.js";
 import type { Rule } from "./validate.js";
 
 function textValue(row: AgsRow, heading: string): string | null {
@@ -1089,7 +1091,7 @@ const VALID_AGS_TYPE_STRINGS = new Set([
   "X", "XN", "MC", "ID", "PA", "PT", "PU", "T", "DT", "YN", "RL", "U", "RECORD_LINK", "DMS",
 ]);
 
-function isValidAgsType(t: import("./model.js").AgsType): boolean {
+function isValidAgsType(t: AgsType): boolean {
   if (typeof t === "string") return VALID_AGS_TYPE_STRINGS.has(t);
   return t._tag === "DP" || t._tag === "SF" || t._tag === "SCI";
 }

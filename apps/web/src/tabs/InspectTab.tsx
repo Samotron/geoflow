@@ -145,7 +145,7 @@ export function InspectTab({ fileBytes, fileName }: Props) {
       });
       setValidateDiags(result.diagnostics);
       setValidateExitCode(result.exitCode);
-    } catch (e) {
+    } catch {
       setValidateDiags([]);
       setValidateExitCode(2);
     } finally {

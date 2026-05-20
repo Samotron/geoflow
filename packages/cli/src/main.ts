@@ -8,6 +8,7 @@ import {
   activateCustomDict,
   assessQuality,
   buildGiReport,
+  buildProjectSummary,
   decodeBytes,
   deactivateCustomDict,
   diffFiles,
@@ -57,6 +58,8 @@ export function run(argv: readonly string[] = process.argv.slice(2)): number {
   return result.exitCode;
 }
 
+export const CLI_VERSION = "0.1.0";
+
 export function runCli(argv: readonly string[]): RunResult {
   if (argv.length === 0) {
     return usageError("missing command");
@@ -86,8 +89,14 @@ export function runCli(argv: readonly string[]): RunResult {
       return runExport(argv.slice(1));
     case "enhance":
       return runEnhance(argv.slice(1));
+    case "stats":
+      return runStats(argv.slice(1));
     case "db":
       return runDb(argv.slice(1));
+    case "--version":
+    case "-V":
+    case "version":
+      return { exitCode: 0, stdout: `geoflow ${CLI_VERSION}\n`, stderr: "" };
     case "--help":
     case "-h":
     case "help":
@@ -720,6 +729,93 @@ function runExport(argv: readonly string[]): RunResult {
   }
 }
 
+function runStats(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("stats requires a file path");
+  }
+
+  const file = argv[0]!;
+  let format: "text" | "json" = "text";
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--format") {
+      const value = argv[++i];
+      if (!value) return usageError("--format requires a value");
+      if (value !== "text" && value !== "json") return usageError(`unsupported format: ${value}`);
+      format = value;
+      continue;
+    }
+    return usageError(`unknown stats option: ${arg}`);
+  }
+
+  try {
+    const resolved = resolve(file);
+    const bytes = readFileSync(resolved);
+    const text = decodeBytes(bytes);
+    const { file: agsFile } = parseStr(text);
+    const summary = buildProjectSummary(agsFile);
+
+    if (format === "json") {
+      const payload = {
+        source: resolved,
+        groups: summary.totals.groups,
+        boreholes: summary.totals.boreholes,
+        total_metres: round(summary.depth.totalMetres, 2),
+        mean_depth_m: round(summary.depth.meanDepthM, 2),
+        max_depth_m: round(summary.depth.maxDepthM, 2),
+        strata: summary.totals.strata,
+        samples: summary.totals.samples,
+        spt_tests: summary.totals.sptTests,
+        water_strikes: summary.totals.waterStrikes,
+        hole_types: summary.holeTypes,
+        units: summary.units.map((u) => ({
+          code: u.code,
+          occurrences: u.occurrences,
+          total_thickness_m: round(u.totalThicknessM, 2),
+          mean_thickness_m: round(u.meanThicknessM, 2),
+          in_holes: u.inHoles,
+        })),
+      };
+      return { exitCode: 0, stdout: JSON.stringify(payload, null, 2) + "\n", stderr: "" };
+    }
+
+    const lines: string[] = [];
+    lines.push(`file:                 ${resolved}`);
+    if (summary.project.projName) lines.push(`project:              ${summary.project.projName}`);
+    if (summary.project.projId)   lines.push(`project id:           ${summary.project.projId}`);
+    lines.push(`groups:               ${summary.totals.groups}`);
+    lines.push(`boreholes:            ${summary.totals.boreholes}`);
+    lines.push(`total metres drilled: ${round(summary.depth.totalMetres, 2)}`);
+    lines.push(`mean / max depth:     ${round(summary.depth.meanDepthM, 2)} m  /  ${round(summary.depth.maxDepthM, 2)} m`);
+    lines.push(`strata logged:        ${summary.totals.strata}`);
+    lines.push(`samples:              ${summary.totals.samples}`);
+    lines.push(`SPT tests:            ${summary.totals.sptTests}`);
+    lines.push(`water strikes:        ${summary.totals.waterStrikes}`);
+    const holeTypeEntries = Object.entries(summary.holeTypes);
+    if (holeTypeEntries.length > 0) {
+      lines.push("hole types:");
+      for (const [t, n] of holeTypeEntries) lines.push(`  ${t.padEnd(8)} ${n}`);
+    }
+    if (summary.units.length > 0) {
+      lines.push("top units (by total thickness):");
+      for (const u of summary.units.slice(0, 8)) {
+        lines.push(`  ${u.code.padEnd(8)} ${u.occurrences.toString().padStart(3)} layers · ${round(u.totalThicknessM, 1).toString().padStart(6)} m · in ${u.inHoles} hole(s)`);
+      }
+    }
+    lines.push("");
+    return { exitCode: 0, stdout: lines.join("\n"), stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function round(n: number, dp: number): number {
+  const m = Math.pow(10, dp);
+  return Math.round(n * m) / m;
+}
+
 function runEnhance(argv: readonly string[]): RunResult {
   if (argv.length === 0) {
     return usageError("enhance requires a file path or --text \"<description>\"");
@@ -892,7 +988,7 @@ function runDbIngest(argv: readonly string[]): RunResult {
   }
   const [agsFile, dbFile] = [argv[0]!, argv[1]!];
   try {
-    const { openDb } = await_import_db();
+    const { openDb } = getDbModule();
     const { decodeBytes: dec, parseStr: pStr } = { decodeBytes, parseStr };
     const bytes = readFileSync(resolve(agsFile));
     const { file } = pStr(dec(bytes));
@@ -933,7 +1029,7 @@ function runDbQuery(argv: readonly string[]): RunResult {
   if (!groupName) return usageError("db query requires --group <name>");
 
   try {
-    const { openDb } = await_import_db();
+    const { openDb } = getDbModule();
     const db = openDb(resolve(dbFile));
     try {
       const result = db.queryGroup(groupName);
@@ -958,7 +1054,7 @@ function runDbList(argv: readonly string[]): RunResult {
   const dbFile = argv[0];
   if (!dbFile) return usageError("db list requires <db-file>");
   try {
-    const { openDb } = await_import_db();
+    const { openDb } = getDbModule();
     const db = openDb(resolve(dbFile));
     try {
       const imports = db.listImports();
@@ -979,7 +1075,7 @@ function runDbList(argv: readonly string[]): RunResult {
   }
 }
 
-function await_import_db(): { openDb: (path: string) => GeoflowDb } {
+function getDbModule(): { openDb: (path: string) => GeoflowDb } {
   return dbModule;
 }
 
@@ -1013,6 +1109,7 @@ function usageText(): string {
     "  geoflow convert <in> <out> [--to ags|diggs]",
     "  geoflow diff <file-a> <file-b> [--format text|json]",
     "  geoflow quality <file> [--format text|json] [--fail-on error|warning|info]",
+    "  geoflow stats <file> [--format text|json]",
     "  geoflow report <file> [--format text|json] [--out <path>]",
     "  geoflow export <file> --group <name> [--format csv|tsv] [--out <path>]",
     "  geoflow export <file> --format geojson [--crs EPSG:27700] [--out <path>]",
@@ -1024,6 +1121,9 @@ function usageText(): string {
     "  geoflow db ingest <ags-file> <db-file>",
     "  geoflow db query --db <db-file> --group <name>",
     "  geoflow db list <db-file>",
+    "",
+    "  geoflow --version    Print version",
+    "  geoflow --help       Print this help",
     "",
   ].join("\n");
 }

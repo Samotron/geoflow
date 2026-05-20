@@ -1,4 +1,4 @@
-import { AgsFile, AgsRow, AgsValue } from "./model.js";
+import type { AgsFile, AgsRow, AgsValue } from "./model.js";
 
 // ── Key heading lookup ────────────────────────────────────────────────────────
 

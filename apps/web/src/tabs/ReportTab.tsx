@@ -5,7 +5,7 @@ import type { AgsFile, AgsRow } from '../core.js';
 import {
   type ColorField,
   ALL_PLOTS, OPlot, PlotCard,
-  getGeolLayers, getGeolFields, extractLocaMap, extractAllLocaIds,
+  getGeolLayers, getGeolFields, extractLocaMap,
   extractSptDepth, extractSptElev, extractAtterberg, extractPsd,
   extractDepth, extractUu, extractDensity, extractShear,
   extractCompaction, extractLlplDepth, extractCong,

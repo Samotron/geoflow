@@ -1,6 +1,7 @@
 import { parse as parseYaml } from "yaml";
-import { AgsFile } from "./model.js";
-import { Diagnostic, DiagnosticBuilder, Severity } from "./diagnostics.js";
+import type { AgsFile } from "./model.js";
+import type { Diagnostic} from "./diagnostics.js";
+import { DiagnosticBuilder, Severity } from "./diagnostics.js";
 import type { Rule } from "./validate.js";
 import { BUILTIN_AGS_DICT } from "./dict.data.js";
 

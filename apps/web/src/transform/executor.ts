@@ -5,8 +5,6 @@ import {
   extractColumnLineage,
   fileRelationName,
   lineageViewName,
-  quoteIdent,
-  resolveRefs,
   rewriteForLineage,
   type CompiledStep,
 } from '@geoflow/transform';
@@ -151,7 +149,7 @@ export async function runPipeline(pipeline: Pipeline, opts: RunOptions = {}): Pr
     } catch (err) {
       // Non-fatal: if a relation isn't registered yet (shouldn't happen),
       // its consumers will simply lose lineage.
-      // eslint-disable-next-line no-console
+       
       console.warn(`[lineage] failed to register view for "${rel}":`, err);
     }
   }
@@ -466,17 +464,6 @@ function parseLineageCell(cell: unknown): LineageEntry[] {
     if (Number.isFinite(row)) out.push({ node, row });
   }
   return out;
-}
-
-/**
- * Rewrites `{{ ref('x') }}` and the lineage rewriter's references so they
- * point at `_lin_<relation>` views. The transform compiler has already
- * substituted refs in the user SQL we pass to the rewriter, so this stage
- * only needs to rewrite bare relation names — handled inside the rewriter
- * itself. No-op for now; kept as a hook for future expansion.
- */
-function resolveRefsToLineageViews(sql: string, _known: ReadonlySet<string>): string {
-  return sql;
 }
 
 function emptyRunResult(ok: boolean, errors: string[]): RunResult {

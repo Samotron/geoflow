@@ -55,6 +55,7 @@ export {
   locationsToGeoJson,
   representativeGroundModel,
   availableUnitKeyFields,
+  buildProjectSummary,
 } from '@geoflow/core';
 
 export type {
@@ -140,4 +141,9 @@ export type {
   RepresentativeLayer,
   RepresentativeGroundModel,
   RepresentativeGroundModelOptions,
+  ProjectSummary,
+  ProjectMeta,
+  HoleScheduleEntry,
+  UnitSummaryEntry,
+  DepthDistribution,
 } from '@geoflow/core';

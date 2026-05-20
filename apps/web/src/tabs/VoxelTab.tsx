@@ -28,7 +28,7 @@ import {
   ThinPlateSurface, geolColor,
 } from '../core.js';
 import type {
-  AgsFile, VoxelProperty, VoxelGrid, VoxelCell,
+  AgsFile, VoxelProperty, VoxelGrid,
   VoxelCellLineage, Borehole3D, TopoGrid, GeoUnit,
 } from '../core.js';
 import { fetchTopoGrid } from '../topo-api.js';

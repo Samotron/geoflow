@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, type MutableRefObject } from 'react';
+import { useState, useEffect, type MutableRefObject } from 'react';
 import { decodeBytes, parseStr } from '../core.js';
-import type { AgsFile, AgsGroup, AgsRow } from '../core.js';
+import type { AgsFile, AgsGroup } from '../core.js';
 import { exportExcel } from '../export/excel.js';
 import { exportGeopackage } from '../export/geopackage.js';
 import { exportAsDuckDb } from '../query/duckdb.js';

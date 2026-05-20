@@ -1,6 +1,7 @@
 import { Option } from "effect";
-import { AgsFile, AgsRow, AgsValue } from "./model.js";
-import { Diagnostic, DiagnosticBuilder, Severity } from "./diagnostics.js";
+import type { AgsFile, AgsRow, AgsValue } from "./model.js";
+import type { Diagnostic} from "./diagnostics.js";
+import { DiagnosticBuilder, Severity } from "./diagnostics.js";
 
 // ---- Public types ----
 

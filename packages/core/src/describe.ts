@@ -19,7 +19,7 @@
  *  - `getDescribeVocabulary()` — vocabulary used for fuzzy spell-correction.
  */
 
-import { AgsFile } from "./model.js";
+import type { AgsFile } from "./model.js";
 
 // ───────────────────────────────────────────────────────────────────────────
 // Public types

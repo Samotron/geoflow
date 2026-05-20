@@ -67,7 +67,7 @@ async function loadExtensions(conn: duckdb.AsyncDuckDBConnection): Promise<void>
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       extensionLoadErrors.set(ext, msg);
-      // eslint-disable-next-line no-console
+       
       console.warn(`[duckdb] failed to load extension "${ext}": ${msg}`);
     }
   }

@@ -195,7 +195,8 @@ export function extractPsd(file: AgsFile, layers: GeolLayer[], cf: ColorField, b
     for (const r of file.groups[grp]?.rows ?? []) {
       const locaId = str(r, 'LOCA_ID');
       if (!locaId || (bh.size > 0 && !bh.has(locaId))) continue;
-      let size = num(r, szF), passing = num(r, pcF);
+      let size = num(r, szF);
+      const passing = num(r, pcF);
       if (size == null || passing == null || size <= 0) continue;
       if (grp === 'SIEV' && size >= 1 && size <= 200) size /= 1000;
       const depth = num(r, 'SAMP_TOP');

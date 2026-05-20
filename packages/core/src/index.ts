@@ -28,3 +28,4 @@ export * from "./cross-section.js";
 export * from "./geojson.js";
 export * from "./spt.js";
 export * from "./ground-model.js";
+export * from "./summary.js";
