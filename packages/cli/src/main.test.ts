@@ -465,6 +465,52 @@ describe("@geoflow/cli", () => {
       const result = runCli(["report", fixture, "--unknown"]);
       expect(result.exitCode).toBe(2);
     });
+
+    it("produces a full HTML factual report with --format html", () => {
+      const result = runCli(["report", fixture, "--format", "html"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("<!DOCTYPE html>");
+      expect(result.stdout).toContain("Factual Report");
+      expect(result.stdout).toContain("Schedule of Exploratory Holes");
+    });
+
+    it("HTML report embeds borehole strip logs by default", () => {
+      const result = runCli(["report", fixture, "--format", "html"]);
+      expect(result.stdout).toContain("Borehole Logs");
+      expect(result.stdout).toContain("<svg");
+    });
+
+    it("HTML report omits logs with --no-logs", () => {
+      const result = runCli(["report", fixture, "--format", "html", "--no-logs"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toContain("Borehole Logs");
+    });
+
+    it("HTML report omits tests with --no-tests", () => {
+      const result = runCli(["report", fixture, "--format", "html", "--no-tests"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toContain("In-situ &amp; Laboratory Test Results");
+    });
+
+    it("writes the HTML report to a file with --out", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-report-html-"));
+      const outFile = join(tmpDir, "factual.html");
+      try {
+        const result = runCli(["report", fixture, "--format", "html", "--out", outFile]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain(outFile);
+        const content = readFileSync(outFile, "utf8");
+        expect(content).toContain("<!DOCTYPE html>");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects an unsupported --format value", () => {
+      const result = runCli(["report", fixture, "--format", "pdf"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("unsupported format");
+    });
   });
 
   // ── stats command ───────────────────────────────────────────────────────────

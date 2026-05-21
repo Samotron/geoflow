@@ -526,6 +526,53 @@ function wrapText(s: string, maxChars: number, maxLines: number): string[] {
   return out;
 }
 
+// ── Per-borehole strip log (reusable) ─────────────────────────────────────────
+
+export interface BoreholeLog {
+  locaId: string;
+  /** Self-contained SVG markup for the BS 5930 / AGS-style strip log. */
+  svg: string;
+}
+
+/**
+ * Render a BS 5930 / AGS-convention strip log for every LOCA in the file.
+ * Shared by the HTML explorer and the factual report so both stay in sync.
+ */
+export function renderBoreholeLogs(file: AgsFile): BoreholeLog[] {
+  const locaRows = file.groups["LOCA"]?.rows ?? [];
+  const locaIds = locaRows
+    .map((r) => String(r["LOCA_ID"] ?? ""))
+    .filter(Boolean);
+
+  const projRow = file.groups["PROJ"]?.rows[0] ?? {};
+  const projId = str(projRow as AgsRow, "PROJ_ID");
+  const projName = str(projRow as AgsRow, "PROJ_NAME");
+  const projLoc = str(projRow as AgsRow, "PROJ_LOC");
+  const generatedAt = new Date().toISOString().slice(0, 10);
+
+  const logs: BoreholeLog[] = [];
+  for (const locaId of locaIds) {
+    const filterById = (rows: AgsRow[]) =>
+      rows.filter((r) => String(r["LOCA_ID"] ?? "") === locaId);
+
+    const loca = locaRows.find((r) => String(r["LOCA_ID"] ?? "") === locaId);
+    const geol = filterById(file.groups["GEOL"]?.rows ?? []);
+    const ispt = filterById(file.groups["ISPT"]?.rows ?? []);
+    const samp = filterById(file.groups["SAMP"]?.rows ?? []);
+    const wstk = filterById(file.groups["WSTK"]?.rows ?? []);
+    const wgen = filterById(file.groups["WGEN"]?.rows ?? []);
+    const hdph = filterById(file.groups["HDPH"]?.rows ?? [])[0];
+
+    const meta: BoreholeMeta = { projId, projName, generatedAt };
+    if (projLoc) meta.projLoc = projLoc;
+    if (loca) meta.loca = loca;
+    if (hdph) meta.hdph = hdph;
+    if (wgen.length) meta.wgen = wgen;
+    logs.push({ locaId, svg: renderBoreholeSvg(locaId, geol, ispt, samp, wstk, meta) });
+  }
+  return logs;
+}
+
 // ── Full HTML report ──────────────────────────────────────────────────────────
 
 export interface ExplorerOptions {
@@ -546,38 +593,11 @@ export function renderExplorer(file: AgsFile, options: ExplorerOptions = {}): st
     .map((r) => String(r["LOCA_ID"] ?? ""))
     .filter(Boolean);
 
-  // Project metadata (shared across boreholes)
-  const projRow = file.groups["PROJ"]?.rows[0] ?? {};
-  const projId = str(projRow as AgsRow, "PROJ_ID");
-  const projName = str(projRow as AgsRow, "PROJ_NAME");
-  const projLoc = str(projRow as AgsRow, "PROJ_LOC");
-  const generatedAt = new Date().toISOString().slice(0, 10);
-
   // Build per-borehole SVG sections
-  const boreholeSections: string[] = [];
-  for (const locaId of locaIds) {
-    const filterById = (rows: AgsRow[]) =>
-      rows.filter((r) => String(r["LOCA_ID"] ?? "") === locaId);
-
-    const loca = locaRows.find((r) => String(r["LOCA_ID"] ?? "") === locaId);
-    const geol = filterById(file.groups["GEOL"]?.rows ?? []);
-    const ispt = filterById(file.groups["ISPT"]?.rows ?? []);
-    const samp = filterById(file.groups["SAMP"]?.rows ?? []);
-    const wstk = filterById(file.groups["WSTK"]?.rows ?? []);
-    const wgen = filterById(file.groups["WGEN"]?.rows ?? []);
-    const hdph = filterById(file.groups["HDPH"]?.rows ?? [])[0];
-
-    const meta: BoreholeMeta = { projId, projName, generatedAt };
-    if (projLoc) meta.projLoc = projLoc;
-    if (loca) meta.loca = loca;
-    if (hdph) meta.hdph = hdph;
-    if (wgen.length) meta.wgen = wgen;
-    const svg = renderBoreholeSvg(locaId, geol, ispt, samp, wstk, meta);
-    boreholeSections.push(`
-      <section class="borehole" id="bh-${esc(locaId)}">
-        ${svg}
+  const boreholeSections: string[] = renderBoreholeLogs(file).map((log) => `
+      <section class="borehole" id="bh-${esc(log.locaId)}">
+        ${log.svg}
       </section>`);
-  }
 
   // Groups table
   const groupRows = Object.entries(file.groups)

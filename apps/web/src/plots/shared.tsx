@@ -573,7 +573,6 @@ export function sptDepthSpec(data: DepthDatum[]): PlotSpec {
     marks: [
       Plot.ruleX([10, 30, 50], { stroke: '#e2e8f0', strokeDasharray: '5,4', strokeWidth: 1 }),
       Plot.ruleX([0], { stroke: '#cbd5e1' }),
-      Plot.ruleY([0], { stroke: '#0f172a', strokeWidth: 1 }),
       Plot.ruleY(data, { x1: 0, x2: d => d.value, y: d => d.depth, stroke: d => d.colorKey, strokeWidth: 3, strokeOpacity: 0.6 }),
       Plot.dot(data, { x: d => d.value, y: d => d.depth, fill: d => d.colorKey, r: 4.5, stroke: 'white', strokeWidth: 0.8, tip: true, title: d => `${d.locaId}\nN = ${d.value}\nDepth = ${d.depth} m` }),
       Plot.text([{x:10,y:0.5,t:'10'},{x:30,y:0.5,t:'30'},{x:50,y:0.5,t:'50'}], { x:'x', y:'y', text:'t', fontSize: 9, fill: '#94a3b8', textAnchor: 'middle' }),

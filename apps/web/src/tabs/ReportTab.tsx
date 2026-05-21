@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Option } from 'effect';
-import { decodeBytes, parseStr } from '../core.js';
+import { decodeBytes, parseStr, renderFactualReportHtml } from '../core.js';
 import type { AgsFile, AgsRow } from '../core.js';
 import {
   type ColorField,
@@ -298,6 +298,21 @@ ${el.innerHTML}
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 
+/**
+ * Export the complete factual report — title block, schedule, geology,
+ * detailed in-situ / laboratory test tables and BS 5930 strip logs — as a
+ * single self-contained HTML file via `@geoflow/core`.
+ */
+function exportFactualReport(file: AgsFile, baseName: string) {
+  const html = renderFactualReportHtml(file, { sourcePath: `${baseName}.ags` });
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${baseName}-factual-report.html`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+}
+
 // ── Hole type labels ──────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<string, string> = {
@@ -441,6 +456,13 @@ export function ReportTab({ fileBytes, fileName }: Props) {
         </button>
         <button onClick={() => reportRef.current && exportHtml(reportRef.current, baseName)} style={{ background: 'var(--border)', color: 'var(--text)', padding: '8px 16px' }}>
           Export HTML
+        </button>
+        <button
+          onClick={() => agsFile && exportFactualReport(agsFile, baseName)}
+          title="Full factual report with detailed test tables and BS 5930 borehole strip logs"
+          style={{ background: 'var(--navy)', color: '#fff', padding: '8px 16px' }}
+        >
+          Factual Report + Logs
         </button>
       </div>
 

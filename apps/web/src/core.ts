@@ -61,6 +61,8 @@ export {
   mergeAgsFiles,
   mergeAgsFilesN,
   applyConflictResolutions,
+  renderFactualReportHtml,
+  buildTestTables,
 } from '@geoflow/core';
 
 export type {
@@ -156,4 +158,6 @@ export type {
   AgsiGeologicalUnit,
   MergeResult,
   MergeConflict,
+  FactualReportOptions,
+  TestTable,
 } from '@geoflow/core';

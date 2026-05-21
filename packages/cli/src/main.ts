@@ -26,6 +26,7 @@ import {
   readDiggs,
   renderDiffText,
   renderExplorerFromBytes,
+  renderFactualReportHtml,
   renderGiReportJson,
   renderGiReportText,
   renderInfo,
@@ -582,15 +583,19 @@ function runReport(argv: readonly string[]): RunResult {
   }
 
   const file = argv[0]!;
-  let format: "text" | "json" = "text";
+  let format: "text" | "json" | "html" = "text";
   let outPath: string | null = null;
+  let includeLogs = true;
+  let includeTests = true;
 
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg === "--format") {
       const value = argv[++i];
       if (!value) return usageError("--format requires a value");
-      if (value !== "text" && value !== "json") return usageError(`unsupported format: ${value}`);
+      if (value !== "text" && value !== "json" && value !== "html") {
+        return usageError(`unsupported format: ${value}`);
+      }
       format = value;
       continue;
     }
@@ -598,6 +603,14 @@ function runReport(argv: readonly string[]): RunResult {
       const value = argv[++i];
       if (!value) return usageError("--out requires a path");
       outPath = value;
+      continue;
+    }
+    if (arg === "--no-logs") {
+      includeLogs = false;
+      continue;
+    }
+    if (arg === "--no-tests") {
+      includeTests = false;
       continue;
     }
     return usageError(`unknown report option: ${arg}`);
@@ -608,8 +621,18 @@ function runReport(argv: readonly string[]): RunResult {
     const bytes = readFileSync(resolved);
     const text = decodeBytes(bytes);
     const { file: agsFile } = parseStr(text);
-    const report = buildGiReport(agsFile);
-    const output = format === "json" ? renderGiReportJson(report) : renderGiReportText(report, resolved);
+
+    let output: string;
+    if (format === "html") {
+      output = renderFactualReportHtml(agsFile, {
+        sourcePath: resolved,
+        includeStripLogs: includeLogs,
+        includeTests,
+      });
+    } else {
+      const report = buildGiReport(agsFile);
+      output = format === "json" ? renderGiReportJson(report) : renderGiReportText(report, resolved);
+    }
 
     if (outPath !== null) {
       const resolvedOut = resolve(outPath);
@@ -1405,7 +1428,7 @@ function usageText(): string {
     "  geoflow diff <file-a> <file-b> [--format text|json]",
     "  geoflow quality <file> [--format text|json] [--fail-on error|warning|info]",
     "  geoflow stats <file> [--format text|json]",
-    "  geoflow report <file> [--format text|json] [--out <path>]",
+    "  geoflow report <file> [--format text|json|html] [--out <path>] [--no-logs] [--no-tests]",
     "  geoflow export <file> --group <name> [--format csv|tsv] [--out <path>]",
     "  geoflow export <file> --format geojson [--crs EPSG:27700] [--out <path>]",
     "  geoflow explore <file> [--out <path>]",

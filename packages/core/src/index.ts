@@ -31,3 +31,4 @@ export * from "./ground-model.js";
 export * from "./summary.js";
 export * from "./merge.js";
 export * from "./agsi-export.js";
+export * from "./factual-report.js";
