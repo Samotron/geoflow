@@ -100,15 +100,6 @@ export function PlotsTab({ fileBytes, locationGroups }: Props) {
   const specN1Depth     = useMemo(() => n1Depth.length    ? derivedSptSpec(n1Depth, 'N1_60')       : null, [n1Depth]);
   const specStressPath  = useMemo(() => stressPath.length ? stressPathSpec(stressPath)             : null, [stressPath]);
 
-  const specMap: Record<PlotId, ReturnType<typeof sptDepthSpec> | null> = {
-    spt_depth: specSptDepth, spt_elev: specSptElev, plasticity: specAtterberg,
-    psd: specPsd, limits_depth: specLimitsDepth, moisture: specMoisture,
-    cu: specCu, density: specDensity, shear: specShear, compaction: specCompaction, cong: specCong,
-    stress_prof: specStressProf, activity: specActivity, permeability: specPerm,
-    phi_depth: specPhiDepth, vs_depth: specVsDepth, n1_depth: specN1Depth,
-    stress_path: specStressPath,
-  };
-
   const dataN: Record<PlotId, number> = {
     spt_depth: sptDepth.length, spt_elev: sptElev.length, plasticity: atterberg.length,
     psd: psd.length, limits_depth: llplDepth.length, moisture: moisture.length, cu: cu.length,
@@ -140,7 +131,7 @@ export function PlotsTab({ fileBytes, locationGroups }: Props) {
   const toggleBorehole = (id: string) => {
     setBoreholeFilter(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -148,7 +139,7 @@ export function PlotsTab({ fileBytes, locationGroups }: Props) {
   const togglePlot = (id: PlotId) => {
     setActivePlots(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };

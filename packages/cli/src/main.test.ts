@@ -465,6 +465,243 @@ describe("@geoflow/cli", () => {
       const result = runCli(["report", fixture, "--unknown"]);
       expect(result.exitCode).toBe(2);
     });
+
+    it("produces a full HTML factual report with --format html", () => {
+      const result = runCli(["report", fixture, "--format", "html"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("<!DOCTYPE html>");
+      expect(result.stdout).toContain("Factual Report");
+      expect(result.stdout).toContain("Schedule of Exploratory Holes");
+    });
+
+    it("HTML report embeds borehole strip logs by default", () => {
+      const result = runCli(["report", fixture, "--format", "html"]);
+      expect(result.stdout).toContain("Borehole Logs");
+      expect(result.stdout).toContain("<svg");
+    });
+
+    it("HTML report omits logs with --no-logs", () => {
+      const result = runCli(["report", fixture, "--format", "html", "--no-logs"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toContain("Borehole Logs");
+    });
+
+    it("HTML report omits tests with --no-tests", () => {
+      const result = runCli(["report", fixture, "--format", "html", "--no-tests"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toContain("In-situ &amp; Laboratory Test Results");
+    });
+
+    it("writes the HTML report to a file with --out", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-report-html-"));
+      const outFile = join(tmpDir, "factual.html");
+      try {
+        const result = runCli(["report", fixture, "--format", "html", "--out", outFile]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain(outFile);
+        const content = readFileSync(outFile, "utf8");
+        expect(content).toContain("<!DOCTYPE html>");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("rejects an unsupported --format value", () => {
+      const result = runCli(["report", fixture, "--format", "pdf"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("unsupported format");
+    });
+  });
+
+  // ── stats command ───────────────────────────────────────────────────────────
+
+  describe("stats command", () => {
+    const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+
+    it("returns exit code 0 for a valid file", () => {
+      const result = runCli(["stats", fixture]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+    });
+
+    it("reports borehole and group counts in text output", () => {
+      const result = runCli(["stats", fixture]);
+      expect(result.stdout).toContain("boreholes:");
+      expect(result.stdout).toContain("groups:");
+    });
+
+    it("produces valid JSON with --format json", () => {
+      const result = runCli(["stats", fixture, "--format", "json"]);
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      expect(parsed).toHaveProperty("boreholes");
+      expect(parsed).toHaveProperty("groups");
+      expect(parsed).toHaveProperty("hole_types");
+      expect(typeof parsed.boreholes).toBe("number");
+    });
+
+    it("returns exit code 2 when no file given", () => {
+      const result = runCli(["stats"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("stats requires");
+    });
+
+    it("returns exit code 2 for unknown flag", () => {
+      const result = runCli(["stats", fixture, "--unknown"]);
+      expect(result.exitCode).toBe(2);
+    });
+  });
+
+  // ── merge command ──────────────────────────────────────────────────────────
+
+  describe("merge command", () => {
+    const fixtureA = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+
+    it("returns exit code 2 with fewer than 2 files", () => {
+      const result = runCli(["merge", fixtureA]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("at least two");
+    });
+
+    it("merges two identical files into one (no conflicts)", () => {
+      const result = runCli(["merge", fixtureA, fixtureA]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('"GROUP","LOCA"');
+    });
+
+    it("writes merged output to --out and stays silent on stdout", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-merge-"));
+      const outFile = join(tmpDir, "merged.ags");
+      try {
+        const result = runCli(["merge", fixtureA, fixtureA, "--out", outFile]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain(outFile);
+        const content = readFileSync(outFile, "utf8");
+        expect(content).toContain('"GROUP","LOCA"');
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("aborts on conflict when --on-conflict abort is given", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-merge-"));
+      const conflicting = join(tmpDir, "conflict.ags");
+      try {
+        // Build a file that conflicts with minimal_valid on BH01's LOCA_TYPE
+        const conflictContent = readFileSync(fixtureA, "utf8")
+          .replace('"DATA","BH01","CP"', '"DATA","BH01","TP"');
+        writeFileSync(conflicting, conflictContent);
+        const result = runCli(["merge", fixtureA, conflicting, "--on-conflict", "abort"]);
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain("conflict");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // ── validate-dir command ───────────────────────────────────────────────────
+
+  describe("validate-dir command", () => {
+    it("returns exit code 2 with no args", () => {
+      const result = runCli(["validate-dir"]);
+      expect(result.exitCode).toBe(2);
+      expect(result.stderr).toContain("validate-dir requires");
+    });
+
+    it("scans a directory and reports per-file results in text", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-vdir-"));
+      try {
+        const src = readFileSync(resolve(AGS_FIXTURE_DIR, "minimal_valid.ags"), "utf8");
+        writeFileSync(join(tmpDir, "a.ags"), src);
+        writeFileSync(join(tmpDir, "b.ags"), src);
+        const result = runCli(["validate-dir", tmpDir]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("a.ags");
+        expect(result.stdout).toContain("b.ags");
+        expect(result.stdout).toMatch(/summary:/);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("produces valid JSON with --format json", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-vdir-"));
+      try {
+        writeFileSync(join(tmpDir, "x.ags"), readFileSync(resolve(AGS_FIXTURE_DIR, "minimal_valid.ags"), "utf8"));
+        const result = runCli(["validate-dir", tmpDir, "--format", "json"]);
+        expect(result.exitCode).toBe(0);
+        const parsed = JSON.parse(result.stdout);
+        expect(parsed).toHaveProperty("files_checked");
+        expect(parsed).toHaveProperty("results");
+        expect(Array.isArray(parsed.results)).toBe(true);
+        expect(parsed.results.length).toBe(1);
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns empty result for a directory with no .ags files", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-vdir-"));
+      try {
+        writeFileSync(join(tmpDir, "readme.txt"), "not an ags file");
+        const result = runCli(["validate-dir", tmpDir]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain("no .ags files");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // ── agsi command ───────────────────────────────────────────────────────────
+
+  describe("agsi command", () => {
+    const fixture = resolve(AGS_FIXTURE_DIR, "minimal_valid.ags");
+
+    it("emits valid AGSi JSON to stdout", () => {
+      const result = runCli(["agsi", fixture]);
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      expect(parsed).toHaveProperty("agsiVersion");
+      expect(parsed).toHaveProperty("modelInstances");
+      expect(parsed).toHaveProperty("geologicalUnits");
+    });
+
+    it("writes AGSi to file with --out", () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), "geoflow-agsi-"));
+      const outFile = join(tmpDir, "out.agsi.json");
+      try {
+        const result = runCli(["agsi", fixture, "--out", outFile]);
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain(outFile);
+        const parsed = JSON.parse(readFileSync(outFile, "utf8"));
+        expect(parsed).toHaveProperty("agsiVersion");
+      } finally {
+        rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it("returns exit code 2 with no file", () => {
+      const result = runCli(["agsi"]);
+      expect(result.exitCode).toBe(2);
+    });
+  });
+
+  // ── version flag ────────────────────────────────────────────────────────────
+
+  describe("--version", () => {
+    it("prints version with --version", () => {
+      const result = runCli(["--version"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatch(/^geoflow \d+\.\d+\.\d+/);
+    });
+
+    it("prints version with -V", () => {
+      const result = runCli(["-V"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatch(/^geoflow \d+\.\d+\.\d+/);
+    });
   });
 
   // ── enhance command ─────────────────────────────────────────────────────────

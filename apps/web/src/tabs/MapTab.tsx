@@ -1217,30 +1217,6 @@ export function MapTab({ fileBytes, fileName, onLocaClick, locationGroups }: Pro
 
   const baseMap = BASE_MAPS.find((b) => b.id === baseMapId) ?? BASE_MAPS[0];
 
-  if (!fileBytes) {
-    return (
-      <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--muted)' }}>
-        <p>Drop an AGS file above to view borehole locations.</p>
-      </div>
-    );
-  }
-
-  if (points.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--muted)' }}>
-        <p>No mappable coordinates found.</p>
-        <p style={{ fontSize: 12, marginTop: 8 }}>
-          Map view requires <code>LOCA_LAT</code>/<code>LOCA_LON</code> or BNG{' '}
-          <code>LOCA_NATE</code>/<code>LOCA_NATN</code> fields in the LOCA group.
-        </p>
-      </div>
-    );
-  }
-
-  const centerLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
-  const centerLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
-  const inSection = new Set(sectionBoreholes.map((b) => b.pt.id));
-
   // Pre-compute the group membership map for fast lookups when rendering markers.
   const groupColorByLoca = useMemo<Map<string, string[]>>(() => {
     const m = new Map<string, string[]>();
@@ -1256,7 +1232,6 @@ export function MapTab({ fileBytes, fileName, onLocaClick, locationGroups }: Pro
   }, [locationGroups]);
 
   const editingGroup = locationGroups?.groups.find((g) => g.id === editingGroupId) ?? null;
-  const editingGroupSet = new Set(editingGroup?.locaIds ?? []);
 
   // Representative ground model for whichever group the user has currently focused
   // (edit-mode wins so the user gets live feedback while editing membership).
@@ -1286,6 +1261,31 @@ export function MapTab({ fileBytes, fileName, onLocaClick, locationGroups }: Pro
     setEditingGroupId(g.id);
     setShowGroupPanel(true);
   }, [locationGroups, sectionBoreholes]);
+
+  if (!fileBytes) {
+    return (
+      <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--muted)' }}>
+        <p>Drop an AGS file above to view borehole locations.</p>
+      </div>
+    );
+  }
+
+  if (points.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--muted)' }}>
+        <p>No mappable coordinates found.</p>
+        <p style={{ fontSize: 12, marginTop: 8 }}>
+          Map view requires <code>LOCA_LAT</code>/<code>LOCA_LON</code> or BNG{' '}
+          <code>LOCA_NATE</code>/<code>LOCA_NATN</code> fields in the LOCA group.
+        </p>
+      </div>
+    );
+  }
+
+  const centerLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
+  const centerLng = points.reduce((s, p) => s + p.lng, 0) / points.length;
+  const inSection = new Set(sectionBoreholes.map((b) => b.pt.id));
+  const editingGroupSet = new Set(editingGroup?.locaIds ?? []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

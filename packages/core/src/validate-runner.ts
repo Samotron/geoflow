@@ -1,6 +1,7 @@
 import { Option } from "effect";
 import { decodeBytes, parseStr } from "./ags/parser.js";
-import { Diagnostic, Severity } from "./diagnostics.js";
+import type { Diagnostic} from "./diagnostics.js";
+import { Severity } from "./diagnostics.js";
 import { Format, render } from "./render.js";
 import { Registry, validate } from "./validate.js";
 

@@ -16,7 +16,7 @@
  */
 
 import {
-  useEffect, useRef, useState, useCallback, useMemo, type CSSProperties,
+  useEffect, useRef, useState, useCallback, useMemo,
 } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -895,7 +895,11 @@ export function ThreeDTab({ fileBytes, fileName }: Props) {
   }, [model, faults]);
 
   const toggleUnit = (key: string) => {
-    setHiddenUnits(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+    setHiddenUnits(prev => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key); else n.add(key);
+      return n;
+    });
   };
 
   // ── Divider drag ─────────────────────────────────────────────────────────────

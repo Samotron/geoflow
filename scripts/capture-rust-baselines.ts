@@ -39,10 +39,11 @@ function capture(cmd: string, args: string[], outputArtifacts: { [name: string]:
 
   try {
     stdout = execSync(commandLine, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch (err: any) {
-    stdout = err.stdout || '';
-    stderr = err.stderr || '';
-    exitCode = err.status ?? 1;
+  } catch (err) {
+    const e = err as { stdout?: string; stderr?: string; status?: number };
+    stdout = e.stdout || '';
+    stderr = e.stderr || '';
+    exitCode = e.status ?? 1;
   }
 
   const filePrefix = base ? `${base}_` : '';
@@ -68,7 +69,7 @@ function captureRulePackDiagnostics() {
     'examples/rules/ice_mini.yml'
   ].filter(p => existsSync(join(process.cwd(), p)));
 
-  const results: any = {};
+  const results: Record<string, Record<string, unknown>> = {};
 
   for (const pack of packs) {
     results[pack] = {};
@@ -77,9 +78,10 @@ function captureRulePackDiagnostics() {
       console.log(`Capturing rule pack diagnostics: ${pack} on ${fixtureName}`);
       try {
         const stdout = execSync(`${RUST_BIN} validate "${f}" --rules "${pack}" --format json`, { encoding: 'utf8' });
-        results[pack][fixtureName] = JSON.parse(stdout);
-      } catch (err: any) {
-        results[pack][fixtureName] = { error: err.message, stdout: err.stdout };
+        results[pack]![fixtureName] = JSON.parse(stdout);
+      } catch (err) {
+        const e = err as { message?: string; stdout?: string };
+        results[pack]![fixtureName] = { error: e.message, stdout: e.stdout };
       }
     }
   }

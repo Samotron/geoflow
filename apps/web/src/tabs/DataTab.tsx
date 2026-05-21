@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, type MutableRefObject } from 'react';
-import { decodeBytes, parseStr } from '../core.js';
-import type { AgsFile, AgsGroup, AgsRow } from '../core.js';
+import { useState, useEffect, useMemo, type MutableRefObject } from 'react';
+import { decodeBytes, parseStr, diffFiles } from '../core.js';
+import type { AgsFile, AgsGroup, AgsRow, GroupDiff } from '../core.js';
 import { exportExcel } from '../export/excel.js';
 import { exportGeopackage } from '../export/geopackage.js';
 import { exportAsDuckDb } from '../query/duckdb.js';
@@ -10,6 +10,8 @@ interface Props {
   fileBytes: Uint8Array | null;
   fileName?: string | undefined;
   pendingHoleRef?: MutableRefObject<string | null>;
+  /** Optional group to switch to on next mount (e.g. via Search "View" button). */
+  pendingGroupRef?: MutableRefObject<string | null>;
 }
 
 // ── CSV export helpers ────────────────────────────────────────────────────────
@@ -151,16 +153,62 @@ function HoleDetailView({
 
 // ── Group table view ──────────────────────────────────────────────────────────
 
+// ── Row diff classification ──────────────────────────────────────────────────
+
+type RowStatus = 'added' | 'removed' | 'changed' | 'unchanged';
+
+interface RowAnnotation {
+  status: RowStatus;
+  /** Headings that differ from the comparison row (only for status='changed'). */
+  changedFields: Set<string>;
+  /** For 'removed' rows, the original row from the comparison file. */
+  removedRow?: AgsRow;
+}
+
+function buildRowAnnotations(group: AgsGroup, groupDiff: GroupDiff | undefined): {
+  byRowIndex: Map<number, RowAnnotation>;
+  removedRows: AgsRow[];
+} {
+  const byRowIndex = new Map<number, RowAnnotation>();
+  const removedRows: AgsRow[] = [];
+  if (!groupDiff) return { byRowIndex, removedRows };
+
+  const keyHeadings = groupDiff.key_headings;
+  const keyOf = (row: AgsRow): string => keyHeadings.map((h) => String(row[h] ?? '')).join('\0');
+
+  const addedKeys = new Set(groupDiff.rows_added.map(keyOf));
+  const changedByKey = new Map<string, Set<string>>();
+  for (const c of groupDiff.rows_changed) {
+    changedByKey.set(c.key, new Set(c.changes.map((f) => f.heading)));
+  }
+
+  for (let i = 0; i < group.rows.length; i++) {
+    const row = group.rows[i]!;
+    const k = keyOf(row);
+    if (addedKeys.has(k)) {
+      byRowIndex.set(i, { status: 'added', changedFields: new Set() });
+    } else if (changedByKey.has(k)) {
+      byRowIndex.set(i, { status: 'changed', changedFields: changedByKey.get(k)! });
+    } else {
+      byRowIndex.set(i, { status: 'unchanged', changedFields: new Set() });
+    }
+  }
+  removedRows.push(...groupDiff.rows_removed);
+  return { byRowIndex, removedRows };
+}
+
 function GroupTable({
   group,
   groupName,
   fileName,
   onLocaClick,
+  groupDiff,
 }: {
   group: AgsGroup;
   groupName: string;
   fileName: string | undefined;
   onLocaClick: (id: string) => void;
+  groupDiff?: GroupDiff | undefined;
 }) {
   const [search, setSearch] = useState('');
 
@@ -170,6 +218,17 @@ function GroupTable({
   });
 
   const hasLocaId = group.headings.some((h) => h.name === 'LOCA_ID');
+  const annotations = useMemo(() => buildRowAnnotations(group, groupDiff), [group, groupDiff]);
+  const diffActive = !!groupDiff;
+  const counts = useMemo(() => {
+    if (!groupDiff) return null;
+    let added = 0, changed = 0;
+    for (const a of annotations.byRowIndex.values()) {
+      if (a.status === 'added') added++;
+      else if (a.status === 'changed') changed++;
+    }
+    return { added, changed, removed: annotations.removedRows.length };
+  }, [groupDiff, annotations]);
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', minWidth: 0 }}>
@@ -179,6 +238,19 @@ function GroupTable({
         {hasLocaId && (
           <span style={{ fontSize: 11, color: 'var(--blue)', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: 99, border: '1px solid var(--accent-border)' }}>
             LOCA_ID clickable
+          </span>
+        )}
+        {counts && (
+          <span style={{ display: 'inline-flex', gap: 8, fontSize: 11 }}>
+            {counts.added > 0 && (
+              <span style={diffPillStyle('green')}>+{counts.added} added</span>
+            )}
+            {counts.changed > 0 && (
+              <span style={diffPillStyle('amber')}>~{counts.changed} changed</span>
+            )}
+            {counts.removed > 0 && (
+              <span style={diffPillStyle('red')}>−{counts.removed} removed</span>
+            )}
           </span>
         )}
         <input
@@ -208,35 +280,91 @@ function GroupTable({
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map((row, i) => (
-              <tr key={i}>
-                <td style={{ padding: '6px 12px', borderBottom: '1px solid var(--surface-muted)', color: 'var(--muted)', textAlign: 'right', fontSize: 10, background: 'var(--surface-muted)', fontFamily: 'monospace' }}>{i + 1}</td>
+            {filteredRows.map((row, i) => {
+              // i is the index within filteredRows; we need the original index for diff lookup
+              const originalIndex = group.rows.indexOf(row);
+              const ann = annotations.byRowIndex.get(originalIndex);
+              const rowBg = diffActive && ann ? diffRowBg(ann.status) : undefined;
+              const rowLeftBorder = diffActive && ann && ann.status !== 'unchanged'
+                ? `3px solid ${diffColor(ann.status)}` : undefined;
+              return (
+                <tr key={i} style={{ background: rowBg, boxShadow: rowLeftBorder ? `inset ${rowLeftBorder.split(' ').slice(2).join(' ')} 0 0 0 ${rowLeftBorder.split(' ')[0]}` : undefined }}>
+                  <td style={{
+                    padding: '6px 12px',
+                    borderBottom: '1px solid var(--surface-muted)',
+                    color: 'var(--muted)',
+                    textAlign: 'right',
+                    fontSize: 10,
+                    background: 'var(--surface-muted)',
+                    fontFamily: 'monospace',
+                    borderLeft: rowLeftBorder ?? undefined,
+                  }}>{i + 1}</td>
+                  {group.headings.map((h) => {
+                    const v = row[h.name];
+                    const isNull = v === null || v === undefined;
+                    const isNum = typeof v === 'number';
+                    const isLocaCell = hasLocaId && h.name === 'LOCA_ID' && !isNull;
+                    const cellChanged = !!ann && ann.changedFields.has(h.name);
+                    return (
+                      <td
+                        key={h.name}
+                        onClick={isLocaCell ? () => onLocaClick(String(v)) : undefined}
+                        style={{
+                          padding: '6px 12px',
+                          borderBottom: '1px solid var(--surface-muted)',
+                          borderRight: '1px solid var(--surface-muted)',
+                          verticalAlign: 'middle',
+                          whiteSpace: 'nowrap',
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          maxWidth: 260,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          textAlign: isNum ? 'right' : undefined,
+                          color: isNull ? 'var(--border-strong)' : isLocaCell ? 'var(--blue)' : isNum ? 'var(--text)' : undefined,
+                          cursor: isLocaCell ? 'pointer' : undefined,
+                          textDecoration: isLocaCell ? 'underline' : undefined,
+                          background: cellChanged ? 'var(--amber-soft)' : undefined,
+                          fontWeight: cellChanged ? 700 : undefined,
+                        }}
+                      >
+                        {isNull ? 'null' : String(v)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+            {/* Removed rows from the comparison file render as ghost rows at the bottom. */}
+            {diffActive && annotations.removedRows.length > 0 && annotations.removedRows.slice(0, 50).map((row, j) => (
+              <tr key={`removed-${j}`} style={{ background: 'var(--red-soft)', opacity: 0.7 }}>
+                <td style={{
+                  padding: '6px 12px',
+                  borderBottom: '1px solid var(--surface-muted)',
+                  color: 'var(--red)',
+                  textAlign: 'right',
+                  fontSize: 10,
+                  background: 'var(--red-soft)',
+                  fontFamily: 'monospace',
+                  borderLeft: `3px solid var(--red)`,
+                }}>−</td>
                 {group.headings.map((h) => {
                   const v = row[h.name];
                   const isNull = v === null || v === undefined;
-                  const isNum = typeof v === 'number';
-                  const isLocaCell = hasLocaId && h.name === 'LOCA_ID' && !isNull;
                   return (
-                    <td
-                      key={h.name}
-                      onClick={isLocaCell ? () => onLocaClick(String(v)) : undefined}
-                      style={{
-                        padding: '6px 12px',
-                        borderBottom: '1px solid var(--surface-muted)',
-                        borderRight: '1px solid var(--surface-muted)',
-                        verticalAlign: 'middle',
-                        whiteSpace: 'nowrap',
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        maxWidth: 260,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        textAlign: isNum ? 'right' : undefined,
-                        color: isNull ? 'var(--border-strong)' : isLocaCell ? 'var(--blue)' : isNum ? 'var(--text)' : undefined,
-                        cursor: isLocaCell ? 'pointer' : undefined,
-                        textDecoration: isLocaCell ? 'underline' : undefined,
-                      }}
-                    >
+                    <td key={h.name} style={{
+                      padding: '6px 12px',
+                      borderBottom: '1px solid var(--surface-muted)',
+                      borderRight: '1px solid var(--surface-muted)',
+                      whiteSpace: 'nowrap',
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      maxWidth: 260,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      textDecoration: 'line-through',
+                      color: 'var(--red)',
+                    }}>
                       {isNull ? 'null' : String(v)}
                     </td>
                   );
@@ -260,14 +388,81 @@ function GroupTable({
   );
 }
 
+// ── Diff styling helpers ─────────────────────────────────────────────────────
+
+function diffColor(status: RowStatus): string {
+  switch (status) {
+    case 'added':     return 'var(--green)';
+    case 'changed':   return 'var(--amber)';
+    case 'removed':   return 'var(--red)';
+    case 'unchanged': return 'transparent';
+  }
+}
+
+function diffRowBg(status: RowStatus): string | undefined {
+  switch (status) {
+    case 'added':     return 'var(--green-soft)';
+    case 'changed':   return 'var(--amber-soft)';
+    case 'removed':   return 'var(--red-soft)';
+    case 'unchanged': return undefined;
+  }
+}
+
+function diffPillStyle(tone: 'green' | 'amber' | 'red'): React.CSSProperties {
+  const bg = tone === 'green' ? 'var(--green-soft)' : tone === 'amber' ? 'var(--amber-soft)' : 'var(--red-soft)';
+  const fg = tone === 'green' ? 'var(--green)' : tone === 'amber' ? 'var(--amber)' : 'var(--red)';
+  return {
+    padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+    background: bg, color: fg, border: `1px solid ${fg}`,
+  };
+}
+
 // ── Main DataTab ──────────────────────────────────────────────────────────────
 
-export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
+export function DataTab({ fileBytes, fileName, pendingHoleRef, pendingGroupRef }: Props) {
   const [agsFile, setAgsFile] = useState<AgsFile | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [holeView, setHoleView] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Optional "compare against" file for inline diff highlighting.
+  const [compareFile, setCompareFile] = useState<AgsFile | null>(null);
+  const [compareFileName, setCompareFileName] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
+
+  // Recompute per-group diff whenever current/compare changes.
+  const diffByGroup = useMemo<Map<string, GroupDiff>>(() => {
+    if (!agsFile || !compareFile) return new Map();
+    try {
+      const result = diffFiles(compareFile, agsFile); // compare = "before", current = "after"
+      const map = new Map<string, GroupDiff>();
+      for (const g of result.group_diffs) map.set(g.group, g);
+      return map;
+    } catch {
+      return new Map();
+    }
+  }, [agsFile, compareFile]);
+
+  const onCompareFileChange = async (file: File | null) => {
+    setCompareError(null);
+    if (!file) {
+      setCompareFile(null);
+      setCompareFileName(null);
+      return;
+    }
+    try {
+      const buf = await file.arrayBuffer();
+      const text = decodeBytes(new Uint8Array(buf));
+      const parsed = parseStr(text);
+      setCompareFile(parsed.file);
+      setCompareFileName(file.name);
+    } catch (e) {
+      setCompareError(e instanceof Error ? e.message : String(e));
+      setCompareFile(null);
+      setCompareFileName(null);
+    }
+  };
 
   useEffect(() => {
     if (!fileBytes) {
@@ -280,7 +475,14 @@ export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
       const text = decodeBytes(fileBytes);
       const parsed = parseStr(text);
       setAgsFile(parsed.file);
-      setSelectedGroup(Object.keys(parsed.file.groups)[0] ?? null);
+      // Group navigation has priority over the default-first behaviour.
+      const pendingGroup = pendingGroupRef?.current ?? null;
+      if (pendingGroup && parsed.file.groups[pendingGroup]) {
+        pendingGroupRef!.current = null;
+        setSelectedGroup(pendingGroup);
+      } else {
+        setSelectedGroup(Object.keys(parsed.file.groups)[0] ?? null);
+      }
       setError(null);
       // Check for pending borehole navigation (e.g. from Map tab "View Data" click)
       const pendingId = pendingHoleRef?.current ?? null;
@@ -295,6 +497,20 @@ export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
       setAgsFile(null);
     }
   }, [fileBytes]);
+
+  // React to pendingGroupRef changes while the tab is already mounted.
+  // Re-runs on every render (no dep array) because pendingGroupRef.current
+  // is mutated externally; the conditional check makes this a no-op except
+  // when a new group has been queued.
+  useEffect(() => {
+    if (!agsFile || !pendingGroupRef?.current) return;
+    const g = pendingGroupRef.current;
+    if (agsFile.groups[g]) {
+      pendingGroupRef.current = null;
+      setSelectedGroup(g);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
 
   if (!fileBytes) {
     return (
@@ -390,13 +606,73 @@ export function DataTab({ fileBytes, fileName, pendingHoleRef }: Props) {
 
       {/* Data panel */}
       {group && selectedGroup ? (
-        <GroupTable
-          key={selectedGroup}
-          group={group}
-          groupName={selectedGroup}
-          fileName={fileName}
-          onLocaClick={(id) => setHoleView(id)}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+          {/* Compare-against toolbar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
+            background: compareFile ? 'var(--amber-soft)' : 'var(--card)',
+            border: `1px solid ${compareFile ? 'var(--amber-border)' : 'var(--border)'}`,
+            borderRadius: 'var(--radius)', fontSize: 12, flexWrap: 'wrap',
+          }}>
+            <span style={{ fontWeight: 700, color: compareFile ? 'var(--amber)' : 'var(--muted)' }}>
+              {compareFile ? 'Comparing against:' : 'Compare with:'}
+            </span>
+            {compareFile ? (
+              <>
+                <code style={{
+                  fontFamily: 'ui-monospace, monospace', fontSize: 12,
+                  background: 'var(--card)', padding: '2px 8px', borderRadius: 4,
+                  border: '1px solid var(--amber-border)',
+                }}>
+                  {compareFileName}
+                </code>
+                <span style={{ color: 'var(--muted)' }}>
+                  {diffByGroup.size} group{diffByGroup.size !== 1 ? 's' : ''} compared
+                </span>
+                <button
+                  onClick={() => { setCompareFile(null); setCompareFileName(null); }}
+                  style={{
+                    marginLeft: 'auto', padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                    background: 'transparent', border: '1px solid var(--amber-border)',
+                    borderRadius: 4, color: 'var(--amber)',
+                  }}
+                >
+                  Stop comparing
+                </button>
+              </>
+            ) : (
+              <>
+                <label style={{
+                  padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                  background: 'var(--accent-soft)', border: '1px solid var(--accent-border)',
+                  color: 'var(--accent)', borderRadius: 4, cursor: 'pointer',
+                }}>
+                  Load AGS file…
+                  <input
+                    type="file"
+                    accept=".ags,.xml"
+                    style={{ display: 'none' }}
+                    onChange={(e) => void onCompareFileChange(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <span style={{ color: 'var(--muted)', fontSize: 11 }}>
+                  …to see inline added / changed / removed rows.
+                </span>
+              </>
+            )}
+            {compareError && (
+              <span style={{ color: 'var(--red)', fontSize: 11 }}>{compareError}</span>
+            )}
+          </div>
+          <GroupTable
+            key={selectedGroup}
+            group={group}
+            groupName={selectedGroup}
+            fileName={fileName}
+            onLocaClick={(id) => setHoleView(id)}
+            groupDiff={diffByGroup.get(selectedGroup)}
+          />
+        </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--muted)', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
           Select a group from the left panel

@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { Option } from "effect";
 import {
   Format,
@@ -8,7 +8,11 @@ import {
   activateCustomDict,
   assessQuality,
   buildGiReport,
+  buildProjectSummary,
   decodeBytes,
+  applyConflictResolutions,
+  mergeAgsFilesN,
+  toAgsi,
   deactivateCustomDict,
   diffFiles,
   diffToSummary,
@@ -22,6 +26,7 @@ import {
   readDiggs,
   renderDiffText,
   renderExplorerFromBytes,
+  renderFactualReportHtml,
   renderGiReportJson,
   renderGiReportText,
   renderInfo,
@@ -57,6 +62,8 @@ export function run(argv: readonly string[] = process.argv.slice(2)): number {
   return result.exitCode;
 }
 
+export const CLI_VERSION = "0.1.0";
+
 export function runCli(argv: readonly string[]): RunResult {
   if (argv.length === 0) {
     return usageError("missing command");
@@ -86,8 +93,20 @@ export function runCli(argv: readonly string[]): RunResult {
       return runExport(argv.slice(1));
     case "enhance":
       return runEnhance(argv.slice(1));
+    case "stats":
+      return runStats(argv.slice(1));
+    case "merge":
+      return runMerge(argv.slice(1));
+    case "validate-dir":
+      return runValidateDir(argv.slice(1));
+    case "agsi":
+      return runAgsi(argv.slice(1));
     case "db":
       return runDb(argv.slice(1));
+    case "--version":
+    case "-V":
+    case "version":
+      return { exitCode: 0, stdout: `geoflow ${CLI_VERSION}\n`, stderr: "" };
     case "--help":
     case "-h":
     case "help":
@@ -564,15 +583,19 @@ function runReport(argv: readonly string[]): RunResult {
   }
 
   const file = argv[0]!;
-  let format: "text" | "json" = "text";
+  let format: "text" | "json" | "html" = "text";
   let outPath: string | null = null;
+  let includeLogs = true;
+  let includeTests = true;
 
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg === "--format") {
       const value = argv[++i];
       if (!value) return usageError("--format requires a value");
-      if (value !== "text" && value !== "json") return usageError(`unsupported format: ${value}`);
+      if (value !== "text" && value !== "json" && value !== "html") {
+        return usageError(`unsupported format: ${value}`);
+      }
       format = value;
       continue;
     }
@@ -580,6 +603,14 @@ function runReport(argv: readonly string[]): RunResult {
       const value = argv[++i];
       if (!value) return usageError("--out requires a path");
       outPath = value;
+      continue;
+    }
+    if (arg === "--no-logs") {
+      includeLogs = false;
+      continue;
+    }
+    if (arg === "--no-tests") {
+      includeTests = false;
       continue;
     }
     return usageError(`unknown report option: ${arg}`);
@@ -590,8 +621,18 @@ function runReport(argv: readonly string[]): RunResult {
     const bytes = readFileSync(resolved);
     const text = decodeBytes(bytes);
     const { file: agsFile } = parseStr(text);
-    const report = buildGiReport(agsFile);
-    const output = format === "json" ? renderGiReportJson(report) : renderGiReportText(report, resolved);
+
+    let output: string;
+    if (format === "html") {
+      output = renderFactualReportHtml(agsFile, {
+        sourcePath: resolved,
+        includeStripLogs: includeLogs,
+        includeTests,
+      });
+    } else {
+      const report = buildGiReport(agsFile);
+      output = format === "json" ? renderGiReportJson(report) : renderGiReportText(report, resolved);
+    }
 
     if (outPath !== null) {
       const resolvedOut = resolve(outPath);
@@ -712,6 +753,376 @@ function runExport(argv: readonly string[]): RunResult {
       const resolvedOut = resolve(outPath);
       writeFileSync(resolvedOut, output);
       return { exitCode: 0, stdout: `exported ${groupName} to ${resolvedOut}\n`, stderr: "" };
+    }
+    return { exitCode: 0, stdout: output, stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function runStats(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("stats requires a file path");
+  }
+
+  const file = argv[0]!;
+  let format: "text" | "json" = "text";
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--format") {
+      const value = argv[++i];
+      if (!value) return usageError("--format requires a value");
+      if (value !== "text" && value !== "json") return usageError(`unsupported format: ${value}`);
+      format = value;
+      continue;
+    }
+    return usageError(`unknown stats option: ${arg}`);
+  }
+
+  try {
+    const resolved = resolve(file);
+    const bytes = readFileSync(resolved);
+    const text = decodeBytes(bytes);
+    const { file: agsFile } = parseStr(text);
+    const summary = buildProjectSummary(agsFile);
+
+    if (format === "json") {
+      const payload = {
+        source: resolved,
+        groups: summary.totals.groups,
+        boreholes: summary.totals.boreholes,
+        total_metres: round(summary.depth.totalMetres, 2),
+        mean_depth_m: round(summary.depth.meanDepthM, 2),
+        max_depth_m: round(summary.depth.maxDepthM, 2),
+        strata: summary.totals.strata,
+        samples: summary.totals.samples,
+        spt_tests: summary.totals.sptTests,
+        water_strikes: summary.totals.waterStrikes,
+        hole_types: summary.holeTypes,
+        units: summary.units.map((u) => ({
+          code: u.code,
+          occurrences: u.occurrences,
+          total_thickness_m: round(u.totalThicknessM, 2),
+          mean_thickness_m: round(u.meanThicknessM, 2),
+          in_holes: u.inHoles,
+        })),
+      };
+      return { exitCode: 0, stdout: JSON.stringify(payload, null, 2) + "\n", stderr: "" };
+    }
+
+    const lines: string[] = [];
+    lines.push(`file:                 ${resolved}`);
+    if (summary.project.projName) lines.push(`project:              ${summary.project.projName}`);
+    if (summary.project.projId)   lines.push(`project id:           ${summary.project.projId}`);
+    lines.push(`groups:               ${summary.totals.groups}`);
+    lines.push(`boreholes:            ${summary.totals.boreholes}`);
+    lines.push(`total metres drilled: ${round(summary.depth.totalMetres, 2)}`);
+    lines.push(`mean / max depth:     ${round(summary.depth.meanDepthM, 2)} m  /  ${round(summary.depth.maxDepthM, 2)} m`);
+    lines.push(`strata logged:        ${summary.totals.strata}`);
+    lines.push(`samples:              ${summary.totals.samples}`);
+    lines.push(`SPT tests:            ${summary.totals.sptTests}`);
+    lines.push(`water strikes:        ${summary.totals.waterStrikes}`);
+    const holeTypeEntries = Object.entries(summary.holeTypes);
+    if (holeTypeEntries.length > 0) {
+      lines.push("hole types:");
+      for (const [t, n] of holeTypeEntries) lines.push(`  ${t.padEnd(8)} ${n}`);
+    }
+    if (summary.units.length > 0) {
+      lines.push("top units (by total thickness):");
+      for (const u of summary.units.slice(0, 8)) {
+        lines.push(`  ${u.code.padEnd(8)} ${u.occurrences.toString().padStart(3)} layers · ${round(u.totalThicknessM, 1).toString().padStart(6)} m · in ${u.inHoles} hole(s)`);
+      }
+    }
+    lines.push("");
+    return { exitCode: 0, stdout: lines.join("\n"), stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function round(n: number, dp: number): number {
+  const m = Math.pow(10, dp);
+  return Math.round(n * m) / m;
+}
+
+// ── merge ───────────────────────────────────────────────────────────────────
+
+function runMerge(argv: readonly string[]): RunResult {
+  const positional: string[] = [];
+  let outPath: string | null = null;
+  let onConflict: "ours" | "theirs" | "abort" = "theirs";
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--out") {
+      const value = argv[++i];
+      if (!value) return usageError("--out requires a path");
+      outPath = value;
+      continue;
+    }
+    if (arg === "--on-conflict") {
+      const value = argv[++i];
+      if (!value) return usageError("--on-conflict requires a value");
+      if (value !== "ours" && value !== "theirs" && value !== "abort") {
+        return usageError(`unsupported --on-conflict value: ${value}`);
+      }
+      onConflict = value;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      return usageError(`unknown merge option: ${arg}`);
+    }
+    positional.push(arg);
+  }
+
+  if (positional.length < 2) {
+    return usageError("merge requires at least two input file paths");
+  }
+
+  try {
+    const files = positional.map((p) => {
+      const r = resolve(p);
+      const bytes = readFileSync(r);
+      return { path: r, file: parseStr(decodeBytes(bytes)).file };
+    });
+
+    const { merged, conflicts } = mergeAgsFilesN(files.map((f) => f.file));
+
+    if (conflicts.length > 0 && onConflict === "abort") {
+      let stderr = `${conflicts.length} merge conflict(s); aborted (use --on-conflict ours|theirs to override).\n`;
+      for (const c of conflicts.slice(0, 10)) {
+        stderr += `  ${c.group} ${JSON.stringify(c.primaryKey)}\n`;
+      }
+      if (conflicts.length > 10) stderr += `  …and ${conflicts.length - 10} more\n`;
+      return { exitCode: 1, stdout: "", stderr };
+    }
+
+    // If user picked "ours", re-apply oursRow over the auto-resolved theirs.
+    const resolved = onConflict === "ours"
+      ? applyOursResolutionsToMerged(merged, conflicts)
+      : merged;
+
+    const output = serialize(resolved);
+    let stdout = "";
+    if (outPath !== null) {
+      const r = resolve(outPath);
+      writeFileSync(r, output);
+      stdout += `merged ${files.length} file(s) into ${r}\n`;
+    } else {
+      stdout = output;
+    }
+    if (conflicts.length > 0) {
+      const note = `  ${conflicts.length} conflict(s) auto-resolved with "${onConflict}".\n`;
+      if (outPath !== null) stdout += note;
+      else process.stderr.write(note);
+    }
+    return { exitCode: 0, stdout, stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function applyOursResolutionsToMerged(
+  merged: ReturnType<typeof mergeAgsFilesN>["merged"],
+  conflicts: ReturnType<typeof mergeAgsFilesN>["conflicts"],
+): ReturnType<typeof mergeAgsFilesN>["merged"] {
+  if (conflicts.length === 0) return merged;
+  const withOurs = conflicts.map((c) => ({ ...c, resolvedRow: c.oursRow }));
+  return applyConflictResolutions(merged, withOurs);
+}
+
+// ── validate-dir ────────────────────────────────────────────────────────────
+
+function runValidateDir(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("validate-dir requires a directory path");
+  }
+
+  let dir: string | null = null;
+  let format: "text" | "json" = "text";
+  let failOn = Severity.Error;
+  let recursive = true;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--format") {
+      const value = argv[++i];
+      if (!value) return usageError("--format requires a value");
+      if (value !== "text" && value !== "json") return usageError(`unsupported format: ${value}`);
+      format = value;
+      continue;
+    }
+    if (arg === "--fail-on") {
+      const value = argv[++i];
+      if (!value) return usageError("--fail-on requires a value");
+      const parsed = parseSeverity(value);
+      if (parsed === null) return usageError(`unsupported fail-on severity: ${value}`);
+      failOn = parsed;
+      continue;
+    }
+    if (arg === "--no-recursive") {
+      recursive = false;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      return usageError(`unknown validate-dir option: ${arg}`);
+    }
+    if (dir !== null) {
+      return usageError("validate-dir takes a single directory path");
+    }
+    dir = arg;
+  }
+  if (dir === null) return usageError("validate-dir requires a directory path");
+
+  try {
+    const resolved = resolve(dir);
+    const files = listAgsFiles(resolved, recursive);
+    if (files.length === 0) {
+      return {
+        exitCode: 0,
+        stdout: format === "json" ? "[]\n" : `no .ags files found under ${resolved}\n`,
+        stderr: "",
+      };
+    }
+
+    interface FileResult {
+      file: string;
+      errors: number;
+      warnings: number;
+      infos: number;
+      exitCode: number;
+    }
+    const results: FileResult[] = [];
+    const threshold = severityRank(failOn);
+
+    for (const f of files) {
+      try {
+        const bytes = readFileSync(f);
+        const r = validateFileBytes(bytes, f, { format: Format.Json, failOn });
+        let errors = 0, warnings = 0, infos = 0;
+        for (const d of r.diagnostics) {
+          if (d.severity === Severity.Error) errors++;
+          else if (d.severity === Severity.Warning) warnings++;
+          else infos++;
+        }
+        results.push({
+          file: f,
+          errors,
+          warnings,
+          infos,
+          exitCode: r.diagnostics.some((d) => severityRank(d.severity) >= threshold) ? 1 : 0,
+        });
+      } catch {
+        results.push({
+          file: f,
+          errors: 1,
+          warnings: 0,
+          infos: 0,
+          exitCode: 2,
+        });
+      }
+    }
+
+    const overallExit = results.some((r) => r.exitCode !== 0) ? 1 : 0;
+
+    if (format === "json") {
+      const payload = {
+        directory: resolved,
+        files_checked: results.length,
+        overall_exit_code: overallExit,
+        results,
+      };
+      return { exitCode: overallExit, stdout: JSON.stringify(payload, null, 2) + "\n", stderr: "" };
+    }
+
+    const lines: string[] = [];
+    lines.push(`Validating ${results.length} file(s) under ${resolved}:`);
+    lines.push("");
+    let pass = 0, fail = 0;
+    for (const r of results) {
+      const tag = r.exitCode === 0 ? "✓" : r.exitCode === 1 ? "✗" : "!";
+      const counts = `${r.errors}E ${r.warnings}W ${r.infos}I`;
+      lines.push(`  ${tag} ${counts.padEnd(12)} ${r.file}`);
+      if (r.exitCode === 0) pass++; else fail++;
+    }
+    lines.push("");
+    lines.push(`summary: ${pass} pass, ${fail} fail`);
+    lines.push("");
+    return { exitCode: overallExit, stdout: lines.join("\n"), stderr: "" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { exitCode: 2, stdout: "", stderr: `${message}\n` };
+  }
+}
+
+function listAgsFiles(root: string, recursive: boolean): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      const p = join(dir, name);
+      let s;
+      try {
+        s = statSync(p);
+      } catch {
+        continue;
+      }
+      if (s.isDirectory()) {
+        if (recursive) walk(p);
+      } else if (s.isFile() && name.toLowerCase().endsWith(".ags")) {
+        out.push(p);
+      }
+    }
+  };
+  walk(root);
+  return out.sort();
+}
+
+// ── agsi ────────────────────────────────────────────────────────────────────
+
+function runAgsi(argv: readonly string[]): RunResult {
+  if (argv.length === 0) {
+    return usageError("agsi requires a file path");
+  }
+
+  const file = argv[0]!;
+  let outPath: string | null = null;
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg === "--out") {
+      const value = argv[++i];
+      if (!value) return usageError("--out requires a path");
+      outPath = value;
+      continue;
+    }
+    return usageError(`unknown agsi option: ${arg}`);
+  }
+
+  try {
+    const resolved = resolve(file);
+    const bytes = readFileSync(resolved);
+    const { file: agsFile } = parseStr(decodeBytes(bytes));
+    const doc = toAgsi(agsFile);
+    const output = JSON.stringify(doc, null, 2) + "\n";
+
+    if (outPath !== null) {
+      const r = resolve(outPath);
+      writeFileSync(r, output);
+      return {
+        exitCode: 0,
+        stdout: `AGSi exported to ${r} (${doc.modelInstances.length} model instances, ${doc.geologicalUnits.length} units)\n`,
+        stderr: "",
+      };
     }
     return { exitCode: 0, stdout: output, stderr: "" };
   } catch (error) {
@@ -892,7 +1303,7 @@ function runDbIngest(argv: readonly string[]): RunResult {
   }
   const [agsFile, dbFile] = [argv[0]!, argv[1]!];
   try {
-    const { openDb } = await_import_db();
+    const { openDb } = getDbModule();
     const { decodeBytes: dec, parseStr: pStr } = { decodeBytes, parseStr };
     const bytes = readFileSync(resolve(agsFile));
     const { file } = pStr(dec(bytes));
@@ -933,7 +1344,7 @@ function runDbQuery(argv: readonly string[]): RunResult {
   if (!groupName) return usageError("db query requires --group <name>");
 
   try {
-    const { openDb } = await_import_db();
+    const { openDb } = getDbModule();
     const db = openDb(resolve(dbFile));
     try {
       const result = db.queryGroup(groupName);
@@ -958,7 +1369,7 @@ function runDbList(argv: readonly string[]): RunResult {
   const dbFile = argv[0];
   if (!dbFile) return usageError("db list requires <db-file>");
   try {
-    const { openDb } = await_import_db();
+    const { openDb } = getDbModule();
     const db = openDb(resolve(dbFile));
     try {
       const imports = db.listImports();
@@ -979,7 +1390,7 @@ function runDbList(argv: readonly string[]): RunResult {
   }
 }
 
-function await_import_db(): { openDb: (path: string) => GeoflowDb } {
+function getDbModule(): { openDb: (path: string) => GeoflowDb } {
   return dbModule;
 }
 
@@ -1010,10 +1421,14 @@ function usageText(): string {
     "  geoflow info <file>",
     "  geoflow fix <file> [--write] [--diff-file <path>]",
     "  geoflow validate <file> [--format text|json|junit] [--fail-on error|warning|info] [--rules <pack.yml>] [--dict <dict.yml>]",
+    "  geoflow validate-dir <dir> [--format text|json] [--fail-on error|warning|info] [--no-recursive]",
+    "  geoflow merge <file1> <file2> [<file3>...] [--out <path>] [--on-conflict ours|theirs|abort]",
+    "  geoflow agsi <file> [--out <path>]",
     "  geoflow convert <in> <out> [--to ags|diggs]",
     "  geoflow diff <file-a> <file-b> [--format text|json]",
     "  geoflow quality <file> [--format text|json] [--fail-on error|warning|info]",
-    "  geoflow report <file> [--format text|json] [--out <path>]",
+    "  geoflow stats <file> [--format text|json]",
+    "  geoflow report <file> [--format text|json|html] [--out <path>] [--no-logs] [--no-tests]",
     "  geoflow export <file> --group <name> [--format csv|tsv] [--out <path>]",
     "  geoflow export <file> --format geojson [--crs EPSG:27700] [--out <path>]",
     "  geoflow explore <file> [--out <path>]",
@@ -1024,6 +1439,9 @@ function usageText(): string {
     "  geoflow db ingest <ags-file> <db-file>",
     "  geoflow db query --db <db-file> --group <name>",
     "  geoflow db list <db-file>",
+    "",
+    "  geoflow --version    Print version",
+    "  geoflow --help       Print this help",
     "",
   ].join("\n");
 }

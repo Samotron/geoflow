@@ -9,7 +9,6 @@
  *            →  return Geo3DModel ready for Three.js rendering
  */
 
-import { Option } from 'effect';
 import type { AgsFile, AgsRow } from './model.js';
 import { ThinPlateSurface, RbfSurface } from './rbf.js';
 import type { Pt3 } from './rbf.js';

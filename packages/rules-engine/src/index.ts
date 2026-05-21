@@ -1,10 +1,11 @@
 import Jexl from "jexl";
 import { parse as parseYaml } from "yaml";
-import {
+import type {
   AgsFile,
   AgsRow,
-  AgsTypeFunctions,
-  AgsValue,
+  AgsValue} from "@geoflow/core";
+import {
+  AgsTypeFunctions
 } from "@geoflow/core";
 import {
   CHECK_KINDS,

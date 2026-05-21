@@ -1,6 +1,7 @@
 import { Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { Diagnostic, Severity } from "./diagnostics.js";
+import type { Diagnostic} from "./diagnostics.js";
+import { Severity } from "./diagnostics.js";
 import { Format, render } from "./render.js";
 
 function sampleDiagnostics(): Diagnostic[] {

@@ -65,32 +65,10 @@ export function ParametersStep({ file, model, onChange, onNext }: ParametersStep
   const [activeLayer, setActiveLayer] = useState<string | null>(model.layers[0]?.id ?? null);
   const layer = model.layers.find((l) => l.id === activeLayer) ?? model.layers[0] ?? null;
 
-  if (!layer) {
-    return (
-      <div style={{ padding: 24, color: 'var(--muted)' }}>
-        Add at least one layer in the Layers step before assigning parameters.
-      </div>
-    );
-  }
-
-  const updateParam = (key: string, patch: Partial<ParameterValue>) => {
-    const layers = model.layers.map((l) => {
-      if (l.id !== layer.id) return l;
-      return {
-        ...l,
-        parameters: l.parameters.map((p) => (p.key === key ? { ...p, ...patch } : p)),
-      };
-    });
-    void onChange({ ...model, layers });
-  };
-
-  const updateUserDensities = (next: UserDensityEntry[]) => {
-    void onChange({ ...model, userDensities: next });
-  };
-
   // Bundle channel samples filtered to the active layer's RL window so we
   // can compute correlations and surface them next to each parameter.
   const layerSamples = useMemo(() => {
+    if (!layer) return { spt: [], mc: [], ll: [], pl: [], pi: [], bulkDensity: [], dryDensity: [], cu: [] };
     const inRange = (key: ChannelKey) => samplesInRange(allChannels.get(key) ?? [], layer.topRL, layer.baseRL);
     return {
       spt: inRange('spt_n'),
@@ -102,16 +80,18 @@ export function ParametersStep({ file, model, onChange, onNext }: ParametersStep
       dryDensity: inRange('dry_density'),
       cu: inRange('cu'),
     };
-  }, [allChannels, layer.topRL, layer.baseRL]);
+  }, [allChannels, layer]);
 
   // Fold user-entered density measurements that fall inside the layer into
   // the bulk density bundle so correlations pick them up.
   const userDensitiesInLayer = useMemo(() => {
+    if (!layer) return [];
     const list = model.userDensities ?? [];
     return list.filter((d) => d.rl <= Math.max(layer.topRL, layer.baseRL) && d.rl >= Math.min(layer.topRL, layer.baseRL));
-  }, [model.userDensities, layer.topRL, layer.baseRL]);
+  }, [model.userDensities, layer]);
 
   const correlations = useMemo<CorrelationResult[]>(() => {
+    if (!layer) return [];
     const family: 'granular' | 'cohesive' | 'unknown' = inferFamilyFromUnit(layer.unitKey, layer.description);
     // Fold user density entries into the bulkDensity / dryDensity arrays so
     // the inputs builder considers them.
@@ -146,7 +126,30 @@ export function ParametersStep({ file, model, onChange, onNext }: ParametersStep
       },
     );
     return runCorrelations(inputs);
-  }, [layer.topRL, layer.baseRL, layer.unitKey, layer.description, layerSamples, userDensitiesInLayer, meanGL]);
+  }, [layer, layerSamples, userDensitiesInLayer, meanGL]);
+
+  if (!layer) {
+    return (
+      <div style={{ padding: 24, color: 'var(--muted)' }}>
+        Add at least one layer in the Layers step before assigning parameters.
+      </div>
+    );
+  }
+
+  const updateParam = (key: string, patch: Partial<ParameterValue>) => {
+    const layers = model.layers.map((l) => {
+      if (l.id !== layer.id) return l;
+      return {
+        ...l,
+        parameters: l.parameters.map((p) => (p.key === key ? { ...p, ...patch } : p)),
+      };
+    });
+    void onChange({ ...model, layers });
+  };
+
+  const updateUserDensities = (next: UserDensityEntry[]) => {
+    void onChange({ ...model, userDensities: next });
+  };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 16, alignItems: 'flex-start' }}>

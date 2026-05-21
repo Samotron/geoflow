@@ -11,7 +11,7 @@
  *     (surfaces are null — only one occurrence each — but model is not null)
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page as PWPage } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -21,7 +21,9 @@ const BASE     = '/geoflow/';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-type Page = import('@playwright/test').Page;
+type Page = PWPage;
+
+// (Page aliased to avoid colliding with DOM lib globals)
 
 async function uploadFixture(page: Page): Promise<void> {
   await page.setInputFiles('input[type="file"]', FIXTURE);

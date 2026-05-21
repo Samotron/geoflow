@@ -1,9 +1,12 @@
 import { useState, useCallback, useEffect, useRef, useMemo, type DragEvent, type ReactNode } from 'react';
 import { Option } from 'effect';
-import type { TabId, PackDiagnostic } from './types.js';
+import type { TabId } from './types.js';
 import { parseStr, decodeBytes, serialize } from './core.js';
 import type { AgsFile, AgsGroup } from './core.js';
 import { InspectTab } from './tabs/InspectTab.js';
+import { OverviewTab } from './tabs/OverviewTab.js';
+import { SearchTab } from './tabs/SearchTab.js';
+import { FieldTestsTab } from './tabs/FieldTestsTab.js';
 import { ConvertTab } from './tabs/ConvertTab.js';
 import { DataTab } from './tabs/DataTab.js';
 import { DiffTab } from './tabs/DiffTab.js';
@@ -406,6 +409,9 @@ function Icon({ d, size = 18 }: { d: string; size?: number }) {
 }
 
 const ICONS: Record<TabId, ReactNode> = {
+  overview: <Icon d="M4 4h7v7H4z M13 4h7v4h-7z M13 10h7v10h-7z M4 13h7v7H4z" />,
+  search: <Icon d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1114 9.5 4.5 4.5 0 019.5 14z" />,
+  'field-tests': <Icon d="M9 3v2H7v14h2v2h6v-2h2V5h-2V3H9z M9 7h6 M9 11h6 M9 15h6" />,
   inspect: <Icon d="M11 4a7 7 0 015.74 11.01l3.62 3.62a1 1 0 01-1.41 1.41l-3.62-3.62A7 7 0 1111 4zm0 2a5 5 0 100 10 5 5 0 000-10z" />,
   data: <Icon d="M3 5h18M3 12h18M3 19h18M9 5v14M15 5v14" />,
   edit: <Icon d="M4 20h4l10.5-10.5a2.83 2.83 0 00-4-4L4 16v4z M13.5 6.5l4 4" />,
@@ -434,8 +440,10 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'Review',
     items: [
+      { id: 'overview', label: 'Overview' },
       { id: 'inspect', label: 'Inspect' },
       { id: 'data', label: 'Data' },
+      { id: 'search', label: 'Search' },
       { id: 'edit', label: 'Edit' },
     ],
   },
@@ -458,6 +466,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'rules', label: 'Rules' },
       { id: 'describe', label: 'Describe' },
       { id: 'cpt', label: 'CPT' },
+      { id: 'field-tests', label: 'Field Tests' },
       { id: 'correlations', label: 'Correlations' },
     ],
   },
@@ -477,7 +486,7 @@ const TABS_NEED_FILE = new Set<TabId>(ALL_TAB_IDS.filter((t) => t !== 'diff' && 
 
 function hashTab(): TabId {
   const hash = window.location.hash.replace('#', '') as TabId;
-  return ALL_TAB_IDS.includes(hash) ? hash : 'inspect';
+  return ALL_TAB_IDS.includes(hash) ? hash : 'overview';
 }
 
 interface LoadedFile { name: string; bytes: Uint8Array }
@@ -745,6 +754,8 @@ export default function App() {
   const [showProjectManager, setShowProjectManager] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const pendingHoleRef = useRef<string | null>(null);
+  // Search "View" button asks DataTab to focus a specific group when next mounted.
+  const pendingGroupRef = useRef<string | null>(null);
   // Tracks the last committed AgsFile so edit deltas are computed incrementally.
   const lastCommittedFileRef = useRef<AgsFile | null>(null);
 
@@ -1090,8 +1101,20 @@ export default function App() {
             </div>
           ) : (!hasFile && TABS_NEED_FILE.has(tab)) ? welcomePane : (
             <div style={{ padding: '20px 24px 32px' }}>
+              {tab === 'overview' && <OverviewTab fileBytes={fileBytes} fileName={fileName} />}
               {tab === 'inspect' && <InspectTab fileBytes={fileBytes} fileName={fileName} />}
-              {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} />}
+              {tab === 'data' && <DataTab fileBytes={fileBytes} fileName={fileName} pendingHoleRef={pendingHoleRef} pendingGroupRef={pendingGroupRef} />}
+              {tab === 'search' && (
+                <SearchTab
+                  fileBytes={fileBytes}
+                  projectId={currentProject?.id ?? null}
+                  onJumpToRow={(group) => {
+                    pendingGroupRef.current = group;
+                    switchTab('data');
+                  }}
+                />
+              )}
+              {tab === 'field-tests' && <FieldTestsTab fileBytes={fileBytes} />}
               {/* EditTab stays mounted to preserve edit session state across tab switches */}
               <div style={{ display: tab === 'edit' ? 'block' : 'none' }}>
                 <EditTab

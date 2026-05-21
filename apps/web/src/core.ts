@@ -55,6 +55,14 @@ export {
   locationsToGeoJson,
   representativeGroundModel,
   availableUnitKeyFields,
+  buildProjectSummary,
+  toAgsi,
+  toAgsiJson,
+  mergeAgsFiles,
+  mergeAgsFilesN,
+  applyConflictResolutions,
+  renderFactualReportHtml,
+  buildTestTables,
 } from '@geoflow/core';
 
 export type {
@@ -140,4 +148,16 @@ export type {
   RepresentativeLayer,
   RepresentativeGroundModel,
   RepresentativeGroundModelOptions,
+  ProjectSummary,
+  ProjectMeta,
+  HoleScheduleEntry,
+  UnitSummaryEntry,
+  DepthDistribution,
+  AgsiExportDocument,
+  AgsiModelInstance,
+  AgsiGeologicalUnit,
+  MergeResult,
+  MergeConflict,
+  FactualReportOptions,
+  TestTable,
 } from '@geoflow/core';

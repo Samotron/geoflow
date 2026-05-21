@@ -1,4 +1,3 @@
-import { Option } from "effect";
 import { describe, expect, it } from "vitest";
 import { parseStr } from "./ags/parser.js";
 import { assessQuality, renderQualityJson, renderQualityText } from "./quality.js";

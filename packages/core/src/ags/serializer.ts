@@ -1,4 +1,5 @@
-import { AgsFile, AgsType, AgsValue, AgsTypeFunctions } from "../model.js";
+import type { AgsFile, AgsType, AgsValue} from "../model.js";
+import { AgsTypeFunctions } from "../model.js";
 
 /**
  * Serialize an AgsFile back to AGS 4.x text.

@@ -89,19 +89,6 @@ async function fetchBatchOpenElevation(
   return json.results.map(r => r.elevation ?? NaN);
 }
 
-async function fetchBatch(
-  points: Array<[number, number]>,
-  signal?: AbortSignal,
-): Promise<number[]> {
-  try {
-    return await fetchBatchOpenTopoData(points, signal);
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') throw err;
-    // Network / CORS / 5xx — try the fallback provider once
-    return await fetchBatchOpenElevation(points, signal);
-  }
-}
-
 /**
  * Fetch a SRTM 30m topo grid from opentopodata.org covering the model
  * extent plus a 30% margin.  Returns null if coordinates cannot be

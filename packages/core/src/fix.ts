@@ -1,6 +1,7 @@
 import { serialize } from "./ags/serializer.js";
 import { decodeBytes, parseStr } from "./ags/parser.js";
-import { AgsFile, AgsGroup, AgsHeading, AgsType, AgsTypeFunctions, AgsValue } from "./model.js";
+import type { AgsFile, AgsGroup, AgsValue } from "./model.js";
+import { AgsTypeFunctions } from "./model.js";
 import { Option } from "effect";
 
 export type FixChangeKind = "cell_value" | "heading_unit" | "heading_name" | "group_added";
